@@ -135,7 +135,8 @@ export interface IStorage {
     monthlyRevenue: number;
     unpaidBalance: number;
   };
-  seedData(): void;
+  seedReferenceData(): void;
+  seedDemoData(): void;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -450,145 +451,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ===== SEED DATA =====
-  seedData() {
-    const existing = db.select().from(customers).all();
-    if (existing.length > 0) return;
-
-    // Users
-    db.insert(users).values([
-      { username: 'admin', password: 'admin', fullName: 'System Admin', role: 'admin', email: 'admin@repairco.com' },
-      { username: 'estimator', password: 'est', fullName: 'Mike Torres', role: 'estimator', email: 'mike@repairco.com' },
-      { username: 'tech', password: 'tech', fullName: 'James Wilson', role: 'technician', email: 'james@repairco.com' },
-    ]).run();
-
-    // Customers
-    const custData = [
-      { customerNumber: 'CUST-001', firstName: 'Robert', lastName: 'Chen', customerType: 'retail', email: 'rchen@email.com', phone: '208-555-0142', mobile: '208-555-0143', address: '1425 W State St', city: 'Boise', state: 'ID', zip: '83702', referralSource: 'Google', status: 'active' },
-      { customerNumber: 'CUST-002', companyName: 'Boise Ford Lincoln', customerType: 'dealership', email: 'service@boiseford.com', phone: '208-555-0199', address: '1000 E Automall Dr', city: 'Boise', state: 'ID', zip: '83716', referralSource: 'Cold call', status: 'active' },
-      { customerNumber: 'CUST-003', companyName: 'State Farm Insurance', customerType: 'insurance', email: 'claims@statefarm.com', phone: '208-555-0300', address: '500 W Front St', city: 'Boise', state: 'ID', zip: '83702', status: 'active' },
-      { customerNumber: 'CUST-004', firstName: 'Sarah', lastName: 'Mitchell', customerType: 'retail', email: 'sarah.m@email.com', phone: '208-555-0177', mobile: '208-555-0178', address: '842 Park Hill Dr', city: 'Meridian', state: 'ID', zip: '83646', referralSource: 'Referral', status: 'active' },
-      { customerNumber: 'CUST-005', companyName: 'Sun Valley RV Resort', customerType: 'commercial', email: 'manager@sunvalleyrv.com', phone: '208-555-0420', address: '200 RV Park Rd', city: 'Boise', state: 'ID', zip: '83709', status: 'active' },
-      { customerNumber: 'CUST-006', companyName: 'Idaho Boat Works', customerType: 'commercial', email: 'service@idahoboat.com', phone: '208-555-0510', address: '1500 Dock Rd', city: 'Nampa', state: 'ID', zip: '83686', status: 'active' },
-      { customerNumber: 'CUST-007', firstName: 'David', lastName: 'Kowalski', customerType: 'fleet', companyName: 'Kowalski Fleet Services', email: 'dave@kowalskifleet.com', phone: '208-555-0680', address: '300 Industrial Blvd', city: 'Boise', state: 'ID', zip: '83707', status: 'active' },
-      { customerNumber: 'CUST-008', companyName: 'The Grove Hotel', customerType: 'commercial', email: 'facilities@grovehotel.com', phone: '208-555-0750', address: '245 S Capitol Blvd', city: 'Boise', state: 'ID', zip: '83702', status: 'active' },
-      { customerNumber: 'CUST-009', firstName: 'Jennifer', lastName: 'Alvarez', customerType: 'retail', email: 'jen.alvarez@email.com', phone: '208-555-0922', address: '1700 N Warm Springs', city: 'Boise', state: 'ID', zip: '83712', referralSource: 'Facebook', status: 'active' },
-      { customerNumber: 'CUST-010', companyName: 'Treasure Valley Dodge', customerType: 'dealership', email: 'service@tvdodge.com', phone: '208-555-1000', address: '950 E Fairview Ave', city: 'Meridian', state: 'ID', zip: '83642', status: 'active' },
-    ];
-    const createdCustomers = custData.map(c => db.insert(customers).values(c as any).returning().get());
-
-    // Contacts
-    db.insert(contacts).values([
-      { customerId: createdCustomers[1].id, name: 'Tom Bradley', title: 'Service Manager', email: 'tom@boiseford.com', phone: '208-555-0199', isPrimary: 1 },
-      { customerId: createdCustomers[2].id, name: 'Lisa Park', title: 'Claims Adjuster', email: 'lpark@statefarm.com', phone: '208-555-0301', isPrimary: 1 },
-      { customerId: createdCustomers[4].id, name: 'Frank Daly', title: 'Operations Manager', email: 'frank@sunvalleyrv.com', phone: '208-555-0421', isPrimary: 1 },
-      { customerId: createdCustomers[5].id, name: 'Karen Moss', title: 'Owner', email: 'karen@idahoboat.com', phone: '208-555-0511', isPrimary: 1 },
-      { customerId: createdCustomers[6].id, name: 'David Kowalski', title: 'Owner', email: 'dave@kowalskifleet.com', phone: '208-555-0680', isPrimary: 1 },
-      { customerId: createdCustomers[7].id, name: 'Maria Santos', title: 'Facilities Director', email: 'maria@grovehotel.com', phone: '208-555-0751', isPrimary: 1 },
-      { customerId: createdCustomers[9].id, name: 'Steve Holt', title: 'GM', email: 'steve@tvdodge.com', phone: '208-555-1001', isPrimary: 1 },
-    ]).run();
-
-    // Vehicles
-    db.insert(vehicles).values([
-      { customerId: createdCustomers[0].id, vin: '1HGCM82633A123456', year: '2021', make: 'Honda', model: 'Accord', trim: 'EX-L', bodyClass: 'Sedan', color: 'Silver', engineInfo: '1.5L I4 Gasoline', fuelType: 'Gasoline', plantCountry: 'United States (USA)', licensePlate: 'IDA-1234', vehicleType: 'auto' },
-      { customerId: createdCustomers[3].id, vin: '5TFAY5F12LX987654', year: '2023', make: 'Toyota', model: 'Tundra', trim: 'SR5', bodyClass: 'Pickup', color: 'Black', engineInfo: '3.5L V6 Gasoline', fuelType: 'Gasoline', plantCountry: 'United States (USA)', licensePlate: 'IDB-5678', vehicleType: 'truck' },
-      { customerId: createdCustomers[1].id, vin: '1FTFW1ET5DFK456789', year: '2022', make: 'Ford', model: 'F-150', trim: 'XLT', bodyClass: 'Pickup', color: 'Blue', engineInfo: '5.0L V8 Gasoline', fuelType: 'Gasoline', plantCountry: 'United States (USA)', licensePlate: 'IDC-9012', vehicleType: 'auto' },
-      { customerId: createdCustomers[1].id, vin: '1FAHP3K2XDG111111', year: '2022', make: 'Ford', model: 'Edge', trim: 'SEL', bodyClass: 'SUV', color: 'White', engineInfo: '2.0L I4 Turbo', fuelType: 'Gasoline', plantCountry: 'United States (USA)', vehicleType: 'auto' },
-      { customerId: createdCustomers[5].id, vin: 'MARINE-001', year: '2020', make: 'Sea Ray', model: 'Sundancer 320', color: 'White/Blue', vehicleType: 'marine' },
-      { customerId: createdCustomers[6].id, vin: '5TFAY5F12LX555555', year: '2024', make: 'Toyota', model: 'Tundra', trim: 'Platinum', bodyClass: 'Pickup', color: 'Red', engineInfo: '3.5L V6 Hybrid', fuelType: 'Hybrid', plantCountry: 'United States (USA)', vehicleType: 'truck' },
-      { customerId: createdCustomers[8].id, vin: '1G1ZK54758F222222', year: '2024', make: 'Chevrolet', model: 'Malibu', trim: 'LT', bodyClass: 'Sedan', color: 'Gray', engineInfo: '1.5L I4 Turbo', fuelType: 'Gasoline', plantCountry: 'United States (USA)', vehicleType: 'auto' },
-    ]).run();
-
-    // Service History
-    db.insert(serviceHistory).values([
-      { customerId: createdCustomers[0].id, vehicleId: 1, jobId: 1, invoiceId: 1, serviceDate: '2026-09-08', serviceType: 'pdr', description: 'Driver door dent repair - quarter size', technician: 'James Wilson', warrantyMonths: 12, warrantyExpiry: '2027-09-08', warrantyStatus: 'active', cost: 302.10, status: 'completed' },
-      { customerId: createdCustomers[3].id, vehicleId: 2, jobId: 3, invoiceId: 2, serviceDate: '2026-09-05', serviceType: 'window_tint', description: 'Full vehicle ceramic window tint', technician: 'Sarah Chen', warrantyMonths: 60, warrantyExpiry: '2031-09-05', warrantyStatus: 'active', cost: 402.80, status: 'completed' },
-      { customerId: createdCustomers[4].id, assetId: 1, jobId: 4, invoiceId: 3, serviceDate: '2026-09-07', serviceType: 'rv_interior', description: 'RV dashboard vinyl repair - cracking and peeling', technician: 'James Wilson', warrantyMonths: 6, warrantyExpiry: '2027-03-07', warrantyStatus: 'active', cost: 445.20, status: 'completed' },
-      { customerId: createdCustomers[8].id, vehicleId: 7, jobId: 8, invoiceId: 4, serviceDate: '2026-09-05', serviceType: 'window_tint', description: 'Full vehicle standard window tint', technician: 'Sarah Chen', warrantyMonths: 36, warrantyExpiry: '2029-09-05', warrantyStatus: 'active', cost: 360.40, status: 'completed' },
-      { customerId: createdCustomers[1].id, vehicleId: 4, jobId: 9, invoiceId: 5, serviceDate: '2026-08-15', serviceType: 'interior_repair', description: 'Ford Edge leather seat repair - driver side', technician: 'Maria Santos', warrantyMonths: 12, warrantyExpiry: '2027-08-15', warrantyStatus: 'active', cost: 196.10, status: 'completed' },
-      { customerId: createdCustomers[1].id, vehicleId: 3, jobId: 2, serviceDate: '2026-09-12', serviceType: 'hail', description: 'Hail damage repair - hood, roof, doors (pending)', technician: 'James Wilson', warrantyMonths: 12, warrantyExpiry: '2027-09-12', warrantyStatus: 'none', cost: 0, status: 'in_progress' },
-      { customerId: createdCustomers[5].id, assetId: 4, jobId: 6, serviceDate: '2026-09-15', serviceType: 'marine_upholstery', description: 'Marine cabin cushion reupholstery - V-berth and salon', technician: 'Maria Santos', warrantyMonths: 24, warrantyExpiry: '2028-09-15', warrantyStatus: 'none', cost: 0, status: 'pending' },
-      { customerId: createdCustomers[7].id, assetId: 2, jobId: 5, serviceDate: '2026-09-20', serviceType: 'upholstery', description: 'Conference room chair reupholstery - 120 units', technician: 'Tyler Brooks', warrantyMonths: 36, warrantyExpiry: '2029-09-20', warrantyStatus: 'none', cost: 0, status: 'pending' },
-    ]).run();
-
-    // Assets (non-vehicle)
-    db.insert(assets).values([
-      { customerId: createdCustomers[4].id, assetType: 'rv', name: 'Forest River Georgetown', description: '35ft Class A Motorhome', location: 'Site 42' },
-      { customerId: createdCustomers[7].id, assetType: 'hotel', name: 'Conference Room A', description: '120 chair reupholstery', location: '2nd Floor' },
-      { customerId: createdCustomers[7].id, assetType: 'hotel', name: 'Lobby Seating', description: '8 lobby armchairs', location: 'Ground Floor' },
-      { customerId: createdCustomers[5].id, assetType: 'marine', name: 'Cabin Interior', description: 'V-berth and salon cushions', location: 'Slip 12' },
-    ]).run();
-
-    // Jobs
-    const jobData = [
-      { jobNumber: 'JOB-2026-001', customerId: createdCustomers[0].id, vehicleId: 1, serviceType: 'pdr', title: 'Door dent repair - Honda Accord', status: 'in_progress', assignedTech: 'James Wilson', scheduledDate: '2026-09-10', priority: 'normal' },
-      { jobNumber: 'JOB-2026-002', customerId: createdCustomers[1].id, vehicleId: 3, serviceType: 'pdr', title: 'Hail damage - Ford F-150', status: 'scheduled', assignedTech: 'James Wilson', scheduledDate: '2026-09-12', priority: 'high', insuranceClaim: 'SF-2026-4471', insuranceAdjuster: 'Lisa Park' },
-      { jobNumber: 'JOB-2026-003', customerId: createdCustomers[3].id, vehicleId: 2, serviceType: 'window_tint', title: 'Full tint - Toyota Tundra', status: 'completed', assignedTech: 'James Wilson', completedDate: '2026-09-08', priority: 'normal' },
-      { jobNumber: 'JOB-2026-004', customerId: createdCustomers[4].id, assetId: 1, serviceType: 'rv_interior', title: 'RV vinyl dashboard repair', status: 'in_progress', assignedTech: 'James Wilson', scheduledDate: '2026-09-09', priority: 'normal' },
-      { jobNumber: 'JOB-2026-005', customerId: createdCustomers[7].id, assetId: 2, serviceType: 'upholstery', title: 'Conference room chair reupholstery (120 units)', status: 'pending', priority: 'normal' },
-      { jobNumber: 'JOB-2026-006', customerId: createdCustomers[5].id, assetId: 4, serviceType: 'marine_upholstery', title: 'Marine cabin cushion reupholstery', status: 'scheduled', assignedTech: 'James Wilson', scheduledDate: '2026-09-15', priority: 'normal' },
-      { jobNumber: 'JOB-2026-007', customerId: createdCustomers[6].id, vehicleId: 6, serviceType: 'pdr', title: 'Fleet door ding repair (3 vehicles)', status: 'pending', priority: 'low' },
-      { jobNumber: 'JOB-2026-008', customerId: createdCustomers[8].id, vehicleId: 7, serviceType: 'window_tint', title: 'Chevy Malibu full tint', status: 'completed', assignedTech: 'James Wilson', completedDate: '2026-09-05', priority: 'normal' },
-      { jobNumber: 'JOB-2026-009', customerId: createdCustomers[1].id, vehicleId: 4, serviceType: 'interior_repair', title: 'Ford Edge leather seat repair', status: 'in_progress', assignedTech: 'James Wilson', priority: 'normal' },
-    ];
-    const createdJobs = jobData.map(j => db.insert(jobs).values(j as any).returning().get());
-
-    // Estimates
-    const estData = [
-      { estimateNumber: 'EST-2026-001', jobId: createdJobs[0].id, customerId: createdCustomers[0].id, vehicleId: 1, serviceType: 'pdr', status: 'approved', subtotal: 285, taxRate: 6, taxAmount: 17.10, discount: 0, total: 302.10, notes: 'Driver side door - quarter-size dent', validUntil: '2026-09-20', approvedDate: '2026-09-08' },
-      { estimateNumber: 'EST-2026-002', jobId: createdJobs[1].id, customerId: createdCustomers[1].id, vehicleId: 3, serviceType: 'hail', status: 'sent', subtotal: 2150, taxRate: 6, taxAmount: 129, discount: 0, total: 2279, notes: 'Hail damage - hood, roof, both doors. Insurance claim SF-2026-4471', validUntil: '2026-09-25' },
-      { estimateNumber: 'EST-2026-003', jobId: createdJobs[2].id, customerId: createdCustomers[3].id, vehicleId: 2, serviceType: 'window_tint', status: 'invoiced', subtotal: 380, taxRate: 6, taxAmount: 22.80, discount: 0, total: 402.80, notes: 'Full vehicle tint - ceramic film', validUntil: '2026-09-20' },
-      { estimateNumber: 'EST-2026-004', jobId: createdJobs[3].id, customerId: createdCustomers[4].id, assetId: 1, serviceType: 'rv_interior', status: 'approved', subtotal: 420, taxRate: 6, taxAmount: 25.20, discount: 0, total: 445.20, notes: 'RV dashboard vinyl repair - cracking and peeling', validUntil: '2026-09-22', approvedDate: '2026-09-07' },
-      { estimateNumber: 'EST-2026-005', jobId: createdJobs[4].id, customerId: createdCustomers[7].id, assetId: 2, serviceType: 'upholstery', status: 'draft', subtotal: 8400, taxRate: 6, taxAmount: 504, discount: 400, total: 8504, notes: '120 conference room chairs - reupholster seats and backs', validUntil: '2026-10-01' },
-      { estimateNumber: 'EST-2026-006', jobId: createdJobs[5].id, customerId: createdCustomers[5].id, assetId: 4, serviceType: 'marine_upholstery', status: 'sent', subtotal: 2800, taxRate: 6, taxAmount: 168, discount: 0, total: 2968, notes: 'Marine cabin cushions - V-berth and salon. Sunbrella marine fabric', validUntil: '2026-09-28' },
-      { estimateNumber: 'EST-2026-007', jobId: createdJobs[7].id, customerId: createdCustomers[8].id, vehicleId: 7, serviceType: 'window_tint', status: 'invoiced', subtotal: 340, taxRate: 6, taxAmount: 20.40, discount: 0, total: 360.40, notes: 'Full tint - standard film', validUntil: '2026-09-18' },
-    ];
-    const createdEstimates = estData.map(e => db.insert(estimates).values(e as any).returning().get());
-
-    // Estimate Line Items
-    db.insert(estimateLineItems).values([
-      { estimateId: createdEstimates[0].id, serviceCategory: 'pdr_dent', description: 'PDR - Driver door dent (quarter size)', quantity: 1, unit: 'each', unitPrice: 285, total: 285, panelLocation: 'Driver door', damageSize: 'quarter', damageSeverity: 'moderate' },
-      { estimateId: createdEstimates[1].id, serviceCategory: 'pdr_hail', description: 'PDR Hail - Hood damage repair', quantity: 1, unit: 'panel', unitPrice: 650, total: 650, panelLocation: 'Hood', damageSize: 'multiple', damageSeverity: 'severe' },
-      { estimateId: createdEstimates[1].id, serviceCategory: 'pdr_hail', description: 'PDR Hail - Roof damage repair', quantity: 1, unit: 'panel', unitPrice: 750, total: 750, panelLocation: 'Roof', damageSize: 'multiple', damageSeverity: 'severe' },
-      { estimateId: createdEstimates[1].id, serviceCategory: 'pdr_hail', description: 'PDR Hail - Driver side door', quantity: 1, unit: 'panel', unitPrice: 375, total: 375, panelLocation: 'Driver door', damageSize: 'multiple', damageSeverity: 'moderate' },
-      { estimateId: createdEstimates[1].id, serviceCategory: 'pdr_hail', description: 'PDR Hail - Passenger door', quantity: 1, unit: 'panel', unitPrice: 375, total: 375, panelLocation: 'Passenger door', damageSize: 'multiple', damageSeverity: 'moderate' },
-      { estimateId: createdEstimates[2].id, serviceCategory: 'window_tint', description: 'Ceramic window tint - Full vehicle', quantity: 1, unit: 'each', unitPrice: 380, total: 380 },
-      { estimateId: createdEstimates[3].id, serviceCategory: 'interior_vinyl', description: 'RV dashboard vinyl repair', quantity: 1, unit: 'each', unitPrice: 420, total: 420 },
-      { estimateId: createdEstimates[4].id, serviceCategory: 'upholstery', description: 'Conference chair reupholster - seat', quantity: 120, unit: 'each', unitPrice: 55, total: 6600 },
-      { estimateId: createdEstimates[4].id, serviceCategory: 'upholstery', description: 'Conference chair reupholster - back', quantity: 120, unit: 'each', unitPrice: 25, total: 3000 },
-      { estimateId: createdEstimates[4].id, serviceCategory: 'material', description: 'Volume discount', quantity: 1, unit: 'each', unitPrice: -400, total: -400 },
-      { estimateId: createdEstimates[5].id, serviceCategory: 'upholstery', description: 'V-berth cushions - Sunbrella marine', quantity: 4, unit: 'each', unitPrice: 450, total: 1800 },
-      { estimateId: createdEstimates[5].id, serviceCategory: 'upholstery', description: 'Salon cushions - Sunbrella marine', quantity: 2, unit: 'each', unitPrice: 500, total: 1000 },
-      { estimateId: createdEstimates[6].id, serviceCategory: 'window_tint', description: 'Standard window tint - Full vehicle', quantity: 1, unit: 'each', unitPrice: 340, total: 340 },
-    ]).run();
-
-    // Invoices
-    const invData = [
-      { invoiceNumber: 'INV-2026-001', customerId: createdCustomers[0].id, jobId: createdJobs[0].id, estimateId: createdEstimates[0].id, status: 'sent', subtotal: 285, taxRate: 6, taxAmount: 17.10, discount: 0, total: 302.10, amountPaid: 0, balanceDue: 302.10, issueDate: '2026-09-08', dueDate: '2026-10-08', notes: 'Driver door dent repair', qbSynced: 1, qbTxnId: 'QB-INV-1001' },
-      { invoiceNumber: 'INV-2026-002', customerId: createdCustomers[3].id, jobId: createdJobs[2].id, estimateId: createdEstimates[2].id, status: 'paid', subtotal: 380, taxRate: 6, taxAmount: 22.80, discount: 0, total: 402.80, amountPaid: 402.80, balanceDue: 0, issueDate: '2026-09-03', dueDate: '2026-10-03', notes: 'Full vehicle ceramic tint', qbSynced: 1, qbTxnId: 'QB-INV-1002' },
-      { invoiceNumber: 'INV-2026-003', customerId: createdCustomers[4].id, jobId: createdJobs[3].id, estimateId: createdEstimates[3].id, status: 'partial', subtotal: 420, taxRate: 6, taxAmount: 25.20, discount: 0, total: 445.20, amountPaid: 200, balanceDue: 245.20, issueDate: '2026-09-07', dueDate: '2026-10-07', notes: 'RV dashboard vinyl repair', qbSynced: 1, qbTxnId: 'QB-INV-1003' },
-      { invoiceNumber: 'INV-2026-004', customerId: createdCustomers[8].id, jobId: createdJobs[7].id, estimateId: createdEstimates[6].id, status: 'paid', subtotal: 340, taxRate: 6, taxAmount: 20.40, discount: 0, total: 360.40, amountPaid: 360.40, balanceDue: 0, issueDate: '2026-09-05', dueDate: '2026-10-05', notes: 'Full vehicle standard tint', qbSynced: 1, qbTxnId: 'QB-INV-1004' },
-      { invoiceNumber: 'INV-2026-005', customerId: createdCustomers[1].id, jobId: createdJobs[8].id, status: 'overdue', subtotal: 185, taxRate: 6, taxAmount: 11.10, discount: 0, total: 196.10, amountPaid: 0, balanceDue: 196.10, issueDate: '2026-08-15', dueDate: '2026-09-14', notes: 'Ford Edge leather seat repair', qbSynced: 0 },
-      { invoiceNumber: 'INV-2026-006', customerId: createdCustomers[6].id, status: 'draft', subtotal: 0, taxRate: 6, taxAmount: 0, discount: 0, total: 0, amountPaid: 0, balanceDue: 0, issueDate: '2026-09-10', notes: 'Fleet service - pending estimate', qbSynced: 0 },
-    ];
-    db.insert(invoices).values(invData as any).run();
-
-    // Invoice Line Items
-    db.insert(invoiceLineItems).values([
-      { invoiceId: 1, description: 'PDR - Driver door dent repair', quantity: 1, unit: 'each', unitPrice: 285, total: 285 },
-      { invoiceId: 2, description: 'Ceramic window tint - Full vehicle', quantity: 1, unit: 'each', unitPrice: 380, total: 380 },
-      { invoiceId: 3, description: 'RV dashboard vinyl repair', quantity: 1, unit: 'each', unitPrice: 420, total: 420 },
-      { invoiceId: 4, description: 'Standard window tint - Full vehicle', quantity: 1, unit: 'each', unitPrice: 340, total: 340 },
-      { invoiceId: 5, description: 'Leather seat repair - Driver seat', quantity: 1, unit: 'each', unitPrice: 185, total: 185 },
-    ]).run();
-
-    // Payments
-    db.insert(payments).values([
-      { paymentNumber: 'PMT-001', invoiceId: 2, customerId: createdCustomers[3].id, amount: 402.80, paymentMethod: 'credit_card', paymentDate: '2026-09-03', reference: 'CC-4471', qbSynced: 1, qbTxnId: 'QB-PMT-2001' },
-      { paymentNumber: 'PMT-002', invoiceId: 3, customerId: createdCustomers[4].id, amount: 200, paymentMethod: 'check', paymentDate: '2026-09-07', reference: 'CHK-1042', qbSynced: 1, qbTxnId: 'QB-PMT-2002' },
-      { paymentNumber: 'PMT-003', invoiceId: 4, customerId: createdCustomers[8].id, amount: 360.40, paymentMethod: 'cash', paymentDate: '2026-09-05', qbSynced: 1, qbTxnId: 'QB-PMT-2003' },
-      { paymentNumber: 'PMT-004', invoiceId: 1, customerId: createdCustomers[0].id, amount: 150, paymentMethod: 'credit_card', paymentDate: '2026-09-09', reference: 'CC-8821', qbSynced: 0 },
-    ]).run();
-
+  // Reference catalog: service templates, pricing matrices and tax jurisdictions.
+  // Loaded once into a brand-new database by server/migrations.ts. Values are unchanged
+  // from the original combined seed and still need owner review (see docs/KNOWN-ISSUES.md PRICE-01).
+  seedReferenceData() {
     // Service Templates
     db.insert(serviceTemplates).values([
       { name: 'PDR - Quarter Size Dent', serviceType: 'pdr', description: 'Standard quarter-sized dent repair', basePrice: 285, unitType: 'each', isActive: 1 },
@@ -762,6 +628,156 @@ export class DatabaseStorage implements IStorage {
 
     db.insert(pricingMatrices).values(pricingMatrixEntries).run();
 
+    // Tax Jurisdictions
+    db.insert(taxJurisdictions).values([
+      { jurisdictionName: 'Boise City Sales Tax', city: 'Boise', county: 'Ada', state: 'ID', zip: '83702', taxRate: 6, taxCode: 'ID-BOI-06', qbTaxCode: 'ID SALES', taxExemptAllowed: 1, status: 'active' },
+      { jurisdictionName: 'Meridian Sales Tax', city: 'Meridian', county: 'Ada', state: 'ID', zip: '83646', taxRate: 6, taxCode: 'ID-MER-06', qbTaxCode: 'ID SALES', taxExemptAllowed: 1, status: 'active' },
+      { jurisdictionName: 'Nampa Sales Tax', city: 'Nampa', county: 'Canyon', state: 'ID', zip: '83686', taxRate: 6, taxCode: 'ID-NAM-06', qbTaxCode: 'ID SALES', taxExemptAllowed: 1, status: 'active' },
+    ] as any).run();
+  }
+
+  // Demonstration records only (sample customers, legacy users with dummy passwords,
+  // technicians, jobs, invoices, payments, bookings). Never called by server startup;
+  // only by the explicit `npm run db:seed-demo` command on a brand-new database.
+  seedDemoData() {
+    const existing = db.select().from(customers).all();
+    if (existing.length > 0) throw new Error("Demo data can only be added to a brand-new, empty database.");
+
+    // Users
+    db.insert(users).values([
+      { username: 'admin', password: 'admin', fullName: 'System Admin', role: 'admin', email: 'admin@repairco.com' },
+      { username: 'estimator', password: 'est', fullName: 'Mike Torres', role: 'estimator', email: 'mike@repairco.com' },
+      { username: 'tech', password: 'tech', fullName: 'James Wilson', role: 'technician', email: 'james@repairco.com' },
+    ]).run();
+
+    // Customers
+    const custData = [
+      { customerNumber: 'CUST-001', firstName: 'Robert', lastName: 'Chen', customerType: 'retail', email: 'rchen@email.com', phone: '208-555-0142', mobile: '208-555-0143', address: '1425 W State St', city: 'Boise', state: 'ID', zip: '83702', referralSource: 'Google', status: 'active' },
+      { customerNumber: 'CUST-002', companyName: 'Boise Ford Lincoln', customerType: 'dealership', email: 'service@boiseford.com', phone: '208-555-0199', address: '1000 E Automall Dr', city: 'Boise', state: 'ID', zip: '83716', referralSource: 'Cold call', status: 'active' },
+      { customerNumber: 'CUST-003', companyName: 'State Farm Insurance', customerType: 'insurance', email: 'claims@statefarm.com', phone: '208-555-0300', address: '500 W Front St', city: 'Boise', state: 'ID', zip: '83702', status: 'active' },
+      { customerNumber: 'CUST-004', firstName: 'Sarah', lastName: 'Mitchell', customerType: 'retail', email: 'sarah.m@email.com', phone: '208-555-0177', mobile: '208-555-0178', address: '842 Park Hill Dr', city: 'Meridian', state: 'ID', zip: '83646', referralSource: 'Referral', status: 'active' },
+      { customerNumber: 'CUST-005', companyName: 'Sun Valley RV Resort', customerType: 'commercial', email: 'manager@sunvalleyrv.com', phone: '208-555-0420', address: '200 RV Park Rd', city: 'Boise', state: 'ID', zip: '83709', status: 'active' },
+      { customerNumber: 'CUST-006', companyName: 'Idaho Boat Works', customerType: 'commercial', email: 'service@idahoboat.com', phone: '208-555-0510', address: '1500 Dock Rd', city: 'Nampa', state: 'ID', zip: '83686', status: 'active' },
+      { customerNumber: 'CUST-007', firstName: 'David', lastName: 'Kowalski', customerType: 'fleet', companyName: 'Kowalski Fleet Services', email: 'dave@kowalskifleet.com', phone: '208-555-0680', address: '300 Industrial Blvd', city: 'Boise', state: 'ID', zip: '83707', status: 'active' },
+      { customerNumber: 'CUST-008', companyName: 'The Grove Hotel', customerType: 'commercial', email: 'facilities@grovehotel.com', phone: '208-555-0750', address: '245 S Capitol Blvd', city: 'Boise', state: 'ID', zip: '83702', status: 'active' },
+      { customerNumber: 'CUST-009', firstName: 'Jennifer', lastName: 'Alvarez', customerType: 'retail', email: 'jen.alvarez@email.com', phone: '208-555-0922', address: '1700 N Warm Springs', city: 'Boise', state: 'ID', zip: '83712', referralSource: 'Facebook', status: 'active' },
+      { customerNumber: 'CUST-010', companyName: 'Treasure Valley Dodge', customerType: 'dealership', email: 'service@tvdodge.com', phone: '208-555-1000', address: '950 E Fairview Ave', city: 'Meridian', state: 'ID', zip: '83642', status: 'active' },
+    ];
+    const createdCustomers = custData.map(c => db.insert(customers).values(c as any).returning().get());
+
+    // Contacts
+    db.insert(contacts).values([
+      { customerId: createdCustomers[1].id, name: 'Tom Bradley', title: 'Service Manager', email: 'tom@boiseford.com', phone: '208-555-0199', isPrimary: 1 },
+      { customerId: createdCustomers[2].id, name: 'Lisa Park', title: 'Claims Adjuster', email: 'lpark@statefarm.com', phone: '208-555-0301', isPrimary: 1 },
+      { customerId: createdCustomers[4].id, name: 'Frank Daly', title: 'Operations Manager', email: 'frank@sunvalleyrv.com', phone: '208-555-0421', isPrimary: 1 },
+      { customerId: createdCustomers[5].id, name: 'Karen Moss', title: 'Owner', email: 'karen@idahoboat.com', phone: '208-555-0511', isPrimary: 1 },
+      { customerId: createdCustomers[6].id, name: 'David Kowalski', title: 'Owner', email: 'dave@kowalskifleet.com', phone: '208-555-0680', isPrimary: 1 },
+      { customerId: createdCustomers[7].id, name: 'Maria Santos', title: 'Facilities Director', email: 'maria@grovehotel.com', phone: '208-555-0751', isPrimary: 1 },
+      { customerId: createdCustomers[9].id, name: 'Steve Holt', title: 'GM', email: 'steve@tvdodge.com', phone: '208-555-1001', isPrimary: 1 },
+    ]).run();
+
+    // Vehicles
+    db.insert(vehicles).values([
+      { customerId: createdCustomers[0].id, vin: '1HGCM82633A123456', year: '2021', make: 'Honda', model: 'Accord', trim: 'EX-L', bodyClass: 'Sedan', color: 'Silver', engineInfo: '1.5L I4 Gasoline', fuelType: 'Gasoline', plantCountry: 'United States (USA)', licensePlate: 'IDA-1234', vehicleType: 'auto' },
+      { customerId: createdCustomers[3].id, vin: '5TFAY5F12LX987654', year: '2023', make: 'Toyota', model: 'Tundra', trim: 'SR5', bodyClass: 'Pickup', color: 'Black', engineInfo: '3.5L V6 Gasoline', fuelType: 'Gasoline', plantCountry: 'United States (USA)', licensePlate: 'IDB-5678', vehicleType: 'truck' },
+      { customerId: createdCustomers[1].id, vin: '1FTFW1ET5DFK456789', year: '2022', make: 'Ford', model: 'F-150', trim: 'XLT', bodyClass: 'Pickup', color: 'Blue', engineInfo: '5.0L V8 Gasoline', fuelType: 'Gasoline', plantCountry: 'United States (USA)', licensePlate: 'IDC-9012', vehicleType: 'auto' },
+      { customerId: createdCustomers[1].id, vin: '1FAHP3K2XDG111111', year: '2022', make: 'Ford', model: 'Edge', trim: 'SEL', bodyClass: 'SUV', color: 'White', engineInfo: '2.0L I4 Turbo', fuelType: 'Gasoline', plantCountry: 'United States (USA)', vehicleType: 'auto' },
+      { customerId: createdCustomers[5].id, vin: 'MARINE-001', year: '2020', make: 'Sea Ray', model: 'Sundancer 320', color: 'White/Blue', vehicleType: 'marine' },
+      { customerId: createdCustomers[6].id, vin: '5TFAY5F12LX555555', year: '2024', make: 'Toyota', model: 'Tundra', trim: 'Platinum', bodyClass: 'Pickup', color: 'Red', engineInfo: '3.5L V6 Hybrid', fuelType: 'Hybrid', plantCountry: 'United States (USA)', vehicleType: 'truck' },
+      { customerId: createdCustomers[8].id, vin: '1G1ZK54758F222222', year: '2024', make: 'Chevrolet', model: 'Malibu', trim: 'LT', bodyClass: 'Sedan', color: 'Gray', engineInfo: '1.5L I4 Turbo', fuelType: 'Gasoline', plantCountry: 'United States (USA)', vehicleType: 'auto' },
+    ]).run();
+
+    // Service History
+    db.insert(serviceHistory).values([
+      { customerId: createdCustomers[0].id, vehicleId: 1, jobId: 1, invoiceId: 1, serviceDate: '2026-09-08', serviceType: 'pdr', description: 'Driver door dent repair - quarter size', technician: 'James Wilson', warrantyMonths: 12, warrantyExpiry: '2027-09-08', warrantyStatus: 'active', cost: 302.10, status: 'completed' },
+      { customerId: createdCustomers[3].id, vehicleId: 2, jobId: 3, invoiceId: 2, serviceDate: '2026-09-05', serviceType: 'window_tint', description: 'Full vehicle ceramic window tint', technician: 'Sarah Chen', warrantyMonths: 60, warrantyExpiry: '2031-09-05', warrantyStatus: 'active', cost: 402.80, status: 'completed' },
+      { customerId: createdCustomers[4].id, assetId: 1, jobId: 4, invoiceId: 3, serviceDate: '2026-09-07', serviceType: 'rv_interior', description: 'RV dashboard vinyl repair - cracking and peeling', technician: 'James Wilson', warrantyMonths: 6, warrantyExpiry: '2027-03-07', warrantyStatus: 'active', cost: 445.20, status: 'completed' },
+      { customerId: createdCustomers[8].id, vehicleId: 7, jobId: 8, invoiceId: 4, serviceDate: '2026-09-05', serviceType: 'window_tint', description: 'Full vehicle standard window tint', technician: 'Sarah Chen', warrantyMonths: 36, warrantyExpiry: '2029-09-05', warrantyStatus: 'active', cost: 360.40, status: 'completed' },
+      { customerId: createdCustomers[1].id, vehicleId: 4, jobId: 9, invoiceId: 5, serviceDate: '2026-08-15', serviceType: 'interior_repair', description: 'Ford Edge leather seat repair - driver side', technician: 'Maria Santos', warrantyMonths: 12, warrantyExpiry: '2027-08-15', warrantyStatus: 'active', cost: 196.10, status: 'completed' },
+      { customerId: createdCustomers[1].id, vehicleId: 3, jobId: 2, serviceDate: '2026-09-12', serviceType: 'hail', description: 'Hail damage repair - hood, roof, doors (pending)', technician: 'James Wilson', warrantyMonths: 12, warrantyExpiry: '2027-09-12', warrantyStatus: 'none', cost: 0, status: 'in_progress' },
+      { customerId: createdCustomers[5].id, assetId: 4, jobId: 6, serviceDate: '2026-09-15', serviceType: 'marine_upholstery', description: 'Marine cabin cushion reupholstery - V-berth and salon', technician: 'Maria Santos', warrantyMonths: 24, warrantyExpiry: '2028-09-15', warrantyStatus: 'none', cost: 0, status: 'pending' },
+      { customerId: createdCustomers[7].id, assetId: 2, jobId: 5, serviceDate: '2026-09-20', serviceType: 'upholstery', description: 'Conference room chair reupholstery - 120 units', technician: 'Tyler Brooks', warrantyMonths: 36, warrantyExpiry: '2029-09-20', warrantyStatus: 'none', cost: 0, status: 'pending' },
+    ]).run();
+
+    // Assets (non-vehicle)
+    db.insert(assets).values([
+      { customerId: createdCustomers[4].id, assetType: 'rv', name: 'Forest River Georgetown', description: '35ft Class A Motorhome', location: 'Site 42' },
+      { customerId: createdCustomers[7].id, assetType: 'hotel', name: 'Conference Room A', description: '120 chair reupholstery', location: '2nd Floor' },
+      { customerId: createdCustomers[7].id, assetType: 'hotel', name: 'Lobby Seating', description: '8 lobby armchairs', location: 'Ground Floor' },
+      { customerId: createdCustomers[5].id, assetType: 'marine', name: 'Cabin Interior', description: 'V-berth and salon cushions', location: 'Slip 12' },
+    ]).run();
+
+    // Jobs
+    const jobData = [
+      { jobNumber: 'JOB-2026-001', customerId: createdCustomers[0].id, vehicleId: 1, serviceType: 'pdr', title: 'Door dent repair - Honda Accord', status: 'in_progress', assignedTech: 'James Wilson', scheduledDate: '2026-09-10', priority: 'normal' },
+      { jobNumber: 'JOB-2026-002', customerId: createdCustomers[1].id, vehicleId: 3, serviceType: 'pdr', title: 'Hail damage - Ford F-150', status: 'scheduled', assignedTech: 'James Wilson', scheduledDate: '2026-09-12', priority: 'high', insuranceClaim: 'SF-2026-4471', insuranceAdjuster: 'Lisa Park' },
+      { jobNumber: 'JOB-2026-003', customerId: createdCustomers[3].id, vehicleId: 2, serviceType: 'window_tint', title: 'Full tint - Toyota Tundra', status: 'completed', assignedTech: 'James Wilson', completedDate: '2026-09-08', priority: 'normal' },
+      { jobNumber: 'JOB-2026-004', customerId: createdCustomers[4].id, assetId: 1, serviceType: 'rv_interior', title: 'RV vinyl dashboard repair', status: 'in_progress', assignedTech: 'James Wilson', scheduledDate: '2026-09-09', priority: 'normal' },
+      { jobNumber: 'JOB-2026-005', customerId: createdCustomers[7].id, assetId: 2, serviceType: 'upholstery', title: 'Conference room chair reupholstery (120 units)', status: 'pending', priority: 'normal' },
+      { jobNumber: 'JOB-2026-006', customerId: createdCustomers[5].id, assetId: 4, serviceType: 'marine_upholstery', title: 'Marine cabin cushion reupholstery', status: 'scheduled', assignedTech: 'James Wilson', scheduledDate: '2026-09-15', priority: 'normal' },
+      { jobNumber: 'JOB-2026-007', customerId: createdCustomers[6].id, vehicleId: 6, serviceType: 'pdr', title: 'Fleet door ding repair (3 vehicles)', status: 'pending', priority: 'low' },
+      { jobNumber: 'JOB-2026-008', customerId: createdCustomers[8].id, vehicleId: 7, serviceType: 'window_tint', title: 'Chevy Malibu full tint', status: 'completed', assignedTech: 'James Wilson', completedDate: '2026-09-05', priority: 'normal' },
+      { jobNumber: 'JOB-2026-009', customerId: createdCustomers[1].id, vehicleId: 4, serviceType: 'interior_repair', title: 'Ford Edge leather seat repair', status: 'in_progress', assignedTech: 'James Wilson', priority: 'normal' },
+    ];
+    const createdJobs = jobData.map(j => db.insert(jobs).values(j as any).returning().get());
+
+    // Estimates
+    const estData = [
+      { estimateNumber: 'EST-2026-001', jobId: createdJobs[0].id, customerId: createdCustomers[0].id, vehicleId: 1, serviceType: 'pdr', status: 'approved', subtotal: 285, taxRate: 6, taxAmount: 17.10, discount: 0, total: 302.10, notes: 'Driver side door - quarter-size dent', validUntil: '2026-09-20', approvedDate: '2026-09-08' },
+      { estimateNumber: 'EST-2026-002', jobId: createdJobs[1].id, customerId: createdCustomers[1].id, vehicleId: 3, serviceType: 'hail', status: 'sent', subtotal: 2150, taxRate: 6, taxAmount: 129, discount: 0, total: 2279, notes: 'Hail damage - hood, roof, both doors. Insurance claim SF-2026-4471', validUntil: '2026-09-25' },
+      { estimateNumber: 'EST-2026-003', jobId: createdJobs[2].id, customerId: createdCustomers[3].id, vehicleId: 2, serviceType: 'window_tint', status: 'invoiced', subtotal: 380, taxRate: 6, taxAmount: 22.80, discount: 0, total: 402.80, notes: 'Full vehicle tint - ceramic film', validUntil: '2026-09-20' },
+      { estimateNumber: 'EST-2026-004', jobId: createdJobs[3].id, customerId: createdCustomers[4].id, assetId: 1, serviceType: 'rv_interior', status: 'approved', subtotal: 420, taxRate: 6, taxAmount: 25.20, discount: 0, total: 445.20, notes: 'RV dashboard vinyl repair - cracking and peeling', validUntil: '2026-09-22', approvedDate: '2026-09-07' },
+      { estimateNumber: 'EST-2026-005', jobId: createdJobs[4].id, customerId: createdCustomers[7].id, assetId: 2, serviceType: 'upholstery', status: 'draft', subtotal: 8400, taxRate: 6, taxAmount: 504, discount: 400, total: 8504, notes: '120 conference room chairs - reupholster seats and backs', validUntil: '2026-10-01' },
+      { estimateNumber: 'EST-2026-006', jobId: createdJobs[5].id, customerId: createdCustomers[5].id, assetId: 4, serviceType: 'marine_upholstery', status: 'sent', subtotal: 2800, taxRate: 6, taxAmount: 168, discount: 0, total: 2968, notes: 'Marine cabin cushions - V-berth and salon. Sunbrella marine fabric', validUntil: '2026-09-28' },
+      { estimateNumber: 'EST-2026-007', jobId: createdJobs[7].id, customerId: createdCustomers[8].id, vehicleId: 7, serviceType: 'window_tint', status: 'invoiced', subtotal: 340, taxRate: 6, taxAmount: 20.40, discount: 0, total: 360.40, notes: 'Full tint - standard film', validUntil: '2026-09-18' },
+    ];
+    const createdEstimates = estData.map(e => db.insert(estimates).values(e as any).returning().get());
+
+    // Estimate Line Items
+    db.insert(estimateLineItems).values([
+      { estimateId: createdEstimates[0].id, serviceCategory: 'pdr_dent', description: 'PDR - Driver door dent (quarter size)', quantity: 1, unit: 'each', unitPrice: 285, total: 285, panelLocation: 'Driver door', damageSize: 'quarter', damageSeverity: 'moderate' },
+      { estimateId: createdEstimates[1].id, serviceCategory: 'pdr_hail', description: 'PDR Hail - Hood damage repair', quantity: 1, unit: 'panel', unitPrice: 650, total: 650, panelLocation: 'Hood', damageSize: 'multiple', damageSeverity: 'severe' },
+      { estimateId: createdEstimates[1].id, serviceCategory: 'pdr_hail', description: 'PDR Hail - Roof damage repair', quantity: 1, unit: 'panel', unitPrice: 750, total: 750, panelLocation: 'Roof', damageSize: 'multiple', damageSeverity: 'severe' },
+      { estimateId: createdEstimates[1].id, serviceCategory: 'pdr_hail', description: 'PDR Hail - Driver side door', quantity: 1, unit: 'panel', unitPrice: 375, total: 375, panelLocation: 'Driver door', damageSize: 'multiple', damageSeverity: 'moderate' },
+      { estimateId: createdEstimates[1].id, serviceCategory: 'pdr_hail', description: 'PDR Hail - Passenger door', quantity: 1, unit: 'panel', unitPrice: 375, total: 375, panelLocation: 'Passenger door', damageSize: 'multiple', damageSeverity: 'moderate' },
+      { estimateId: createdEstimates[2].id, serviceCategory: 'window_tint', description: 'Ceramic window tint - Full vehicle', quantity: 1, unit: 'each', unitPrice: 380, total: 380 },
+      { estimateId: createdEstimates[3].id, serviceCategory: 'interior_vinyl', description: 'RV dashboard vinyl repair', quantity: 1, unit: 'each', unitPrice: 420, total: 420 },
+      { estimateId: createdEstimates[4].id, serviceCategory: 'upholstery', description: 'Conference chair reupholster - seat', quantity: 120, unit: 'each', unitPrice: 55, total: 6600 },
+      { estimateId: createdEstimates[4].id, serviceCategory: 'upholstery', description: 'Conference chair reupholster - back', quantity: 120, unit: 'each', unitPrice: 25, total: 3000 },
+      { estimateId: createdEstimates[4].id, serviceCategory: 'material', description: 'Volume discount', quantity: 1, unit: 'each', unitPrice: -400, total: -400 },
+      { estimateId: createdEstimates[5].id, serviceCategory: 'upholstery', description: 'V-berth cushions - Sunbrella marine', quantity: 4, unit: 'each', unitPrice: 450, total: 1800 },
+      { estimateId: createdEstimates[5].id, serviceCategory: 'upholstery', description: 'Salon cushions - Sunbrella marine', quantity: 2, unit: 'each', unitPrice: 500, total: 1000 },
+      { estimateId: createdEstimates[6].id, serviceCategory: 'window_tint', description: 'Standard window tint - Full vehicle', quantity: 1, unit: 'each', unitPrice: 340, total: 340 },
+    ]).run();
+
+    // Invoices
+    const invData = [
+      { invoiceNumber: 'INV-2026-001', customerId: createdCustomers[0].id, jobId: createdJobs[0].id, estimateId: createdEstimates[0].id, status: 'sent', subtotal: 285, taxRate: 6, taxAmount: 17.10, discount: 0, total: 302.10, amountPaid: 0, balanceDue: 302.10, issueDate: '2026-09-08', dueDate: '2026-10-08', notes: 'Driver door dent repair', qbSynced: 1, qbTxnId: 'QB-INV-1001' },
+      { invoiceNumber: 'INV-2026-002', customerId: createdCustomers[3].id, jobId: createdJobs[2].id, estimateId: createdEstimates[2].id, status: 'paid', subtotal: 380, taxRate: 6, taxAmount: 22.80, discount: 0, total: 402.80, amountPaid: 402.80, balanceDue: 0, issueDate: '2026-09-03', dueDate: '2026-10-03', notes: 'Full vehicle ceramic tint', qbSynced: 1, qbTxnId: 'QB-INV-1002' },
+      { invoiceNumber: 'INV-2026-003', customerId: createdCustomers[4].id, jobId: createdJobs[3].id, estimateId: createdEstimates[3].id, status: 'partial', subtotal: 420, taxRate: 6, taxAmount: 25.20, discount: 0, total: 445.20, amountPaid: 200, balanceDue: 245.20, issueDate: '2026-09-07', dueDate: '2026-10-07', notes: 'RV dashboard vinyl repair', qbSynced: 1, qbTxnId: 'QB-INV-1003' },
+      { invoiceNumber: 'INV-2026-004', customerId: createdCustomers[8].id, jobId: createdJobs[7].id, estimateId: createdEstimates[6].id, status: 'paid', subtotal: 340, taxRate: 6, taxAmount: 20.40, discount: 0, total: 360.40, amountPaid: 360.40, balanceDue: 0, issueDate: '2026-09-05', dueDate: '2026-10-05', notes: 'Full vehicle standard tint', qbSynced: 1, qbTxnId: 'QB-INV-1004' },
+      { invoiceNumber: 'INV-2026-005', customerId: createdCustomers[1].id, jobId: createdJobs[8].id, status: 'overdue', subtotal: 185, taxRate: 6, taxAmount: 11.10, discount: 0, total: 196.10, amountPaid: 0, balanceDue: 196.10, issueDate: '2026-08-15', dueDate: '2026-09-14', notes: 'Ford Edge leather seat repair', qbSynced: 0 },
+      { invoiceNumber: 'INV-2026-006', customerId: createdCustomers[6].id, status: 'draft', subtotal: 0, taxRate: 6, taxAmount: 0, discount: 0, total: 0, amountPaid: 0, balanceDue: 0, issueDate: '2026-09-10', notes: 'Fleet service - pending estimate', qbSynced: 0 },
+    ];
+    db.insert(invoices).values(invData as any).run();
+
+    // Invoice Line Items
+    db.insert(invoiceLineItems).values([
+      { invoiceId: 1, description: 'PDR - Driver door dent repair', quantity: 1, unit: 'each', unitPrice: 285, total: 285 },
+      { invoiceId: 2, description: 'Ceramic window tint - Full vehicle', quantity: 1, unit: 'each', unitPrice: 380, total: 380 },
+      { invoiceId: 3, description: 'RV dashboard vinyl repair', quantity: 1, unit: 'each', unitPrice: 420, total: 420 },
+      { invoiceId: 4, description: 'Standard window tint - Full vehicle', quantity: 1, unit: 'each', unitPrice: 340, total: 340 },
+      { invoiceId: 5, description: 'Leather seat repair - Driver seat', quantity: 1, unit: 'each', unitPrice: 185, total: 185 },
+    ]).run();
+
+    // Payments
+    db.insert(payments).values([
+      { paymentNumber: 'PMT-001', invoiceId: 2, customerId: createdCustomers[3].id, amount: 402.80, paymentMethod: 'credit_card', paymentDate: '2026-09-03', reference: 'CC-4471', qbSynced: 1, qbTxnId: 'QB-PMT-2001' },
+      { paymentNumber: 'PMT-002', invoiceId: 3, customerId: createdCustomers[4].id, amount: 200, paymentMethod: 'check', paymentDate: '2026-09-07', reference: 'CHK-1042', qbSynced: 1, qbTxnId: 'QB-PMT-2002' },
+      { paymentNumber: 'PMT-003', invoiceId: 4, customerId: createdCustomers[8].id, amount: 360.40, paymentMethod: 'cash', paymentDate: '2026-09-05', qbSynced: 1, qbTxnId: 'QB-PMT-2003' },
+      { paymentNumber: 'PMT-004', invoiceId: 1, customerId: createdCustomers[0].id, amount: 150, paymentMethod: 'credit_card', paymentDate: '2026-09-09', reference: 'CC-8821', qbSynced: 0 },
+    ]).run();
+
     // Campaigns
     db.insert(campaigns).values([
       { name: 'Post-Hail Season Follow-up', campaignType: 'seasonal', status: 'active', targetSegment: 'retail', startDate: '2026-09-01', endDate: '2026-09-30', budget: 500, sentCount: 142, responseCount: 28, conversionCount: 12, notes: 'Reach out to past PDR customers after hail season' },
@@ -870,13 +886,6 @@ export class DatabaseStorage implements IStorage {
       { customerId: createdCustomers[4].id, assetId: 1, assetCategory: 'rv_interior', locationName: 'Sun Valley RV Resort', building: 'Unit 14', area: 'Cockpit', itemName: 'Dashboard', itemType: 'dash', manufacturer: 'Jayco', model: 'Precept', materialType: 'vinyl', color: 'Tan', dimensions: '60 x 18 in', quantity: 1, condition: 'fair', damageLocation: 'Passenger side', damageDescription: 'Cracking and peeling vinyl.', repairNotes: 'Color-match vinyl repair compound.', replacementValue: 1200, status: 'active' },
       { customerId: createdCustomers[7].id, assetId: 2, assetCategory: 'office_furniture', locationName: 'The Grove Hotel', building: 'Conference Center', floor: '2', roomNumber: 'Aspen A', itemName: 'Conference Chair', itemType: 'chair', manufacturer: 'Steelcase', model: 'Think', materialType: 'fabric', fabricType: 'Commercial weave', color: 'Charcoal', quantity: 120, condition: 'fair', damageLocation: 'Seats and backs', damageDescription: 'Worn fabric and staining.', replacementValue: 36000, status: 'active' },
       { customerId: createdCustomers[5].id, assetId: 4, assetCategory: 'marine_seat', locationName: 'Idaho Boat Works', area: 'Sundancer 320 cabin', itemName: 'V-berth Cushion Set', itemType: 'cushion', manufacturer: 'Sea Ray', model: 'Sundancer 320', materialType: 'marine_vinyl', fabricType: 'Sunbrella', color: 'Navy', quantity: 4, condition: 'poor', damageLocation: 'V-berth', damageDescription: 'Sun fading and cracked seams.', replacementValue: 3600, status: 'active' },
-    ] as any).run();
-
-    // Tax Jurisdictions
-    db.insert(taxJurisdictions).values([
-      { jurisdictionName: 'Boise City Sales Tax', city: 'Boise', county: 'Ada', state: 'ID', zip: '83702', taxRate: 6, taxCode: 'ID-BOI-06', qbTaxCode: 'ID SALES', taxExemptAllowed: 1, status: 'active' },
-      { jurisdictionName: 'Meridian Sales Tax', city: 'Meridian', county: 'Ada', state: 'ID', zip: '83646', taxRate: 6, taxCode: 'ID-MER-06', qbTaxCode: 'ID SALES', taxExemptAllowed: 1, status: 'active' },
-      { jurisdictionName: 'Nampa Sales Tax', city: 'Nampa', county: 'Canyon', state: 'ID', zip: '83686', taxRate: 6, taxCode: 'ID-NAM-06', qbTaxCode: 'ID SALES', taxExemptAllowed: 1, status: 'active' },
     ] as any).run();
   }
 }

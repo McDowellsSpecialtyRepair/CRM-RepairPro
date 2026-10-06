@@ -173,8 +173,8 @@ export function assignmentPatch(body: any) {
   }
   return copy;
 }
+// Security tables and audit triggers are created by runMigrations() (server/migrations.ts).
 export function registerSecurity(app: Express) {
-  initializeSecurity();
   app.use((req, res, next) => {
     if (!/^\/(?:api|print)(?:\/|$)/i.test(req.path)) return next();
     res.setHeader("Cache-Control", "no-store");

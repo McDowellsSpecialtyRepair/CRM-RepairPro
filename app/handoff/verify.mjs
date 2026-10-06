@@ -24,6 +24,9 @@ async function call(method,path,body){
 }
 async function ok(method,path,body){const r=await call(method,path,body);assert.ok(r.status===200||r.status===201,`${path}: ${r.status} ${JSON.stringify(r.data).slice(0,250)}`);return r.data;}
 try{
+ // Sample data (including the technicians used below) is opt-in; load it explicitly into the new temporary database.
+ const {NODE_ENV:_production,...seedEnv}=env;
+ execFileSync(process.execPath,["node_modules/tsx/dist/cli.mjs","script/seed-demo.ts"],{cwd:root,env:seedEnv,stdio:"pipe"});
  child=spawn(process.execPath,["dist/index.cjs"],{cwd:root,env,stdio:["ignore","pipe","pipe"]});
  child.stdout.on("data",b=>{log+=b;});child.stderr.on("data",b=>{log+=b;});
  let ready=false;

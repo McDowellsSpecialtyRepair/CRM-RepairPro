@@ -2,27 +2,28 @@ import type { Express } from "express";
 import type { Server } from "node:http";
 import { storage } from "./storage";
 import { sqlite } from "./storage-db";
-import { migrateIntegrity } from "./integrity-migration";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { createEstimateSafe, updateEstimateSafe, addEstimateLines, deleteEstimateLine,
   convertEstimate, postPayment, updateInvoiceSafe, fail, editableEstimate, recalculateEstimate, updateEstimateLine, validateEstimateServices } from "./billing";
-import {migrateEstimateSales,registerEstimateSales} from "./estimate-sales";
+import {registerEstimateSales} from "./estimate-sales";
 import {nonLaborCategory,categoryTaxable,customerLineLabel,documentBreakdown} from "../shared/estimate-rules";
 import nodemailer from "nodemailer";
 import { registerReporting } from "./reporting";
-import { registerSecurity, assignmentPatch, initializeSecurity, audit } from "./security";
-import { migrateLabor, allocations, deliveries, recordDelivery } from "./labor";
+import { registerSecurity, assignmentPatch } from "./security";
+import { allocations, deliveries, recordDelivery } from "./labor";
 import { printable,breakdownHtml } from "./print-safety";
-import { migrateOperations, registerOperations } from "./operations";
-import { migrateCapacity, registerCapacity, validateSlot } from "./capacity";
+import { registerOperations } from "./operations";
+import { registerCapacity, validateSlot } from "./capacity";
 import {registerVin} from "./vin";
 import {normalizeVin} from "../shared/vin";
 import {registerPricingCatalog} from "./pricing-catalog";
 import {validDate} from "../shared/reporting";
 import {formatCalendarDate} from "../shared/calendar-date";
-import { migrateWorkOrders, registerWorkOrders, planning, updatePlanning, estimatePlanningList } from "./work-orders";
+import { registerWorkOrders, planning, updatePlanning, estimatePlanningList } from "./work-orders";
+import { runMigrations } from "./migrations";
+import { TEST_EMAIL, emailOutputDir } from "./delivery-config";
 
 // SMTP configuration - can be set via environment variables or app settings
 const SMTP_CONFIG = {
@@ -32,7 +33,6 @@ const SMTP_CONFIG = {
   user: process.env.SMTP_USER || "",
   pass: process.env.SMTP_PASS || "",
 };
-const TEST_EMAIL = "service@mcdowellsrepair.com";
 
 let emailTransporter: any = null;
 function getEmailTransporter() {
@@ -51,39 +51,19 @@ export async function registerRoutes(
   _httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Seed data on startup
-  migrateLabor(true);
-  storage.seedData();
-  migrateIntegrity(sqlite);
-  migrateLabor();
+  // All schema migrations run here, in order, before any route is registered.
+  // Demonstration data is never loaded on startup (see server/migrations.ts).
+  runMigrations();
   // Authentication must precede every API and print route, including reporting.
   registerSecurity(app);
-  migrateEstimateSales();
   registerEstimateSales(app);
   app.patch("/api/estimates/line-items/:id",(req,res)=>res.json(updateEstimateLine(Number(req.params.id),req.body)));
-  migrateOperations();
-  migrateCapacity();
-  migrateWorkOrders();
   registerWorkOrders(app);
   registerOperations(app);
   registerCapacity(app);
   registerVin(app);
   registerPricingCatalog(app);
   registerReporting(app);
-  initializeSecurity(); // Include report definitions in row-level auditing.
-  // Preserve approvals; correct only the known false-sent estimate, without rewriting history.
-  sqlite.transaction(() => {
-    if (!sqlite.prepare("SELECT 1 FROM commerce_migrations WHERE name='delivery-correction-23'").get()) {
-      const e = sqlite.prepare("SELECT * FROM estimates WHERE estimate_number='EST-2026-000023'").get() as any;
-      const evidence = sqlite.prepare("SELECT id FROM activities WHERE description LIKE '%EST-2026-000023 marked sent%' AND description LIKE '%server email not set up%'").get();
-      if (e && evidence) {
-        recordDelivery("estimate",e.id,TEST_EMAIL,null,false);
-        if (e.status === "sent" && !e.invoice_id) sqlite.prepare("UPDATE estimates SET status='draft' WHERE id=?").run(e.id);
-        audit("delivery.corrected","estimates",e.id,{status:e.status},{status:e.status === "sent" && !e.invoice_id ? "draft" : e.status,delivery:"not_configured",reason:"Prior activity confirms email was not sent."});
-      }
-      sqlite.prepare("INSERT INTO commerce_migrations(name) VALUES('delivery-correction-23')").run();
-    }
-  })();
   app.get("/api/estimates/:id/labor", (req,res) => {
     const items = storage.getEstimateLineItems(Number(req.params.id));
     res.json(items.map(i => ({...i,allocations:allocations(i.id)})));
@@ -932,7 +912,7 @@ export async function registerRoutes(
 
 
     // Write email content to file for external sending
-    const emailFile = path.join(process.env.EMAIL_OUTPUT_DIR||"/home/user/workspace/repair-crm/emails",`invoice-${invoice.invoiceNumber}.html`);
+    const emailFile = path.join(emailOutputDir(),`invoice-${invoice.invoiceNumber}.html`);
     const dir = path.dirname(emailFile);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(emailFile, emailHtml);
@@ -998,7 +978,7 @@ export async function registerRoutes(
       html = html.replace(/<body([^>]*)>/i, `<body$1><div style="font-family:Arial,sans-serif;font-size:14px;margin:0 0 20px;padding:12px 16px;background:#f5f5f5;border-radius:6px;">${safe}</div>`);
     }
 
-    const dir = process.env.EMAIL_OUTPUT_DIR||"/home/user/workspace/repair-crm/emails";
+    const dir = emailOutputDir();
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     const emailFile = path.join(dir, `estimate-${estimate.estimateNumber}.html`);
     fs.writeFileSync(emailFile, html);
