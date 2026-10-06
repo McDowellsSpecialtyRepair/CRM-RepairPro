@@ -1,0 +1,15 @@
+import {writeFileSync} from "node:fs";
+import Database from "better-sqlite3";
+import {buildPricingCatalog,pricingHtml,pricingMarkdown} from "../server/pricing-catalog";
+const db=new Database(process.env.SOURCE_DB||"data.db",{readonly:true});
+const camel=(r:any)=>Object.fromEntries(Object.entries(r).map(([k,v])=>[k.replace(/_([a-z])/g,(_,c)=>c.toUpperCase()),v]));
+const matrices=db.prepare("SELECT * FROM pricing_matrices ORDER BY id").all().map(camel);
+const templates=db.prepare("SELECT * FROM service_templates ORDER BY id").all().map(camel);
+const c=buildPricingCatalog(matrices,templates);
+const ids=c.tables.flatMap(t=>t.ids);
+if(ids.length!==matrices.length||new Set(ids).size!==matrices.length)throw new Error("Catalog coverage mismatch");
+const out="/home/user/workspace/review-qa";
+writeFileSync(`${out}/pricing.html`,pricingHtml(c));
+writeFileSync(`${out}/pricing.json`,JSON.stringify(c,null,2));
+writeFileSync("/home/user/workspace/McDowells-Complete-Pricing-Catalog.md",pricingMarkdown(c));
+console.log(JSON.stringify({matrices:c.matrixCount,templates:c.templateCount,panels:c.panelCount,sections:c.tables.length,coverage:"every matrix ID exactly once"}));db.close();

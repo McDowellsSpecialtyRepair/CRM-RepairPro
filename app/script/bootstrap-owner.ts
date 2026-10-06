@@ -1,0 +1,10 @@
+import { writeFileSync, chmodSync } from "node:fs";
+import { bootstrapOwner } from "../server/security";
+import { sqlite } from "../server/storage-db";
+const email = process.argv[2], output = process.argv[3];
+if (!email || !output) throw new Error("Usage: tsx script/bootstrap-owner.ts <owner-email> <private-output.json>");
+const invitation = bootstrapOwner(email);
+writeFileSync(output, JSON.stringify(invitation,null,2), {mode:0o600,flag:"wx"});
+chmodSync(output,0o600);
+sqlite.close();
+console.log("Owner invited. One-time activation details saved to the private output file; no email was sent.");

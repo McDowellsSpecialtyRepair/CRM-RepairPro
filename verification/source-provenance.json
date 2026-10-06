@@ -1,0 +1,14 @@
+{
+  "baselineCommit": "92891fa448ac3125d85d086b4dcf01be1a2075e2",
+  "trackedFiles": 168,
+  "comparison": "Each exported tracked file SHA-256 compared with git show at the baseline commit",
+  "changedApplicationFiles": [],
+  "additiveFiles": [
+    ".env.example",
+    "handoff/calculation-check.ts",
+    "handoff/database.mjs",
+    "handoff/verify.mjs"
+  ],
+  "gitHistoryIncluded": false,
+  "operatingDatabaseIncluded": false
+}

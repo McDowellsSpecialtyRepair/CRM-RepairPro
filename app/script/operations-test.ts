@@ -1,0 +1,138 @@
+import assert from "node:assert/strict";
+import {readFileSync,writeFileSync} from "node:fs";
+import {randomUUID,randomBytes} from "node:crypto";
+import {sqlite} from "../server/storage-db";
+import "../server/security";
+import {localToday,addDays} from "../shared/operations";
+const base=process.env.QA_BASE||"http://127.0.0.1:5002", out=process.env.QA_OUT||"/home/user/workspace/operations-qa";
+const fixture=JSON.parse(readFileSync(`${process.env.QA_DIR||"/home/user/workspace/staff-billing-qa"}/browser-fixture.json`,"utf8"));
+const results:any[]=[];
+let token="";
+const check=(name:string,value:any)=>{results.push({name,passed:!!value});assert.ok(value,name);};
+async function req(method:string,path:string,body?:any,auth=token){
+ const r=await fetch(base+path,{method,headers:{"Content-Type":"application/json",...(auth?{Authorization:`Bearer ${auth}`}:{})},body:body===undefined?undefined:JSON.stringify(body)});
+ return {status:r.status,data:await r.json()};
+}
+async function ok(method:string,path:string,body?:any,auth=token){const r=await req(method,path,body,auth);assert.ok([200,201].includes(r.status),`${method} ${path}: ${r.status} ${JSON.stringify(r.data)}`);return r.data;}
+async function block(name:string,method:string,path:string,body?:any,auth=token){const r=await req(method,path,body,auth);check(name,[400,401,403,404,409].includes(r.status));}
+let c:any,e:any,prod:any,techs:any[],future=addDays(localToday(),9);
+const casePatch=(p:any,more:any={})=>({version:p.version,department:p.department,promisedDate:p.promised_date||"",forecastDate:p.forecast_date||"",holdReason:p.hold_reason,partsReady:!!p.parts_ready,qc:p.qc,costComplete:!!p.cost_complete,notes:p.notes,action:"save",...more});
+try{
+ await block("Anonymous dashboard denied","GET","/api/operations",undefined,"");
+ token=(await ok("POST","/api/auth/login",{email:fixture.email,password:fixture.password},"")).token;
+ c=await ok("POST","/api/customers",{customerType:"retail",companyName:"Operations QA",email:"service@mcdowellsrepair.com",confirmDuplicate:true});
+ techs=[];
+ for(const name of ["QA Operations A","QA Operations B"])techs.push(await ok("POST","/api/technicians",{name,email:"service@mcdowellsrepair.com",skillAreas:"pdr,hail",technicianType:"in_shop",status:"active"}));
+ assert.ok(techs.length===2);
+ e=await ok("POST","/api/estimates",{customerId:c.id,serviceType:"pdr",taxRate:6});
+ const part=await ok("POST",`/api/estimates/${e.id}/line-items`,{description:"QA Parts",serviceCategory:"material",lineType:"parts",quantity:1,unitPrice:100});
+ const labor=await ok("POST",`/api/estimates/${e.id}/line-items`,{description:"QA Labor",serviceCategory:"labor",lineType:"labor",quantity:1,unitPrice:300});
+ await ok("PATCH",`/api/estimates/${e.id}`,{discount:40});
+ await block("Draft cannot start production","POST","/api/operations/start",{estimateId:e.id,department:"PDR / Hail"});
+ const owners=await ok("GET","/api/operations/owners");
+ const follow={version:0,ownerId:owners[0].id,nextDate:localToday(),state:"open",reason:"",note:"Call about repair",contacted:true,presentedDate:localToday()};
+ await ok("PUT",`/api/operations/followups/${e.id}`,follow);
+ let dashboard=await ok("GET","/api/operations");
+ check("Follow-up appears due with assigned advisor and contact evidence",dashboard.open.find((r:any)=>r.id===e.id)?.due&&dashboard.open.find((r:any)=>r.id===e.id).followup.last_contact);
+ await block("Stale follow-up save rejected","PUT",`/api/operations/followups/${e.id}`,follow);
+ await block("Lost outcome requires reason","PUT",`/api/operations/followups/${e.id}`,{...follow,version:1,state:"lost"});
+ await ok("PATCH",`/api/estimates/${e.id}`,{status:"approved"});
+ await block("Missing labor allocations blocks enrollment","POST","/api/operations/start",{estimateId:e.id,department:"PDR / Hail"});
+ await ok("PATCH",`/api/estimates/line-items/${labor.id}/classification`,{expectedVersion:1,lineType:"labor",splits:techs.map((t,i)=>({technicianId:t.id,shareBps:i?4000:6000}))});
+ await ok("PATCH",`/api/estimates/${e.id}`,{status:"approved"});
+ dashboard=await ok("GET","/api/operations");
+ check("Approved estimate exits unsold queue and retains department source",!dashboard.open.some((r:any)=>r.id===e.id)&&dashboard.notTracked.find((r:any)=>r.id===e.id)?.serviceType==="pdr");
+ prod=await ok("POST","/api/operations/start",{estimateId:e.id,department:"PDR / Hail"});
+ check("Enrollment is idempotent",(await ok("POST","/api/operations/start",{estimateId:e.id,department:"PDR / Hail"})).id===prod.id);
+ check("Remaining authorized sales excludes tax and allocates discount exactly",prod.tasks.reduce((s:number,t:any)=>s+t.net_cents,0)===36000);
+ const work=(await ok("GET","/api/operations")).technicianWork.filter((r:any)=>r.caseId===prod.id);
+ check("Technician unfinished shares reconcile to labor only",work.length===2&&work.reduce((s:number,r:any)=>s+r.remainingLaborCents,0)===27000);
+ await block("Premature invoice conversion blocked","POST",`/api/estimates/${e.id}/convert-invoice`,{});
+ await block("Enrolled estimate financial changes blocked","PATCH",`/api/estimates/${e.id}`,{discount:0});
+ await block("Enrolled estimate line deletion blocked","DELETE",`/api/estimates/line-items/${part.id}`);
+ await block("Enrolled labor split changes blocked","PATCH",`/api/estimates/line-items/${labor.id}/classification`,{expectedVersion:2,lineType:"labor",splits:[{technicianId:techs[0].id,shareBps:10000}]});
+ await block("Production cannot start without materials readiness","PATCH",`/api/operations/cases/${prod.id}`,casePatch(prod,{action:"start"}));
+ await block("Direct job completion bypass blocked","PATCH",`/api/jobs/${prod.job_id}`,{status:"completed"});
+ await block("Direct start cannot bypass parts readiness","PATCH",`/api/jobs/${prod.job_id}`,{status:"in_progress"});
+ prod=await ok("PATCH",`/api/operations/cases/${prod.id}`,casePatch(prod,{partsReady:true,promisedDate:addDays(localToday(),-1),holdReason:"Parts / materials"}));
+ check("Hold and late promise visible",(await ok("GET","/api/operations")).cases.some((p:any)=>p.id===prod.id&&p.late&&p.stage==="on_hold"));
+ await block("Task cannot finish while on hold","PATCH",`/api/operations/tasks/${prod.tasks[0].id}`,{version:1,completed:true});
+ prod=await ok("PATCH",`/api/operations/cases/${prod.id}`,casePatch(prod,{holdReason:"",action:"start"}));
+ const time={taskId:prod.tasks[1].id,technicianId:techs[0].id,workDate:localToday(),minutes:60,kind:"productive",note:"QA work",retryKey:randomUUID()};
+ const t=await ok("POST","/api/operations/time",time);
+ check("Time retry returns same entry",(await ok("POST","/api/operations/time",time)).id===t.id);
+ await block("Time key cannot record different work","POST","/api/operations/time",{...time,minutes:61});
+ await block("Future work cannot be actual time","POST","/api/operations/time",{...time,retryKey:randomUUID(),workDate:future});
+ await block("Daily time cannot exceed 24 hours","POST","/api/operations/time",{...time,retryKey:randomUUID(),minutes:1440});
+ const cost={caseId:prod.id,kind:"parts",amountCents:5000,note:"QA actual material",retryKey:randomUUID()};
+ const costRow=await ok("POST","/api/operations/costs",cost);
+ check("Cost retry returns same entry",(await ok("POST","/api/operations/costs",cost)).id===costRow.id);
+ await block("Cost retry key rejects changed amount","POST","/api/operations/costs",{...cost,amountCents:5500});
+ // Capacity never fabricates working hours.
+ let cap=await ok("GET",`/api/capacity?from=${future}&minutes=60`);
+ check("Unconfirmed technician has no promised opening",cap.technicians.filter((t:any)=>!t.profile.confirmed).every((t:any)=>!t.next));
+ const windows=Array.from({length:7},(_,day)=>[{day,start:"08:00",end:"12:00"},{day,start:"13:00",end:"17:00"}]).flat();
+ for(const tech of techs)await ok("PUT",`/api/capacity/profiles/${tech.id}`,{version:cap.technicians.find((t:any)=>t.id===tech.id).profile.version,department:"PDR / Hail",confirmed:true,windows});
+ await block("Stale working hours rejected","PUT",`/api/capacity/profiles/${techs[0].id}`,{version:0,department:"PDR / Hail",confirmed:true,windows});
+ await ok("POST","/api/capacity/absences",{technicianId:techs[0].id,date:future,startTime:"08:00",endTime:"09:00",reason:"QA leave"});
+ cap=await ok("GET",`/api/capacity?from=${future}&minutes=60&department=${encodeURIComponent("PDR / Hail")}`);
+ check("Next available interval respects leave",cap.technicians.find((t:any)=>t.id===techs[0].id).next.startTime==="09:00");
+ const resource=await ok("POST","/api/capacity/resources",{name:`QA bay ${randomUUID()}`,department:"PDR / Hail"});
+ const booking={technicianId:techs[0].id,jobId:prod.job_id,date:future,startTime:"09:00",endTime:"10:00",resourceId:resource.id,readinessConfirmed:true,retryKey:randomUUID()};
+ const slot=await ok("POST","/api/capacity/reserve",booking);
+ check("Reservation retry is idempotent",(await ok("POST","/api/capacity/reserve",booking)).id===slot.id);
+ await block("Overlapping technician reservation blocked","POST","/api/capacity/reserve",{...booking,retryKey:randomUUID()});
+ await block("Shared bay collision blocked for different tech","POST","/api/capacity/reserve",{...booking,technicianId:techs[1].id,retryKey:randomUUID()});
+ await block("Lunch break cannot be booked","POST","/api/capacity/reserve",{...booking,startTime:"11:30",endTime:"12:30",retryKey:randomUUID()});
+ await block("Past reservation rejected","POST","/api/capacity/reserve",{...booking,date:addDays(localToday(),-1),retryKey:randomUUID()});
+ await block("Leave cannot overlap reservation","POST","/api/capacity/absences",{technicianId:techs[0].id,date:future,startTime:"09:30",endTime:"10:30",reason:"Conflict"});
+ await ok("PATCH",`/api/schedule-slots/${slot.id}`,{status:"cancelled"});
+ await block("Reservation history cannot be deleted","DELETE",`/api/schedule-slots/${slot.id}`);
+ await block("Cancelled reservation cannot bypass checks by reopening","PATCH",`/api/schedule-slots/${slot.id}`,{status:"scheduled"});
+ await ok("POST","/api/capacity/reserve",{...booking,retryKey:randomUUID()});
+ prod=await ok("PATCH",`/api/operations/tasks/${prod.tasks[0].id}`,{version:1,completed:true,estimatedMinutes:30,standardMinutes:null});
+ check("Partial completion leaves only discounted labor value",(await ok("GET","/api/operations")).cases.find((p:any)=>p.id===prod.id).remainingCents===27000);
+ await block("Stale task update rejected","PATCH",`/api/operations/tasks/${prod.tasks[0].id}`,{version:1,completed:true});
+ await block("QC cannot pass with unfinished work","PATCH",`/api/operations/cases/${prod.id}`,casePatch(prod,{qc:"pass"}));
+ prod=await ok("PATCH",`/api/operations/tasks/${prod.tasks[1].id}`,{version:1,completed:true,estimatedMinutes:60,standardMinutes:90});
+ prod=await ok("PATCH",`/api/operations/cases/${prod.id}`,casePatch(prod,{qc:"pass",action:"complete"}));
+ check("Completed work appears in unbilled queue",(await ok("GET","/api/operations")).cases.some((p:any)=>p.id===prod.id&&p.stage==="completed"&&!p.invoiceId&&p.remainingCents===0));
+ await block("Completed work cannot silently reopen","PATCH",`/api/jobs/${prod.job_id}`,{status:"in_progress"});
+ prod=await ok("PATCH",`/api/operations/cases/${prod.id}`,casePatch(prod,{costComplete:true,action:"deliver"}));
+ await block("Finalized costs cannot be silently reopened","PATCH",`/api/operations/cases/${prod.id}`,casePatch(prod,{costComplete:false}));
+ check("Cost-finalization retry is still idempotent",(await ok("POST","/api/operations/costs",cost)).id===costRow.id);
+ await block("Finalized costs cannot take new entries","POST","/api/operations/costs",{...cost,retryKey:randomUUID()});
+ const invoice=await ok("POST",`/api/estimates/${e.id}/convert-invoice`,{});
+ check("Final invoice taxes parts only",invoice.taxAmount===5.4&&invoice.total===365.4);
+ check("Invoice conversion is repeat safe",(await ok("POST",`/api/estimates/${e.id}/convert-invoice`,{})).id===invoice.id);
+ const credits=await ok("GET",`/api/invoices/${invoice.id}/labor`);
+ check("Multiple technician labor credits reconcile",credits.reduce((s:number,x:any)=>s+x.net_labor_cents,0)===27000&&credits.length===2);
+ dashboard=await ok("GET","/api/operations");
+ check("Invoice is not counted again in unfinished work",dashboard.cases.find((p:any)=>p.id===prod.id).remainingCents===0);
+ check("Completed reviewed costs feed contribution",dashboard.metrics.costSample>=1&&dashboard.metrics.contributionCents>=31000);
+ check("Efficiency uses measured standard and actual time",dashboard.metrics.efficiencySample>=1&&dashboard.metrics.efficiencyRate===150);
+ const pass=randomBytes(24).toString("base64url");
+ for(const role of ["support","technician","auditor","advisor"]){
+  const invitation=await ok("POST","/api/staff",{email:`${role}-${randomUUID()}@qa.invalid`,fullName:`QA ${role}`,role,technicianId:role==="technician"?techs[1].id:null});
+  const auth=(await ok("POST","/api/auth/activate",{email:invitation.user.email,activationCode:invitation.activationCode,password:pass},"")).token;
+  if(!["auditor","advisor"].includes(role))await block(`${role} cannot read financial operations`,"GET","/api/operations",undefined,auth);
+  if(role!=="advisor")await block(`${role} cannot change production`,"PATCH",`/api/operations/cases/${prod.id}`,casePatch(prod),auth);
+  else{
+    const privateCase=await ok("GET",`/api/operations/cases/${prod.id}`,undefined,auth);
+    check("Advisor cannot read compensation costs",privateCase.costs.length===0);
+    const privateDash=await ok("GET","/api/operations",undefined,auth);
+    check("Advisor dashboard redacts direct cost and contribution amounts",privateDash.metrics.contributionCents===null&&privateDash.cases.every((p:any)=>!("costsCents" in p)));
+    await block("Advisor billing access does not grant cost-write access","POST","/api/operations/costs",{...cost,retryKey:randomUUID()},auth);
+    await block("Advisor cannot change cost finalization","PATCH",`/api/operations/cases/${prod.id}`,casePatch(prod,{costComplete:false}),auth);
+  }
+ }
+ const audit=sqlite.prepare("SELECT * FROM security_audit WHERE entity='ops_tasks' AND actor_id IS NOT NULL LIMIT 1").get();
+ check("Production writes retain staff audit attribution",audit);
+ check("Database foreign-key integrity passes",sqlite.pragma("foreign_key_check").length===0);
+ check("SQLite integrity passes",(sqlite.pragma("integrity_check") as any[])[0].integrity_check==="ok");
+ writeFileSync(`${out}/fixture.json`,JSON.stringify({...fixture,caseId:prod.id,estimateId:e.id,invoiceId:invoice.id,techId:techs[0].id,future}),{mode:0o600});
+}finally{
+ writeFileSync(`${out}/results.json`,JSON.stringify({passed:results.filter(r=>r.passed).length,failed:results.filter(r=>!r.passed).length,results},null,2));
+ console.log(JSON.stringify({passed:results.filter(r=>r.passed).length,failed:results.filter(r=>!r.passed).length,last:results.at(-1)}));
+ sqlite.close();
+}

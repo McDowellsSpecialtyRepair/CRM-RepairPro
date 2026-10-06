@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "checks": 54,
+  "cases": [
+    "reported legacy total",
+    "mixed",
+    "classified",
+    "missing lines",
+    "positive difference",
+    "negative difference",
+    "unknown type",
+    "decimal cents",
+    "empty draft"
+  ]
+}

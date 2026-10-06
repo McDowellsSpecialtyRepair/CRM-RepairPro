@@ -1,0 +1,280 @@
+{
+  "status": "PASS",
+  "checks": 68,
+  "scope": "Fresh database, nine service flows; not a production certification",
+  "node": "v20.20.1",
+  "results": [
+    {
+      "name": "Clean database server starts",
+      "passed": true
+    },
+    {
+      "name": "Anonymous financial access denied",
+      "passed": true
+    },
+    {
+      "name": "Fresh owner can activate without existing credentials",
+      "passed": true
+    },
+    {
+      "name": "pdr: subtotal, tax and customer total",
+      "passed": true
+    },
+    {
+      "name": "pdr: foreign service category rejected",
+      "passed": true
+    },
+    {
+      "name": "pdr: invoice exact and conversion retry safe",
+      "passed": true
+    },
+    {
+      "name": "pdr: two techs receive labor only",
+      "passed": true
+    },
+    {
+      "name": "pdr: sales credit and internal use tax retained",
+      "passed": true
+    },
+    {
+      "name": "pdr: customer print excludes private cost note",
+      "passed": true
+    },
+    {
+      "name": "pdr: payment closes balance",
+      "passed": true
+    },
+    {
+      "name": "hail: subtotal, tax and customer total",
+      "passed": true
+    },
+    {
+      "name": "hail: foreign service category rejected",
+      "passed": true
+    },
+    {
+      "name": "hail: invoice exact and conversion retry safe",
+      "passed": true
+    },
+    {
+      "name": "hail: two techs receive labor only",
+      "passed": true
+    },
+    {
+      "name": "hail: sales credit and internal use tax retained",
+      "passed": true
+    },
+    {
+      "name": "hail: customer print excludes private cost note",
+      "passed": true
+    },
+    {
+      "name": "hail: payment closes balance",
+      "passed": true
+    },
+    {
+      "name": "window_tint: subtotal, tax and customer total",
+      "passed": true
+    },
+    {
+      "name": "window_tint: foreign service category rejected",
+      "passed": true
+    },
+    {
+      "name": "window_tint: invoice exact and conversion retry safe",
+      "passed": true
+    },
+    {
+      "name": "window_tint: two techs receive labor only",
+      "passed": true
+    },
+    {
+      "name": "window_tint: sales credit and internal use tax retained",
+      "passed": true
+    },
+    {
+      "name": "window_tint: customer print excludes private cost note",
+      "passed": true
+    },
+    {
+      "name": "window_tint: payment closes balance",
+      "passed": true
+    },
+    {
+      "name": "interior_repair: subtotal, tax and customer total",
+      "passed": true
+    },
+    {
+      "name": "interior_repair: foreign service category rejected",
+      "passed": true
+    },
+    {
+      "name": "interior_repair: invoice exact and conversion retry safe",
+      "passed": true
+    },
+    {
+      "name": "interior_repair: two techs receive labor only",
+      "passed": true
+    },
+    {
+      "name": "interior_repair: sales credit and internal use tax retained",
+      "passed": true
+    },
+    {
+      "name": "interior_repair: customer print excludes private cost note",
+      "passed": true
+    },
+    {
+      "name": "interior_repair: payment closes balance",
+      "passed": true
+    },
+    {
+      "name": "rv_interior: subtotal, tax and customer total",
+      "passed": true
+    },
+    {
+      "name": "rv_interior: foreign service category rejected",
+      "passed": true
+    },
+    {
+      "name": "rv_interior: invoice exact and conversion retry safe",
+      "passed": true
+    },
+    {
+      "name": "rv_interior: two techs receive labor only",
+      "passed": true
+    },
+    {
+      "name": "rv_interior: sales credit and internal use tax retained",
+      "passed": true
+    },
+    {
+      "name": "rv_interior: customer print excludes private cost note",
+      "passed": true
+    },
+    {
+      "name": "rv_interior: payment closes balance",
+      "passed": true
+    },
+    {
+      "name": "rv_upholstery: subtotal, tax and customer total",
+      "passed": true
+    },
+    {
+      "name": "rv_upholstery: foreign service category rejected",
+      "passed": true
+    },
+    {
+      "name": "rv_upholstery: invoice exact and conversion retry safe",
+      "passed": true
+    },
+    {
+      "name": "rv_upholstery: two techs receive labor only",
+      "passed": true
+    },
+    {
+      "name": "rv_upholstery: sales credit and internal use tax retained",
+      "passed": true
+    },
+    {
+      "name": "rv_upholstery: customer print excludes private cost note",
+      "passed": true
+    },
+    {
+      "name": "rv_upholstery: payment closes balance",
+      "passed": true
+    },
+    {
+      "name": "marine_interior: subtotal, tax and customer total",
+      "passed": true
+    },
+    {
+      "name": "marine_interior: foreign service category rejected",
+      "passed": true
+    },
+    {
+      "name": "marine_interior: invoice exact and conversion retry safe",
+      "passed": true
+    },
+    {
+      "name": "marine_interior: two techs receive labor only",
+      "passed": true
+    },
+    {
+      "name": "marine_interior: sales credit and internal use tax retained",
+      "passed": true
+    },
+    {
+      "name": "marine_interior: customer print excludes private cost note",
+      "passed": true
+    },
+    {
+      "name": "marine_interior: payment closes balance",
+      "passed": true
+    },
+    {
+      "name": "marine_upholstery: subtotal, tax and customer total",
+      "passed": true
+    },
+    {
+      "name": "marine_upholstery: foreign service category rejected",
+      "passed": true
+    },
+    {
+      "name": "marine_upholstery: invoice exact and conversion retry safe",
+      "passed": true
+    },
+    {
+      "name": "marine_upholstery: two techs receive labor only",
+      "passed": true
+    },
+    {
+      "name": "marine_upholstery: sales credit and internal use tax retained",
+      "passed": true
+    },
+    {
+      "name": "marine_upholstery: customer print excludes private cost note",
+      "passed": true
+    },
+    {
+      "name": "marine_upholstery: payment closes balance",
+      "passed": true
+    },
+    {
+      "name": "upholstery: subtotal, tax and customer total",
+      "passed": true
+    },
+    {
+      "name": "upholstery: foreign service category rejected",
+      "passed": true
+    },
+    {
+      "name": "upholstery: invoice exact and conversion retry safe",
+      "passed": true
+    },
+    {
+      "name": "upholstery: two techs receive labor only",
+      "passed": true
+    },
+    {
+      "name": "upholstery: sales credit and internal use tax retained",
+      "passed": true
+    },
+    {
+      "name": "upholstery: customer print excludes private cost note",
+      "passed": true
+    },
+    {
+      "name": "upholstery: payment closes balance",
+      "passed": true
+    },
+    {
+      "name": "SQLite physical integrity",
+      "passed": true
+    },
+    {
+      "name": "SQLite foreign keys",
+      "passed": true
+    }
+  ]
+}

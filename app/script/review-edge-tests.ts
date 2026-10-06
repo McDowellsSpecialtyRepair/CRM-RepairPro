@@ -1,0 +1,47 @@
+import {readFileSync,writeFileSync} from "node:fs";
+import {randomUUID} from "node:crypto";
+const dir="/home/user/workspace/review-qa",f=JSON.parse(readFileSync(`${dir}/browser-fixture.json`,"utf8"));
+let token="";const results:any[]=[];
+async function api(method:string,path:string,body?:any){const r=await fetch("http://127.0.0.1:5001"+path,{method,headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:body===undefined?undefined:JSON.stringify(body)});return{status:r.status,data:await r.json()};}
+const check=(name:string,pass:boolean,observed?:any)=>results.push({name,passed:pass,observed});
+token=(await api("POST","/api/auth/login",{email:f.email,password:f.password})).data.token;
+const c=(await api("POST","/api/customers",{companyName:"QA Concurrent Contact "+randomUUID(),customerType:"retail",email:"service@mcdowellsrepair.com",phone:"2085550101",confirmDuplicate:true})).data;
+const diff=(await api("POST",`/api/customers/${c.id}/contact-diffs`,{phone:"2085550102"})).data.diffs[0];
+await api("PATCH",`/api/customers/${c.id}`,{phone:"2085550103"});
+const stale=await api("POST",`/api/customers/${c.id}/contact-update`,{answers:[{...diff,answer:"replaced"}]});
+check("Stale advisor contact answer is rejected",stale.status===409,stale.status);
+const current=(await api("GET",`/api/customers/${c.id}`)).data;
+check("Concurrent phone edit is preserved",current.phone==="2085550103",current.phone);
+const badDate=await api("PATCH",`/api/invoices/${f.invoiceId}`,{dueDate:"2026-02-30"});
+check("Impossible invoice due date rejected",badDate.status===400,badDate.status);
+if(badDate.status===200)await api("PATCH",`/api/invoices/${f.invoiceId}`,{dueDate:"2026-10-26"});
+const laborDate=await api("GET","/api/reports/technician-labor?from=2026-02-30&to=2026-03-31");
+check("Impossible technician-report date rejected",laborDate.status===400,laborDate.status);
+const good=(await api("POST",`/api/customers/${c.id}/contact-diffs`,{phone:"2085550199"})).data.diffs[0];
+const saved=await api("POST",`/api/customers/${c.id}/contact-update`,{answers:[{...good,answer:"replaced"}]});
+check("Current advisor contact answer can save",saved.status===200,saved.status);
+if(!process.env.BASELINE){
+ const currentDiff=(await api("POST",`/api/customers/${c.id}/contact-diffs`,{phone:"2085550123"})).data.diffs[0];
+ check("Duplicate answers for same contact field rejected",(await api("POST",`/api/customers/${c.id}/contact-update`,{answers:[{...currentDiff,answer:"both"},{...currentDiff,answer:"both"}]})).status===400);
+ const v=(await api("POST","/api/vehicles",{customerId:c.id,vin:"jthcz1blxga004107",vehicleType:"auto"})).data;
+ check("Vehicle save canonicalizes lowercase VIN",v.vin==="JTHCZ1BLXGA004107");
+ const duplicate=await api("POST","/api/vehicles",{customerId:c.id,vin:" JTHCZ1BLXGA004107 ",vehicleType:"auto"});
+ check("Same-customer duplicate VIN blocked without losing original",duplicate.status===409&&duplicate.data.existingVehicleId===v.id);
+ const invalid=await api("GET","/api/vin-decode/IIIIIIIIIIIIIIIII");
+ check("Invalid VIN rejected before provider lookup",invalid.status===400);
+ const staff=(await api("GET","/api/staff")).data;
+ const support=staff.find((s:any)=>s.role==="support"&&s.status==="active");
+ const ownerToken=token;
+ token=(await api("POST","/api/auth/login",{email:support.email,password:f.password})).data.token;
+ check("Support test login succeeds",!!token);
+ const hist=await api("GET",`/api/vin-history/JTHCZ1BLXGA004107?customerId=${c.id}`);
+ check("Support VIN history hides estimates and invoices",hist.status===200&&hist.data.limited&&hist.data.estimates.length===0&&hist.data.invoices.length===0);
+ check("Support cannot print pricing",(await fetch("http://127.0.0.1:5001/print/pricing-matrices",{headers:{Authorization:`Bearer ${token}`}})).status===403);
+ token=ownerToken;
+ const allowed=await api("PATCH",`/api/invoices/${f.invoiceId}`,{dueDate:"2028-02-29"});
+ check("Valid leap-day invoice date accepted",allowed.status===200);
+ await api("PATCH",`/api/invoices/${f.invoiceId}`,{dueDate:"2026-10-26"});
+ check("Cannot forge invoice QB flag",(await api("PATCH",`/api/invoices/${f.invoiceId}`,{qbSynced:1,qbTxnId:"fake"})).status===409);
+}
+writeFileSync(`${dir}/${process.env.BASELINE?"edge-before.json":"edge-after.json"}`,JSON.stringify(results,null,2));console.log(JSON.stringify(results));
+if(!process.env.BASELINE&&results.some(r=>!r.passed))process.exitCode=1;

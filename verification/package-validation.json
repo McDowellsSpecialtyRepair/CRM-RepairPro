@@ -1,0 +1,41 @@
+{
+  "package": "RepairPro Developer Handoff",
+  "preparedDate": "2026-09-28",
+  "applicationSourceMatchesBaseline": true,
+  "cleanInstall": "npm ci completed in exported directory",
+  "typecheck": "npm run check passed",
+  "build": "npm run build passed",
+  "nodeTested": "20.20.1",
+  "platformTested": "Linux",
+  "freshDatabaseChecks": 68,
+  "calculationAssertions": 54,
+  "schemaTables": 53,
+  "dataRowsExported": 0,
+  "credentialPatternScan": {
+    "candidateFiles": [],
+    "limitation": "Pattern scan is not a comprehensive security audit. Demo fixture literals are retained and disclosed."
+  },
+  "excluded": [
+    "operating database and SQLite sidecars",
+    "live environment files",
+    "live credentials and account exports",
+    "private email outputs",
+    "Git history",
+    "node_modules",
+    "generated dist bundle"
+  ],
+  "knownBuildWarnings": [
+    "deprecated prebuild-install",
+    "deprecated Recharts 2",
+    "PostCSS from option warning",
+    "client bundle exceeds 500 kB"
+  ],
+  "notPerformed": [
+    "dependency vulnerability audit",
+    "production security assessment",
+    "40-user load test",
+    "complete UI acceptance on Android",
+    "external payment, messaging or QuickBooks integration certification"
+  ],
+  "readiness": "Not production-certified. Read docs/KNOWN-ISSUES.md."
+}
