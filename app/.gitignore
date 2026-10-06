@@ -17,3 +17,6 @@ emails/
 
 *.log
 .DS_Store
+
+# Local private files (activation codes, credentials)
+.private/

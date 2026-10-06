@@ -1,7 +1,9 @@
 # Database invariants
 
 `shared/integrity.ts` is the relationship catalog. `integrity-migration.ts` is the
-authoritative, versioned physical schema upgrade; use `npm run db:push` to run it.
+authoritative, versioned physical schema upgrade. It runs as one ordered step of
+`server/migrations.ts`, the single migration entry point used by server startup and
+`npm run db:migrate`.
 Do not run generic Drizzle schema push against this database: it does not model
 the deferred ownership constraints or financial triggers.
 

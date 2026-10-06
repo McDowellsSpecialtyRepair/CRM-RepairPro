@@ -3,11 +3,14 @@ import { sqlite } from "./storage-db";
 import { storage } from "./storage";
 import { runReport, validateReport, previousPeriod, type ReportConfig } from "../shared/reporting";
 
-export function registerReporting(app: Express) {
+export function migrateReporting() {
   sqlite.exec(`CREATE TABLE IF NOT EXISTS report_definitions (
     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
     config TEXT NOT NULL CHECK(json_valid(config)), created_at TEXT NOT NULL
   )`);
+}
+
+export function registerReporting(app: Express) {
   const readData = () => ({
     customers: storage.getCustomers(), jobs: storage.getJobs(), estimates: storage.getEstimates(),
     invoices: storage.getInvoices(), payments: storage.getPayments(), campaigns: storage.getCampaigns(),

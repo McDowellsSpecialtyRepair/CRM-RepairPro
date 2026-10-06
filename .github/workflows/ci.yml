@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, build and verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: app/.nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+      # Temporary databases only; SMTP credentials are cleared by the scripts.
+      - name: Clean-room verification (nine services, estimate to payment)
+        run: node handoff/verify.mjs
+        env:
+          HANDOFF_TEST_PORT: "5187"
+
+      - name: Fresh-install check (no demo data or default credentials)
+        run: node handoff/fresh-install-check.mjs
+        env:
+          HANDOFF_TEST_PORT: "5188"
+
+      - name: Calculation regression
+        run: npx tsx handoff/calculation-check.ts
+
+      - name: Dependency audit (fails on critical)
+        run: npm audit --omit=dev --audit-level=critical
+
+      - name: Dependency audit (full report, informational)
+        if: always()
+        continue-on-error: true
+        run: npm audit

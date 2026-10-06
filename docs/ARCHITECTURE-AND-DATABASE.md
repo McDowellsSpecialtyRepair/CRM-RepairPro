@@ -31,15 +31,17 @@ Do not treat `schema.sql` as an alternative installer. Audit triggers depend on 
 
 ## Startup and migration ordering
 
-`server/storage-db.ts` opens the selected file, enables WAL and foreign keys, sets a busy timeout, creates base tables and adds commercial line fields. `registerRoutes` then performs these important operations:
+`server/storage-db.ts` opens the selected file, enables WAL and foreign keys, sets a busy timeout, creates base tables and adds commercial line fields. `runMigrations()` in `server/migrations.ts` is the single migration entry point. Server startup (`registerRoutes`), `npm run db:migrate` and `npm run db:seed-demo` all call it, before any route is registered. It performs these steps in order:
 
-1. Add early labor columns, run the built-in seed on an empty customer table, and apply integrity migration.
-2. Initialize labor tables and staff security.
-3. Initialize sales attribution, operations, capacity and work-order planning tables.
-4. Register reports and recreate/extend audit triggers.
-5. Apply the narrowly gated historic false-sent correction.
+1. Add early labor columns.
+2. On a brand-new database only, load the reference catalog (service templates, pricing matrices, tax jurisdictions) once and record `reference-catalog-v1`. An existing database is only marked. Demonstration records load here only when `db:seed-demo` explicitly requests them (`demo-data-v1`); server startup never does.
+3. Apply the integrity migration (`integrity-v1`).
+4. Initialize labor tables and staff security.
+5. Initialize sales attribution, operations, capacity, work-order planning and report-definition tables.
+6. Recreate/extend audit triggers.
+7. Apply the narrowly gated historic false-sent correction.
 
-Important inconsistency: `script/migrate.ts` and the original `server/DATABASE-INVARIANTS.md` predate some of the later startup migrations. `npm run db:push` alone is not evidence that all current subsystems are migrated. The verified clean-room path uses full application startup. Consolidating migration entry points is an early developer task.
+Schema steps are idempotent and run on every start. One-time steps are recorded in `app_migrations` (the historic correction uses `commerce_migrations`).
 
 Never run generic `drizzle-kit push` against the operating database. The schema includes custom deferred ownership constraints, immutable financial triggers and audit behavior that are not fully represented by the ORM schema.
 

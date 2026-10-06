@@ -8,10 +8,15 @@ From `app/` after installation/build:
 
 ```sh
 node handoff/verify.mjs
+node handoff/fresh-install-check.mjs
 npx tsx handoff/calculation-check.ts
 ```
 
-The first command provisions a fresh temporary database and local owner, then exercises all nine services with customer, target, repair labor, material, freight-in, delivery, consumed supplies, internal use tax, technician split, salesperson attribution, approval, conversion, print and final payment. It rejects a mismatched service category, checks conversion retry safety, and checks physical/foreign-key integrity.
+These run in CI on every push (`.github/workflows/ci.yml`).
+
+`fresh-install-check.mjs` confirms a production start on an empty database creates no demonstration data, accounts or default credentials, that restarts and `db:migrate` are idempotent, and that `db:seed-demo` refuses unsafe targets.
+
+`verify.mjs` provisions a fresh temporary database (sample data loaded explicitly with `db:seed-demo`) and local owner, then exercises all nine services with customer, target, repair labor, material, freight-in, delivery, consumed supplies, internal use tax, technician split, salesperson attribution, approval, conversion, print and final payment. It rejects a mismatched service category, checks conversion retry safety, and checks physical/foreign-key integrity.
 
 Its deliberately independent arithmetic is: $200 labor + $150 materials + $10 freight-in + $20 delivery = $380 subtotal; 6% of $160 taxable charges = $9.60; customer total $389.60. $10 consumed-supply cost at 6% yields $0.60 internal use tax, not an extra customer charge. Two technicians receive $120/$80 net labor, and the salesperson receives $380 sales attribution, not commission pay.
 

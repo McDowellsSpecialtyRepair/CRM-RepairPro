@@ -4,7 +4,7 @@ Run commands from the extracted `app/` directory. The delivered application uses
 
 ## Prerequisites
 
-- **Runtime:** Node 20.20.1 was used for the verified build. That records reproducibility, not a recommendation about current security support; the receiving developer should evaluate a supported Node version and rerun all tests.
+- **Runtime:** Node 22 LTS (pinned in `app/.nvmrc` and `package.json` `engines`; supported until April 2027). CI uses the latest 22.x. Node 24 is not yet usable: the pinned `better-sqlite3` 11.x crashes the server on Node 24, and moving to Node 24 requires a reviewed `better-sqlite3` major upgrade. The original handoff was verified on Node 20.20.1, which is now end-of-life.
 - **Native dependency:** `better-sqlite3` must install for the recipient's operating system. If a prebuilt binary is unavailable, a working native build toolchain is required.
 - **Internet:** Initial `npm ci` requires dependency downloads. Fonts load from external URLs; VIN decoding uses NHTSA. The financial smoke runner does not require those integrations.
 - **Platform:** Commands below use a POSIX shell. On Windows use WSL/Linux or translate environment-variable commands to PowerShell. Other operating systems have not been independently tested in this handoff.
@@ -16,10 +16,15 @@ npm ci
 npm run check
 npm run build
 node handoff/verify.mjs
+node handoff/fresh-install-check.mjs
 npx tsx handoff/calculation-check.ts
 ```
 
-`verify.mjs` starts its own temporary server on port 5187, creates a temporary SQLite database with the original built-in sample data, provisions a fresh local owner, generates a random password, exercises all nine services, and deletes the temporary database and credentials afterward. It explicitly clears SMTP credentials in the child process. It never uses the operating database.
+The same checks run in GitHub Actions on every push and pull request (`.github/workflows/ci.yml`).
+
+`verify.mjs` starts its own temporary server on port 5187, creates a temporary SQLite database, explicitly loads the original built-in sample data into it with `db:seed-demo`, provisions a fresh local owner, generates a random password, exercises all nine services, and deletes the temporary database and credentials afterward. It explicitly clears SMTP credentials in the child process. It never uses the operating database.
+
+`fresh-install-check.mjs` (port 5188 by default) starts a production server on an empty temporary database and confirms that no demonstration customers, users, technicians, staff accounts or credentials are created, that restarts and `db:migrate` are idempotent, and that `db:seed-demo` refuses unsafe targets.
 
 If port 5187 is occupied, set a different port rather than killing an unrelated service:
 
@@ -38,7 +43,15 @@ cp .env.example .env
 npm start
 ```
 
-Visit `http://localhost:5000`. The startup path creates tables, seeds demonstration records if there are no customers, and runs the application migrations. Keep this service restricted to your development machine; the current server binds to `0.0.0.0`.
+Visit `http://localhost:5000`. Startup runs the application migrations (`server/migrations.ts`). On a brand-new database it loads the reference catalog (service templates, pricing matrices and tax jurisdictions) once. It never loads demonstration customers, users, technicians, jobs or invoices. Keep this service restricted to your development machine; the current server binds to `0.0.0.0`.
+
+To work with the original sample records instead, create a separate new database explicitly before the first start:
+
+```sh
+DB_PATH=./demo.db npm run db:seed-demo
+```
+
+Then set `DB_PATH=./demo.db` in `.env`. The command refuses to run with `NODE_ENV=production`, without an explicit `DB_PATH`, or against any existing database file. A database created this way is recorded as `demo-data-v1` in `app_migrations`, and the server logs a warning on every start. Never use it for real business records.
 
 With the server started, open a second terminal in `app/` and provision a fresh local owner:
 
@@ -65,13 +78,23 @@ printf '\n.private/\n' >> .gitignore
 | Variable | Meaning |
 |---|---|
 | `DB_PATH` | SQLite file; defaults to `data.db` relative to process working directory |
-| `EMAIL_OUTPUT_DIR` | Local rendered test-email output; set explicitly because the code's fallback contains the original workspace path |
+| `EMAIL_OUTPUT_DIR` | Local rendered email copies (contain customer data; not encrypted). Defaults to `emails/` under the server's working directory; set it explicitly in every environment |
 | `PORT` | Express port, default 5000 |
 | `NODE_ENV` | `production` for built server; development for Vite |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` | SMTP settings; credentials must remain empty during onboarding |
 | `SMTP_USER`, `SMTP_PASS` | Optional SMTP credentials; never include in source or test reports |
 
 `server/index.ts` loads `.env` via dotenv. Some standalone TypeScript helpers do not, so pass `DB_PATH` explicitly when running them.
+
+## Database migrations
+
+There is one migration path: `runMigrations()` in `server/migrations.ts`. The server runs it on every start, and the same steps can be run explicitly against a stopped server's database:
+
+```sh
+DB_PATH=/private/path/to/data.db npm run db:migrate
+```
+
+`db:migrate` requires an explicit `DB_PATH`, writes a consistent `*.pre-migrate-<timestamp>.bak` backup of an existing database first (not encrypted; contains private data), runs the migrations, then checks SQLite integrity and foreign keys. It never loads demonstration data. One-time steps are recorded in the `app_migrations` table. Do not use `drizzle-kit push`; it is no longer a project dependency.
 
 ## Hosting portability
 
