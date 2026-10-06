@@ -27,9 +27,20 @@ This is the receiving developer's starting backlog. “Implemented” and “tes
 | FIN-02 | Purchasing/use tax | Estimated purchase costs/use tax do not create vendor bills, inventory movements or tax filings. Use-tax entry currently supports shop-consumed supplies only. Confirm partial vendor tax, exemptions, freight basis, credits and jurisdiction rules. |
 | MKT-01 | Marketing | Counters are manually maintained, not verified campaign delivery, attributed sales, actual spend or ROI. Campaign creation UI is disabled. |
 | CFG-01 | Settings | Business/service/tax settings include preview placeholders and disabled saves. Confirm legal business identity, document wording and configurable tax policy. |
-| PRICE-01 | Pricing provenance | Source-backed State Farm cells coexist with unverified legacy insurer data. Other carriers must not inherit State Farm values. Obtain current applicable agreements and record provenance/approval; review Quick Add labor-only assumptions. |
+| PRICE-01 | Pricing provenance — owner decision 2026-10-06: all existing pricing is unverified and not approved for production use | The reference catalog (templates and pricing matrices) still loads into a brand-new database as before, pending a later pricing review. Source-backed State Farm cells coexist with unverified legacy insurer data. Other carriers must not inherit State Farm values. Obtain current applicable agreements and record provenance/approval; review Quick Add labor-only assumptions. |
 | UI-01 | Role and workflow consistency | Some UI controls rely on backend denial rather than clear disabled/read-only states. Verify all roles and unsaved edits across every editor. |
 | MAINT-01 | Dependencies / bundles | Phase 0: unused packages removed, non-breaking audit fixes applied (critical `proxy-addr` fixed), Node 22 LTS pinned. Remaining: build-time Tailwind CSS 3 audit findings with no non-breaking fix, deprecated `prebuild-install`/Recharts 2 warnings, large client bundle, and a `better-sqlite3` major upgrade before Node 24. A successful build is not a security audit. |
+
+## Deferred upgrade projects (owner decision 2026-10-06)
+
+These are tracked as separate future projects and are excluded from current stabilization work.
+
+| ID | Upgrade | Why deferred / what it requires |
+|---|---|---|
+| UPG-01 | Node 24 LTS + `better-sqlite3` 12 | `better-sqlite3` 11.x crashes the server on Node 24. Requires a major native-module upgrade with full regression, restore and load testing. Node 22 LTS (supported to April 2027) remains pinned until then. |
+| UPG-02 | Tailwind CSS 4 | Removes the remaining build-time `npm audit` findings (braces, micromatch, postcss-selector-parser) that have no non-breaking fix. Breaking styling/config migration; requires visual regression review on desktop and Android. |
+
+CI policy: the dependency audit gate fails on critical findings only; high and moderate findings continue to be reported on every run.
 
 ## Reproduce the reported incident without live data
 
