@@ -17,6 +17,7 @@ npm run check
 npm run build
 node handoff/verify.mjs
 node handoff/fresh-install-check.mjs
+node handoff/security-check.mjs
 npx tsx handoff/calculation-check.ts
 ```
 
@@ -25,6 +26,8 @@ The same checks run in GitHub Actions on every push and pull request (`.github/w
 `verify.mjs` starts its own temporary server on port 5187, creates a temporary SQLite database, explicitly loads the original built-in sample data into it with `db:seed-demo`, provisions a fresh local owner, generates a random password, exercises all nine services, and deletes the temporary database and credentials afterward. It explicitly clears SMTP credentials in the child process. It never uses the operating database.
 
 `fresh-install-check.mjs` (port 5188 by default) starts a production server on an empty temporary database and confirms that no demonstration customers, users, technicians, staff accounts or credentials are created, that restarts and `db:migrate` are idempotent, and that `db:seed-demo` refuses unsafe targets.
+
+`security-check.mjs` (port 5189 by default) checks the Phase 1 security controls on a temporary demo database: security headers and the Content-Security-Policy (including the print pages), login lockout per email and address, throttling of anonymous requests, protected fields on the data-entry routes, purchase-cost privacy for advisor/support/technician accounts, email-copy permissions and retention, and encrypted backup/restore.
 
 If port 5187 is occupied, set a different port rather than killing an unrelated service:
 
@@ -43,7 +46,7 @@ cp .env.example .env
 npm start
 ```
 
-Visit `http://localhost:5000`. Startup runs the application migrations (`server/migrations.ts`). On a brand-new database it loads the reference catalog (service templates, pricing matrices and tax jurisdictions) once. It never loads demonstration customers, users, technicians, jobs or invoices. Keep this service restricted to your development machine; the current server binds to `0.0.0.0`.
+Visit `http://localhost:5000`. Startup runs the application migrations (`server/migrations.ts`). On a brand-new database it loads the reference catalog (service templates, pricing matrices and tax jurisdictions) once. It never loads demonstration customers, users, technicians, jobs or invoices. The server listens on `127.0.0.1` (this machine only) unless `HOST` is set.
 
 To work with the original sample records instead, create a separate new database explicitly before the first start:
 
@@ -83,6 +86,10 @@ printf '\n.private/\n' >> .gitignore
 | `NODE_ENV` | `production` for built server; development for Vite |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` | SMTP settings; credentials must remain empty during onboarding |
 | `SMTP_USER`, `SMTP_PASS` | Optional SMTP credentials; never include in source or test reports |
+| `HOST` | Listen address. Default `127.0.0.1`. Use a TLS reverse proxy for remote access; set `0.0.0.0` only on a private network or inside a container behind a proxy |
+| `TRUST_PROXY` | Number of reverse proxies in front of the app (e.g. `1`) or `loopback`. Empty when there is no proxy. Required behind a proxy for correct client addresses (rate limits) and HTTPS detection (HSTS). `true` is refused |
+| `EMAIL_TEST_COPY_RETENTION_DAYS` | Days to keep temporary copies of emails addressed only to the internal test mailbox (`emails/test-copies/`). Empty means 30; `0` keeps them. Copies of anything sent to a customer go to `emails/sent-records/` and are never deleted automatically; files saved directly in `emails/` before this setting existed are left untouched |
+| `BACKUP_ENCRYPTION_KEY` | 64 hex characters from `node handoff/database.mjs keygen`. Encrypts backups made by `handoff/database.mjs` and `db:migrate`. Store it in a password manager or secret store, separately from the backups |
 
 `server/index.ts` loads `.env` via dotenv. Some standalone TypeScript helpers do not, so pass `DB_PATH` explicitly when running them.
 
@@ -94,12 +101,12 @@ There is one migration path: `runMigrations()` in `server/migrations.ts`. The se
 DB_PATH=/private/path/to/data.db npm run db:migrate
 ```
 
-`db:migrate` requires an explicit `DB_PATH`, writes a consistent `*.pre-migrate-<timestamp>.bak` backup of an existing database first (not encrypted; contains private data), runs the migrations, then checks SQLite integrity and foreign keys. It never loads demonstration data. One-time steps are recorded in the `app_migrations` table. Do not use `drizzle-kit push`; it is no longer a project dependency.
+`db:migrate` requires an explicit `DB_PATH`, writes a consistent pre-migration backup of an existing database first (`*.pre-migrate-<timestamp>.bak.enc`, AES-256-GCM, when `BACKUP_ENCRYPTION_KEY` is set; otherwise an owner-only unencrypted `.bak` with a warning), runs the migrations, then checks SQLite integrity and foreign keys. It never loads demonstration data. One-time steps are recorded in the `app_migrations` table. Do not use `drizzle-kit push`; it is no longer a project dependency.
 
 ## Hosting portability
 
 The source `client/src/lib/queryClient.ts` contains a `__PORT_5000__` token used by the existing preview deployment. When building from this unmodified source outside that deployment, it falls back to relative same-origin API URLs. Do not copy a previously deployed, token-rewritten static bundle.
 
-Use one origin for the frontend and `/api` and `/print` paths to reproduce the verified setup. A static-only hosting account is insufficient: Express and persistent SQLite storage must remain available. HTTPS, process supervision, access restrictions, monitored backups, deployment rollback and a load test are production work still required.
+Use one origin for the frontend and `/api` and `/print` paths to reproduce the verified setup. In production the server sends a strict Content-Security-Policy (scripts only from the app itself plus the hashed print scripts in `server/http-security.ts`); if you add a script, font or style host, add it there. Headings use the Satoshi font from Fontshare until a licensed self-hosted copy is added; Inter and JetBrains Mono are bundled with the app. A static-only hosting account is insufficient: Express and persistent SQLite storage must remain available. HTTPS, process supervision, access restrictions, monitored backups, deployment rollback and a load test are production work still required.
 
 No production Docker image or cloud deployment configuration is certified by this package. Do not upload a live SQLite file to an ephemeral/stateless deployment without a reviewed data-persistence design.

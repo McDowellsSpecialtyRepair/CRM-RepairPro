@@ -9,6 +9,7 @@ From `app/` after installation/build:
 ```sh
 node handoff/verify.mjs
 node handoff/fresh-install-check.mjs
+node handoff/security-check.mjs
 npx tsx handoff/calculation-check.ts
 ```
 

@@ -3,8 +3,6 @@ import type { Server } from "node:http";
 import { storage } from "./storage";
 import { sqlite } from "./storage-db";
 import { createHash } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
 import { createEstimateSafe, updateEstimateSafe, addEstimateLines, deleteEstimateLine,
   convertEstimate, postPayment, updateInvoiceSafe, fail, editableEstimate, recalculateEstimate, updateEstimateLine, validateEstimateServices } from "./billing";
 import {registerEstimateSales} from "./estimate-sales";
@@ -23,7 +21,13 @@ import {validDate} from "../shared/reporting";
 import {formatCalendarDate} from "../shared/calendar-date";
 import { registerWorkOrders, planning, updatePlanning, estimatePlanningList } from "./work-orders";
 import { runMigrations } from "./migrations";
-import { TEST_EMAIL, emailOutputDir } from "./delivery-config";
+import { TEST_EMAIL, saveEmailCopy } from "./delivery-config";
+import { acceptFields } from "./input-guard";
+import { AUTO_PRINT_SCRIPT, internalOrigin } from "./http-security";
+import { actorLabel } from "./security-context";
+import { customers, vehicles, assets, serviceHistory, jobs, campaigns, activities, technicians, scheduleSlots, bookings,
+  coiCertificates, thirdPartyPayers, fleetAccounts, fleetAuthorizedContacts, warrantyClaims, assetDetails, taxJurisdictions } from "@shared/schema";
+import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 
 // SMTP configuration - can be set via environment variables or app settings
 const SMTP_CONFIG = {
@@ -110,6 +114,7 @@ export async function registerRoutes(
 
   const registerCrudRoutes = (
     path: string,
+    table: SQLiteTable,
     getAll: () => any[],
     create: (data: any) => any,
     update: (id: number, data: any) => any | undefined,
@@ -121,9 +126,9 @@ export async function registerRoutes(
       if (!record) return res.status(404).json({ error: "Not found" });
       res.json(record);
     });
-    app.post(`/api/${path}`, async (req, res) => res.json(create(req.body)));
+    app.post(`/api/${path}`, async (req, res) => res.json(create(acceptFields(table, req.body, res))));
     app.patch(`/api/${path}/:id`, async (req, res) => {
-      const record = update(parseInt(req.params.id), req.body);
+      const record = update(parseInt(req.params.id), acceptFields(table, req.body, res, ["customerId"]));
       if (!record) return res.status(404).json({ error: "Not found" });
       res.json(record);
     });
@@ -471,8 +476,8 @@ export async function registerRoutes(
   });
   app.post("/api/customers", async (req, res) => {
     try {
-      const body = { ...req.body };
-      const { confirmDuplicate } = body; delete body.confirmDuplicate;
+      const body: any = acceptFields(customers, req.body, res, ["customerNumber"]);
+      const confirmDuplicate = req.body.confirmDuplicate;
       if (![body.firstName, body.lastName, body.companyName].some(x => typeof x === "string" && x.trim()))
         return res.status(400).json({ message: "A customer name or company is required" });
       if (!confirmDuplicate) {
@@ -486,13 +491,34 @@ export async function registerRoutes(
       if (!body.status) body.status = "active";
       res.json(storage.createCustomer(body));
     } catch (err: any) {
-      res.status(400).json({ message: err.message });
+      res.status(err.status || 400).json({ message: err.message });
     }
   });
   app.patch("/api/customers/:id", async (req, res) => {
-    const customer = storage.updateCustomer(parseInt(req.params.id), req.body);
+    const patch = acceptFields(customers, req.body, res, ["customerNumber"]);
+    const id = parseInt(req.params.id);
+    const customer = Object.keys(patch).length ? storage.updateCustomer(id, patch) : storage.getCustomer(id);
     if (!customer) return res.status(404).json({ error: "Not found" });
     res.json(customer);
+  });
+  // Tax-exempt status and credit limit only, for billing/management roles (customers.tax_terms).
+  // Lets accounting change tax terms without general customer-editing rights. Audited by triggers.
+  app.patch("/api/customers/:id/tax-terms", async (req, res) => {
+    const body = req.body;
+    if (!body || typeof body !== "object" || Array.isArray(body) || !Object.keys(body).length || Object.keys(body).some(k => !["taxExempt", "creditLimit"].includes(k)))
+      fail("Send only taxExempt and/or creditLimit.");
+    const patch: any = {};
+    if (Object.hasOwn(body, "taxExempt")) {
+      if (![0, 1, true, false].includes(body.taxExempt)) fail("taxExempt must be true or false.");
+      patch.taxExempt = body.taxExempt ? 1 : 0;
+    }
+    if (Object.hasOwn(body, "creditLimit")) {
+      if (typeof body.creditLimit !== "number" || !Number.isFinite(body.creditLimit) || body.creditLimit < 0 || body.creditLimit > 1e9) fail("creditLimit must be a non-negative amount.");
+      patch.creditLimit = Math.round(body.creditLimit * 100) / 100;
+    }
+    const id = parseInt(req.params.id);
+    if (!storage.getCustomer(id)) return res.status(404).json({ error: "Not found" });
+    res.json(storage.updateCustomer(id, patch));
   });
   app.delete("/api/customers/:id", async (req, res) => {
     storage.deleteCustomer(parseInt(req.params.id));
@@ -508,16 +534,18 @@ export async function registerRoutes(
   });
   app.post("/api/assets", async (req, res) => {
     try {
-      if (!req.body.customerId || !req.body.assetType) return res.status(400).json({ message: "customerId and assetType are required" });
-      res.json(storage.createAsset(req.body));
+      const body: any = acceptFields(assets, req.body, res);
+      if (!body.customerId || !body.assetType) return res.status(400).json({ message: "customerId and assetType are required" });
+      res.json(storage.createAsset(body));
     } catch (err: any) {
-      res.status(400).json({ message: err.message });
+      res.status(err.status || 400).json({ message: err.message });
     }
   });
 
   // ===== CUSTOMER COVERAGE, FLEET, WARRANTY, ASSET, AND TAX DATA =====
   registerCrudRoutes(
     "coi-certificates",
+    coiCertificates,
     () => storage.getCoiCertificates(),
     data => storage.createCoiCertificate(data),
     (id, data) => storage.updateCoiCertificate(id, data),
@@ -525,6 +553,7 @@ export async function registerRoutes(
   );
   registerCrudRoutes(
     "third-party-payers",
+    thirdPartyPayers,
     () => storage.getThirdPartyPayers(),
     data => storage.createThirdPartyPayer(data),
     (id, data) => storage.updateThirdPartyPayer(id, data),
@@ -532,6 +561,7 @@ export async function registerRoutes(
   );
   registerCrudRoutes(
     "fleet-accounts",
+    fleetAccounts,
     () => storage.getFleetAccounts(),
     data => storage.createFleetAccount(data),
     (id, data) => storage.updateFleetAccount(id, data),
@@ -539,6 +569,7 @@ export async function registerRoutes(
   );
   registerCrudRoutes(
     "fleet-authorized-contacts",
+    fleetAuthorizedContacts,
     () => storage.getFleetAuthorizedContacts(),
     data => storage.createFleetAuthorizedContact(data),
     (id, data) => storage.updateFleetAuthorizedContact(id, data),
@@ -546,6 +577,7 @@ export async function registerRoutes(
   );
   registerCrudRoutes(
     "warranty-claims",
+    warrantyClaims,
     () => storage.getWarrantyClaims(),
     data => storage.createWarrantyClaim(data),
     (id, data) => storage.updateWarrantyClaim(id, data),
@@ -553,6 +585,7 @@ export async function registerRoutes(
   );
   registerCrudRoutes(
     "asset-details",
+    assetDetails,
     () => storage.getAssetDetails(),
     data => storage.createAssetDetail(data),
     (id, data) => storage.updateAssetDetail(id, data),
@@ -560,6 +593,7 @@ export async function registerRoutes(
   );
   registerCrudRoutes(
     "tax-jurisdictions",
+    taxJurisdictions,
     () => storage.getTaxJurisdictions(),
     data => storage.createTaxJurisdiction(data),
     (id, data) => storage.updateTaxJurisdiction(id, data),
@@ -580,7 +614,8 @@ export async function registerRoutes(
     res.json({ ...vehicle, serviceHistory: history });
   });
   app.post("/api/vehicles", async (req, res) => {
-    const body={...req.body,vin:normalizeVin(req.body.vin)||null};
+    const fields:any=acceptFields(vehicles,req.body,res);
+    const body={...fields,vin:normalizeVin(fields.vin)||null};
     if(body.vin){
       const existing=storage.getVehicles(Number(body.customerId)).find(v=>normalizeVin(v.vin||"")===body.vin);
       if(existing)return res.status(409).json({message:"This VIN is already attached to this customer. Use the existing vehicle shown in the VIN lookup.",existingVehicleId:existing.id});
@@ -589,7 +624,8 @@ export async function registerRoutes(
     res.json(vehicle);
   });
   app.patch("/api/vehicles/:id", async (req, res) => {
-    const body={...req.body,...(Object.hasOwn(req.body,"vin")?{vin:normalizeVin(req.body.vin)||null}:{})};
+    const fields:any=acceptFields(vehicles,req.body,res,["customerId"]);
+    const body={...fields,...(Object.hasOwn(fields,"vin")?{vin:normalizeVin(fields.vin)||null}:{})};
     const current=storage.getVehicle(Number(req.params.id));
     if(current&&body.vin&&storage.getVehicles(current.customerId).some(v=>v.id!==current.id&&normalizeVin(v.vin||"")===body.vin))return res.status(409).json({message:"This customer already has a vehicle with that VIN."});
     const vehicle = storage.updateVehicle(parseInt(req.params.id), body);
@@ -614,7 +650,7 @@ export async function registerRoutes(
     res.json(history);
   });
   app.post("/api/service-history", async (req, res) => {
-    const entry = storage.createServiceHistory(req.body);
+    const entry = storage.createServiceHistory(acceptFields(serviceHistory, req.body, res) as any);
     res.json(entry);
   });
 
@@ -629,14 +665,12 @@ export async function registerRoutes(
   });
   app.post("/api/jobs", async (req, res) => {
     try {
-      const body = assignmentPatch(req.body);
-      if (!body.jobNumber) {
-        const nums = storage.getJobs().map((j: any) => parseInt(String(j.jobNumber).split("-").pop() || "0") || 0);
-        body.jobNumber = `JOB-${new Date().getFullYear()}-${String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3, "0")}`;
-      }
+      const body = assignmentPatch(acceptFields(jobs, req.body, res, ["jobNumber", "completedDate", "assignedTechId"]));
+      const nums = storage.getJobs().map((j: any) => parseInt(String(j.jobNumber).split("-").pop() || "0") || 0);
+      body.jobNumber = `JOB-${new Date().getFullYear()}-${String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3, "0")}`;
       res.json(storage.createJob(body));
     } catch (err: any) {
-      res.status(400).json({ message: err.message });
+      res.status(err.status || 400).json({ message: err.message });
     }
   });
   app.patch("/api/jobs/:id", async (req, res) => {
@@ -729,10 +763,10 @@ export async function registerRoutes(
     res.json(campaign);
   });
   app.post("/api/campaigns", async (req, res) => {
-    res.json(storage.createCampaign(req.body));
+    res.json(storage.createCampaign(acceptFields(campaigns, req.body, res) as any));
   });
   app.patch("/api/campaigns/:id", async (req, res) => {
-    const campaign = storage.updateCampaign(parseInt(req.params.id), req.body);
+    const campaign = storage.updateCampaign(parseInt(req.params.id), acceptFields(campaigns, req.body, res) as any);
     if (!campaign) return res.status(404).json({ error: "Not found" });
     res.json(campaign);
   });
@@ -742,7 +776,7 @@ export async function registerRoutes(
     res.json(storage.getActivities());
   });
   app.post("/api/activities", async (req, res) => {
-    res.json(storage.createActivity(req.body));
+    res.json(storage.createActivity({ ...acceptFields(activities, req.body, res), performedBy: actorLabel() } as any));
   });
 
   // ===== QB SYNC =====
@@ -766,10 +800,10 @@ export async function registerRoutes(
     res.json(tech);
   });
   app.post("/api/technicians", async (req, res) => {
-    res.json(storage.createTechnician(req.body));
+    res.json(storage.createTechnician(acceptFields(technicians, req.body, res, ["userId"]) as any));
   });
   app.patch("/api/technicians/:id", async (req, res) => {
-    const tech = storage.updateTechnician(parseInt(req.params.id), req.body);
+    const tech = storage.updateTechnician(parseInt(req.params.id), acceptFields(technicians, req.body, res, ["userId"]) as any);
     if (!tech) return res.status(404).json({ error: "Not found" });
     res.json(tech);
   });
@@ -784,7 +818,7 @@ export async function registerRoutes(
     res.json(slot);
   });
   app.post("/api/schedule-slots", async (req, res) => {
-    const body = { ...req.body };
+    const body: any = acceptFields(scheduleSlots, req.body, res);
     if (body.jobId) {
       const job = storage.getJob(body.jobId);
       if (!job) fail("Work order not found");
@@ -794,7 +828,7 @@ export async function registerRoutes(
     res.json(storage.createScheduleSlot(validateSlot(body)));
   });
   app.patch("/api/schedule-slots/:id", async (req, res) => {
-    const slot = storage.updateScheduleSlot(parseInt(req.params.id), validateSlot(req.body,Number(req.params.id)));
+    const slot = storage.updateScheduleSlot(parseInt(req.params.id), validateSlot(acceptFields(scheduleSlots, req.body, res),Number(req.params.id)));
     if (!slot) return res.status(404).json({ error: "Not found" });
     res.json(slot);
   });
@@ -813,7 +847,7 @@ export async function registerRoutes(
     res.json(booking);
   });
   app.post("/api/bookings", async (req, res) => {
-    const booking = storage.createBooking(req.body);
+    const booking = storage.createBooking(acceptFields(bookings, req.body, res) as any);
     storage.createActivity({
       customerId: booking.customerId,
       activityType: 'note',
@@ -823,7 +857,7 @@ export async function registerRoutes(
     res.json(booking);
   });
   app.patch("/api/bookings/:id", async (req, res) => {
-    const booking = storage.updateBooking(parseInt(req.params.id), req.body);
+    const booking = storage.updateBooking(parseInt(req.params.id), acceptFields(bookings, req.body, res, ["bookingNumber"]) as any);
     if (!booking) return res.status(404).json({ error: "Not found" });
     if (req.body.status === 'confirmed') {
       storage.createActivity({
@@ -912,10 +946,7 @@ export async function registerRoutes(
 
 
     // Write email content to file for external sending
-    const emailFile = path.join(emailOutputDir(),`invoice-${invoice.invoiceNumber}.html`);
-    const dir = path.dirname(emailFile);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(emailFile, emailHtml);
+    saveEmailCopy(`invoice-${invoice.invoiceNumber}.html`, emailHtml, recipientEmail);
 
     // Try to send via SMTP if configured
     let smtpResult: any = null;
@@ -967,7 +998,7 @@ export async function registerRoutes(
     let html = "";
     try {
       const port = process.env.PORT || 5000;
-      const r = await fetch(`http://127.0.0.1:${port}/print/estimate/${estimate.id}`, {headers:{Authorization:req.headers.authorization || ""}});
+      const r = await fetch(`${internalOrigin(port)}/print/estimate/${estimate.id}`, {headers:{Authorization:req.headers.authorization || ""}});
       if (!r.ok) throw new Error("Printable estimate was unavailable.");
       html = (await r.text()).replace(/<script[\s\S]*?<\/script>/gi, "");
     } catch (e: any) {
@@ -978,10 +1009,7 @@ export async function registerRoutes(
       html = html.replace(/<body([^>]*)>/i, `<body$1><div style="font-family:Arial,sans-serif;font-size:14px;margin:0 0 20px;padding:12px 16px;background:#f5f5f5;border-radius:6px;">${safe}</div>`);
     }
 
-    const dir = emailOutputDir();
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const emailFile = path.join(dir, `estimate-${estimate.estimateNumber}.html`);
-    fs.writeFileSync(emailFile, html);
+    saveEmailCopy(`estimate-${estimate.estimateNumber}.html`, html, to);
 
     let smtpResult: any = null;
     const transporter = getEmailTransporter();
@@ -1140,7 +1168,7 @@ export async function registerRoutes(
       </table>
       ${estimate.notes ? `<div class="notes"><strong>Notes:</strong><br>${estimate.notes}</div>` : ""}
       <div class="footer">McDowells Specialty Repair | Boise, Idaho | This estimate is valid for 14 days unless otherwise noted.</div>
-      <script>window.onload = function() { window.print(); }</script>
+      <script>${AUTO_PRINT_SCRIPT}</script>
       </body></html>`;
     res.setHeader("Content-Type", "text/html");
     res.send(html);
@@ -1235,7 +1263,7 @@ export async function registerRoutes(
       </table>
       ${invoice.notes ? `<div class="notes"><strong>Notes:</strong><br>${invoice.notes}</div>` : ""}
       <div class="footer">McDowells Specialty Repair | Boise, Idaho | Payment due within 30 days of issue date.</div>
-      <script>window.onload = function() { window.print(); }</script>
+      <script>${AUTO_PRINT_SCRIPT}</script>
       </body></html>`;
     res.setHeader("Content-Type", "text/html");
     res.send(html);

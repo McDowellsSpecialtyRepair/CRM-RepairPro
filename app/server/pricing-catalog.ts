@@ -1,4 +1,5 @@
 import type {Express} from "express";
+import {CATALOG_PRINT_SCRIPT} from "./http-security";
 import {storage} from "./storage";
 import {printable} from "./print-safety";
 import {FURNITURE_PANEL_PRICES} from "../client/src/lib/splat-pricing";
@@ -89,12 +90,12 @@ export function pricingHtml(c:PricingCatalog){
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${e(c.title)}</title>
 <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
 <style>:root{color-scheme:light}*{box-sizing:border-box}body{font-family:Satoshi,Arial,sans-serif;color:#1f2937;background:#eee;margin:0;font-size:14px;line-height:1.4}main{max-width:1160px;background:white;margin:24px auto;padding:36px}h1{font-size:26px;margin:0 0 12px}h2{font-size:20px;margin:26px 0 8px}p{margin:8px 0 12px}li{margin:8px 0}.meta{color:#555}.toolbar{position:sticky;top:0;background:#173d40;color:white;padding:12px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}.toolbar button{background:white;border:0;border-radius:4px;padding:10px 18px;font:inherit;cursor:pointer}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;margin:12px 0 24px;font-size:12px}th,td{text-align:left;vertical-align:top;border:1px solid #cbd0d2;padding:6px;overflow-wrap:anywhere}th{background:#edf2f2;font-weight:700}tr:nth-child(even){background:#fafafa}thead{display:table-header-group}tr{break-inside:avoid}h2{break-after:avoid}a{color:#165e64}.summary{padding:12px;border:1px solid #a3babb;background:#f4f8f8}.toc{columns:2}section{break-before:page}@media(max-width:600px){main{margin:0;padding:16px}.toc{columns:1}h1{font-size:23px}}@page{size:letter landscape;margin:0.45in}@media print{body{background:white;font-size:10pt}main{margin:0;padding:0;max-width:none}.toolbar,.toc{display:none}h1{font-size:20pt}h2{font-size:15pt}table{font-size:9pt}th,td{padding:4px}.table-wrap{overflow:visible}.meta{color:#444}a{text-decoration:none;color:inherit}}</style></head><body>
-<div class="toolbar"><button onclick="window.print()">Print complete catalog</button><span>Landscape letter • all services • internal working rates</span></div><main>
+<div class="toolbar"><button id="print-catalog" type="button">Print complete catalog</button><span>Landscape letter • all services • internal working rates</span></div><main>
 <h1>McDowells Specialty Repair</h1><h2>Complete Pricing Catalog</h2><p class="meta">Snapshot: ${e(c.generated)}</p><p class="summary">${c.matrixCount} saved matrix entries (includes unverified legacy carrier tables) · ${HAIL_REFERENCE_ROWS.length} carrier-source State Farm cells · ${c.templateCount} service templates · ${c.panelCount} diagram-panel base rates. This complete reference prints over multiple pages so the prices remain readable.</p>
 <h2>How to use this catalog</h2><ul>${c.notes.map(n=>`<li>${e(n)}</li>`).join("")}</ul>
 <nav class="toc" aria-label="Catalog sections">${c.tables.map((t,i)=>`<p><a href="#section-${i}">${e(t.heading)}</a></p>`).join("")}</nav>
 ${c.tables.map((t,i)=>`<section id="section-${i}" data-matrix-ids="${t.ids.join(",")}"><h2>${e(t.heading)}</h2>${t.description?`<p>${e(t.description)}</p>`:""}<div class="table-wrap"><table><thead><tr>${t.columns.map(h=>`<th scope="col">${e(h)}</th>`).join("")}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map(v=>`<td>${e(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></section>`).join("")}
-<p class="meta">End of catalog. Refresh the authorized catalog from RepairPro to print current saved rates.</p></main></body></html>`;
+<p class="meta">End of catalog. Refresh the authorized catalog from RepairPro to print current saved rates.</p></main><script>${CATALOG_PRINT_SCRIPT}</script></body></html>`;
 }
 export function registerPricingCatalog(app:Express){
   app.get("/print/pricing-matrices",(_req,res)=>{

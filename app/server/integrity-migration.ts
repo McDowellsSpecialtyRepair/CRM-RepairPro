@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { relationshipTargets } from "@shared/integrity";
-import { existsSync } from "node:fs";
+import { existsSync, chmodSync } from "node:fs";
 import { resolve } from "node:path";
 
 export function migrateIntegrity(db: Database.Database) {
@@ -12,7 +12,7 @@ export function migrateIntegrity(db: Database.Database) {
     );`);
   if (db.prepare("SELECT 1 FROM app_migrations WHERE version=?").get("integrity-v1")) return;
   const backup = resolve(process.env.DB_PATH || "data.db") + ".pre-integrity-v1.bak";
-  if (!existsSync(backup)) db.prepare("VACUUM INTO ?").run(backup);
+  if (!existsSync(backup)) { db.prepare("VACUUM INTO ?").run(backup); chmodSync(backup, 0o600); }
   const audit = (kind: string, table: string, id: number, before: any, after: any) =>
     db.prepare("INSERT INTO integrity_audit(kind,record_table,record_id,before_json,after_json) VALUES(?,?,?,?,?)")
       .run(kind, table, id, JSON.stringify(before), JSON.stringify(after));

@@ -48,6 +48,11 @@ jobs:
         env:
           HANDOFF_TEST_PORT: "5188"
 
+      - name: Security regression (Phase 1 controls)
+        run: node handoff/security-check.mjs
+        env:
+          HANDOFF_TEST_PORT: "5189"
+
       - name: Calculation regression
         run: npx tsx handoff/calculation-check.ts
 
