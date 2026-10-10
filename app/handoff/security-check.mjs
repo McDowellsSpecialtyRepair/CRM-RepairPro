@@ -15,8 +15,8 @@ const base=`http://127.0.0.1:${port}`;
 try{await fetch(base+"/api/auth/status",{signal:AbortSignal.timeout(500)});throw Error("Test port is already occupied; choose HANDOFF_TEST_PORT");}catch(e){if(e.message.includes("already occupied"))throw e;}
 const work=mkdtempSync(join(tmpdir(),"repairpro-security-"));
 const dbPath=join(work,"security.db"),emails=join(work,"emails");
-const env={...process.env,DB_PATH:dbPath,EMAIL_OUTPUT_DIR:emails,PORT:String(port),NODE_ENV:"production",TRUST_PROXY:"loopback",EMAIL_COPY_RETENTION_DAYS:"1",SMTP_USER:"",SMTP_PASS:"",SMTP_HOST:"",BACKUP_ENCRYPTION_KEY:""};
-delete env.HOST;
+const env={...process.env,DB_PATH:dbPath,EMAIL_OUTPUT_DIR:emails,PORT:String(port),NODE_ENV:"production",TRUST_PROXY:"loopback",SMTP_USER:"",SMTP_PASS:"",SMTP_HOST:"",BACKUP_ENCRYPTION_KEY:""};
+delete env.HOST;delete env.EMAIL_TEST_COPY_RETENTION_DAYS; // default 30-day test-copy retention
 const {NODE_ENV:_p,...devEnv}=env;
 const results=[];let checks=0,child,log="";
 function check(name,value){assert.ok(value,name);checks++;results.push({name,passed:true});}
@@ -70,11 +70,11 @@ try{
  const invite=JSON.parse(readFileSync(join(work,"owner.json"),"utf8")),ownerPassword=password();
  const owner=(await ok("POST","/api/auth/activate",{email:ownerEmail,activationCode:invite.activationCode,password:ownerPassword})).token;
  const staff={};
- for(const [role,extra] of [["advisor",{}],["support",{}],["technician",{technicianId:1}]]){
+ for(const [role,extra] of [["advisor",{}],["support",{}],["technician",{technicianId:1}],["manager",{}],["accountant",{}],["auditor",{}]]){
   const email=`${role}@example.invalid`,r=await ok("POST","/api/staff",{email,fullName:`Test ${role}`,role,...extra},{token:owner});
   staff[role]=(await ok("POST","/api/auth/activate",{email,activationCode:r.activationCode,password:password()})).token;
  }
- check("Owner, advisor, support and technician test accounts active",Object.values(staff).every(Boolean)&&!!owner);
+ check("Owner, advisor, support, technician, manager, accountant and auditor test accounts active",Object.values(staff).every(Boolean)&&!!owner);
 
  // ---- login lockout is per email and address ----
  for(let i=0;i<5;i++){const r=await call("POST","/api/auth/login",{email:ownerEmail,password:"wrong-password-attempt"},{ip:"10.0.0.1"});assert.equal(r.status,401);}
@@ -101,8 +101,28 @@ try{
  check("Non-text values are rejected for text fields",(await call("PATCH",`/api/customers/${c1.id}`,{email:{$ne:1}},{token:owner})).status===400);
  const edited=await ok("PATCH",`/api/customers/${c1.id}`,{notes:"Edited by security check",notAColumn:1},{token:owner});
  check("Normal customer edit still works and ignores non-column keys",edited.notes==="Edited by security check"&&!("notAColumn" in edited));
- check("Support cannot change tax-exempt status",(await call("PATCH",`/api/customers/${c1.id}`,{taxExempt:1},{token:staff.support})).status===403);
- check("Advisor (billing permission) can change tax-exempt status",(await call("PATCH",`/api/customers/${c1.id}`,{taxExempt:0},{token:staff.advisor})).status===200);
+ // ---- permissions: customer tax terms (PERM-01) and internal costs (PERM-02) ----
+ const roles=await ok("GET","/api/staff/roles",undefined,{token:owner});
+ const holders=p=>Object.keys(roles).filter(r=>roles[r].permissions.includes(p)).sort().join(",");
+ check("Only owner, admin, manager and accounting hold customers.tax_terms",holders("customers.tax_terms")==="accountant,admin,manager,owner");
+ check("Only owner, admin, manager, accounting and auditor hold costs.read",holders("costs.read")==="accountant,admin,auditor,manager,owner");
+ const generalPatch=async(token,body)=>(await call("PATCH",`/api/customers/${c1.id}`,body,{token})).status;
+ check("Owner can change tax-exempt status",await generalPatch(owner,{taxExempt:1})===200);
+ check("Manager can change tax-exempt status and credit limit",await generalPatch(staff.manager,{taxExempt:0,creditLimit:2500})===200);
+ for(const role of ["advisor","support","technician","auditor"]){
+  check(`${role} cannot change tax-exempt status`,await generalPatch(staff[role],{taxExempt:1})===403);
+  check(`${role} cannot change credit limit`,await generalPatch(staff[role],{creditLimit:99999})===403);
+ }
+ check("Advisor can still edit ordinary customer details",await generalPatch(staff.advisor,{notes:"Advisor edit"})===200);
+ const taxTerms=async(token,body)=>call("PATCH",`/api/customers/${c1.id}/tax-terms`,body,{token});
+ check("Accounting can change tax-exempt status through the tax-terms endpoint",(await taxTerms(staff.accountant,{taxExempt:true})).status===200&&(await ok("GET",`/api/customers/${c1.id}`,undefined,{token:owner})).taxExempt===1);
+ check("Accounting can change credit limit through the tax-terms endpoint",(await taxTerms(staff.accountant,{creditLimit:750.5})).data.creditLimit===750.5);
+ check("Accounting still cannot edit other customer details",await generalPatch(staff.accountant,{notes:"x"})===403);
+ for(const role of ["advisor","support","technician","auditor"])check(`${role} cannot use the tax-terms endpoint`,(await taxTerms(staff[role],{taxExempt:false})).status===403);
+ check("Tax-terms endpoint rejects other fields",(await taxTerms(staff.accountant,{taxExempt:false,notes:"x"})).status===400);
+ check("Tax-terms endpoint rejects invalid values",(await taxTerms(staff.accountant,{taxExempt:"yes"})).status===400&&(await taxTerms(staff.accountant,{creditLimit:-5})).status===400);
+ check("Advisor cannot set a third-party payer tax-exempt",(await call("POST","/api/third-party-payers",{customerId:c1.id,payerType:"insurance",payerName:"Guard payer",taxExempt:1},{token:staff.advisor})).status===403);
+ await ok("PATCH",`/api/customers/${c1.id}/tax-terms`,{taxExempt:false},{token:staff.manager});
  const v1=(await ok("GET","/api/vehicles",undefined,{token:owner}))[0];
  check("A vehicle cannot be moved to another customer by PATCH",(await call("PATCH",`/api/vehicles/${v1.id}`,{customerId:created.id},{token:owner})).status===400);
  check("Job number cannot be supplied by the client",(await call("POST","/api/jobs",{customerId:c1.id,serviceType:"pdr",title:"Guard",jobNumber:"JOB-HACK"},{token:owner})).status===400);
@@ -126,12 +146,14 @@ try{
  const inv=await ok("POST",`/api/estimates/${est.id}/convert-invoice`,{},{token:owner});
  const ownerView=await call("GET",`/api/invoices/${inv.id}`,undefined,{token:owner});
  check("Owner (cost access) still sees purchase costs and notes",ownerView.text.includes(SECRET)&&keysOf(ownerView.data).has("unitCost"));
- const COST_KEYS=["unitCost","unit_cost","useTaxRate","use_tax_rate","taxNote","tax_note","estimatedCost","estimated_cost","useTax","use_tax","costs","costsCents","costCents","useTaxCents"];
- const ids={c:cust.id,v:veh.id,e:est.id,i:inv.id,j:job.id};
+ const claim=await ok("POST","/api/warranty-claims",{customerId:cust.id,claimNumber:"WC-SEC-1",claimDate:"2026-10-01",status:"open",issueDescription:"Guard claim",claimCost:432.1},{token:owner});
+ for(const role of ["manager","accountant","auditor"])check(`${role} (cost access) sees warranty claim cost`,(await ok("GET",`/api/warranty-claims/${claim.id}`,undefined,{token:staff[role]})).claimCost===432.1);
+ const COST_KEYS=["claimCost","claim_cost","unitCost","unit_cost","useTaxRate","use_tax_rate","taxNote","tax_note","estimatedCost","estimated_cost","useTax","use_tax","costs","costsCents","costCents","useTaxCents"];
+ const ids={c:cust.id,v:veh.id,e:est.id,i:inv.id,j:job.id,w:claim.id};
  const endpoints=["/api/customers","/api/customers/{c}","/api/customers/lookup?q=Cost","/api/vehicles","/api/vehicles/{v}","/api/assets","/api/jobs","/api/jobs/{j}","/api/jobs/{j}/detail",
   "/api/estimates","/api/estimates/{e}","/api/estimates/{e}/labor","/api/estimates/{e}/planning","/api/estimates/{e}/sales-team","/api/invoices","/api/invoices/{i}","/api/invoices/{i}/labor",
   "/api/invoices/{i}/commercial","/api/payments","/api/operations","/api/operations/owners","/api/dashboard","/api/my-work","/api/reports/commercial","/api/service-history/customer/{c}",
-  "/api/activities","/api/pricing-matrices","/api/service-templates","/api/capacity","/api/delivery/estimate/{e}","/api/delivery/invoice/{i}","/print/estimate/{e}","/print/invoice/{i}"].map(p=>p.replace(/\{(\w)\}/g,(_,k)=>ids[k]));
+  "/api/activities","/api/pricing-matrices","/api/service-templates","/api/capacity","/api/delivery/estimate/{e}","/api/delivery/invoice/{i}","/print/estimate/{e}","/print/invoice/{i}","/api/warranty-claims","/api/warranty-claims/{w}"].map(p=>p.replace(/\{(\w)\}/g,(_,k)=>ids[k]));
  for(const role of ["advisor","support","technician"]){
   let readable=0,leaks=[];
   for(const path of endpoints){
@@ -140,7 +162,7 @@ try{
    if(r.text.includes(SECRET))leaks.push(`${path}: note text`);
    const found=COST_KEYS.filter(k=>keysOf(r.data).has(k));if(found.length)leaks.push(`${path}: ${found.join(",")}`);
   }
-  check(`${role}: no purchase costs or cost notes in ${readable} readable endpoints${leaks.length?" — "+leaks.join("; "):""}`,readable>0&&leaks.length===0);
+  check(`${role}: no purchase costs, warranty claim costs or cost notes in ${readable} readable endpoints${leaks.length?" — "+leaks.join("; "):""}`,readable>0&&leaks.length===0);
  }
  const history=await ok("GET","/api/service-history/customer/1",undefined,{token:staff.advisor});
  check("Advisor still sees the customer charge on service history (allowlisted 'cost')",history.length>0&&history.every(h=>"cost" in h));
@@ -153,19 +175,32 @@ try{
   check(`${path}: no inline event handlers`,!/\son[a-z]+="/i.test(r.text));
  }
 
- // ---- email copies ----
- mkdirSync(emails,{recursive:true});
- const old=join(emails,"invoice-OLD.html"),other=join(emails,"keep-me.txt");
- writeFileSync(old,"old");writeFileSync(other,"other");
- const threeDaysAgo=(Date.now()-3*86400000)/1000;utimesSync(old,threeDaysAgo,threeDaysAgo);utimesSync(other,threeDaysAgo,threeDaysAgo);
+ // ---- email copies: temporary test copies vs. retained records (MAIL-01) ----
+ const testDir=join(emails,"test-copies"),recordDir=join(emails,"sent-records");
+ mkdirSync(testDir,{recursive:true});mkdirSync(recordDir,{recursive:true});
+ const age=(file,days)=>{const t=(Date.now()-days*86400000)/1000;utimesSync(file,t,t);};
+ const legacy=join(emails,"invoice-LEGACY.html"),oldTest=join(testDir,"invoice-OLDTEST.html"),recentTest=join(testDir,"invoice-RECENT.html"),record=join(recordDir,"invoice-CUSTOMER.html"),other=join(testDir,"keep-me.txt");
+ for(const f of [legacy,oldTest,recentTest,record,other])writeFileSync(f,"x");
+ age(legacy,400);age(oldTest,40);age(recentTest,5);age(record,400);age(other,40);
  await ok("POST",`/api/invoices/${inv.id}/email`,{},{token:owner});
  const est2=await ok("POST","/api/estimates",{customerId:cust.id,serviceType:"pdr",vehicleId:veh.id,taxRate:6},{token:owner});
  await ok("POST",`/api/estimates/${est2.id}/line-items`,{serviceCategory:"labor",description:"Repair labor",unitPrice:150},{token:owner});
  const sent=await call("POST",`/api/estimates/${est2.id}/send`,{},{token:owner});
- check("Estimate email still renders from its print page (internal server call)",sent.status===200&&readdirSync(emails).some(f=>f.startsWith(`estimate-${est2.estimateNumber}`)));
- const copy=readdirSync(emails).find(f=>f.startsWith(`invoice-${inv.invoiceNumber}`));
- check("Email copy is saved with owner-only permissions",!!copy&&(statSync(join(emails,copy)).mode&0o777)===0o600);
- check("Email copies older than the retention period are removed; other files are kept",!existsSync(old)&&existsSync(other));
+ check("Estimate email still renders from its print page (internal server call)",sent.status===200&&readdirSync(testDir).some(f=>f.startsWith(`estimate-${est2.estimateNumber}`)));
+ const copy=readdirSync(testDir).find(f=>f.startsWith(`invoice-${inv.invoiceNumber}`));
+ check("Test-mailbox email copy is saved as a temporary copy with owner-only permissions",!!copy&&(statSync(join(testDir,copy)).mode&0o777)===0o600);
+ check("Temporary test copies older than 30 days are removed",!existsSync(oldTest));
+ check("Recent test copies and non-email files are kept",existsSync(recentTest)&&existsSync(other));
+ check("Customer-facing sent records are never deleted automatically",existsSync(record));
+ check("Email copies saved before this change are preserved",existsSync(legacy));
+ const probe=join(work,"mail-probe.ts"),probeOut=join(work,"mail-probe-out");
+ writeFileSync(probe,`import {saveEmailCopy,testCopyRetentionDays} from ${JSON.stringify(join(root,"server","delivery-config.ts"))};
+console.log(JSON.stringify({customer:saveEmailCopy("invoice-A.html","<p>a</p>","customer@example.invalid"),mixed:saveEmailCopy("invoice-B.html","<p>b</p>","customer@example.invalid, service@mcdowellsrepair.com"),test:saveEmailCopy("invoice-C.html","<p>c</p>","Service@McDowellsRepair.com"),
+ days:[testCopyRetentionDays(undefined),testCopyRetentionDays(""),testCopyRetentionDays("0"),testCopyRetentionDays("7"),testCopyRetentionDays("abc")]}));`);
+ const probed=JSON.parse(tsx([probe],{...devEnv,EMAIL_OUTPUT_DIR:probeOut}).toString().trim().split("\n").pop());
+ check("Copies to a customer address are classified as retained records",probed.customer.includes("/sent-records/")&&probed.mixed.includes("/sent-records/"));
+ check("Copies only to the test mailbox are classified as temporary",probed.test.includes("/test-copies/"));
+ check("Retention default is 30 days; 0 or invalid keeps copies",JSON.stringify(probed.days)==="[30,30,0,7,0]");
 
  // ---- encrypted backups ----
  if(child.exitCode===null){child.kill("SIGTERM");await new Promise(r=>child.once("exit",r));}

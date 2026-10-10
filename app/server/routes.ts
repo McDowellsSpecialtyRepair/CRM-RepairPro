@@ -501,6 +501,25 @@ export async function registerRoutes(
     if (!customer) return res.status(404).json({ error: "Not found" });
     res.json(customer);
   });
+  // Tax-exempt status and credit limit only, for billing/management roles (customers.tax_terms).
+  // Lets accounting change tax terms without general customer-editing rights. Audited by triggers.
+  app.patch("/api/customers/:id/tax-terms", async (req, res) => {
+    const body = req.body;
+    if (!body || typeof body !== "object" || Array.isArray(body) || !Object.keys(body).length || Object.keys(body).some(k => !["taxExempt", "creditLimit"].includes(k)))
+      fail("Send only taxExempt and/or creditLimit.");
+    const patch: any = {};
+    if (Object.hasOwn(body, "taxExempt")) {
+      if (![0, 1, true, false].includes(body.taxExempt)) fail("taxExempt must be true or false.");
+      patch.taxExempt = body.taxExempt ? 1 : 0;
+    }
+    if (Object.hasOwn(body, "creditLimit")) {
+      if (typeof body.creditLimit !== "number" || !Number.isFinite(body.creditLimit) || body.creditLimit < 0 || body.creditLimit > 1e9) fail("creditLimit must be a non-negative amount.");
+      patch.creditLimit = Math.round(body.creditLimit * 100) / 100;
+    }
+    const id = parseInt(req.params.id);
+    if (!storage.getCustomer(id)) return res.status(404).json({ error: "Not found" });
+    res.json(storage.updateCustomer(id, patch));
+  });
   app.delete("/api/customers/:id", async (req, res) => {
     storage.deleteCustomer(parseInt(req.params.id));
     res.json({ success: true });
@@ -927,7 +946,7 @@ export async function registerRoutes(
 
 
     // Write email content to file for external sending
-    saveEmailCopy(`invoice-${invoice.invoiceNumber}.html`, emailHtml);
+    saveEmailCopy(`invoice-${invoice.invoiceNumber}.html`, emailHtml, recipientEmail);
 
     // Try to send via SMTP if configured
     let smtpResult: any = null;
@@ -990,7 +1009,7 @@ export async function registerRoutes(
       html = html.replace(/<body([^>]*)>/i, `<body$1><div style="font-family:Arial,sans-serif;font-size:14px;margin:0 0 20px;padding:12px 16px;background:#f5f5f5;border-radius:6px;">${safe}</div>`);
     }
 
-    saveEmailCopy(`estimate-${estimate.estimateNumber}.html`, html);
+    saveEmailCopy(`estimate-${estimate.estimateNumber}.html`, html, to);
 
     let smtpResult: any = null;
     const transporter = getEmailTransporter();

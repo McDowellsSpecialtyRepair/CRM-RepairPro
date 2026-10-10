@@ -88,7 +88,7 @@ printf '\n.private/\n' >> .gitignore
 | `SMTP_USER`, `SMTP_PASS` | Optional SMTP credentials; never include in source or test reports |
 | `HOST` | Listen address. Default `127.0.0.1`. Use a TLS reverse proxy for remote access; set `0.0.0.0` only on a private network or inside a container behind a proxy |
 | `TRUST_PROXY` | Number of reverse proxies in front of the app (e.g. `1`) or `loopback`. Empty when there is no proxy. Required behind a proxy for correct client addresses (rate limits) and HTTPS detection (HSTS). `true` is refused |
-| `EMAIL_COPY_RETENTION_DAYS` | Delete saved email copies older than this many days when a new copy is written. Empty keeps every copy |
+| `EMAIL_TEST_COPY_RETENTION_DAYS` | Days to keep temporary copies of emails addressed only to the internal test mailbox (`emails/test-copies/`). Empty means 30; `0` keeps them. Copies of anything sent to a customer go to `emails/sent-records/` and are never deleted automatically; files saved directly in `emails/` before this setting existed are left untouched |
 | `BACKUP_ENCRYPTION_KEY` | 64 hex characters from `node handoff/database.mjs keygen`. Encrypts backups made by `handoff/database.mjs` and `db:migrate`. Store it in a password manager or secret store, separately from the backups |
 
 `server/index.ts` loads `.env` via dotenv. Some standalone TypeScript helpers do not, so pass `DB_PATH` explicitly when running them.

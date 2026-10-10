@@ -186,8 +186,8 @@ function redactFinancial(value: any): any {
 const PURCHASE_COST_KEY = /cost|use_?tax|tax_?note/i;
 const VISIBLE_COST_KEYS = new Set([
   "cost",                         // service_history.cost: the customer's charge for the visit
-  "claimCost", "claim_cost",      // warranty claim cost: visibility unchanged pending owner review
   "costComplete", "cost_complete" // yes/no flag that cost review is finished, not an amount
+  // Warranty claim costs (claimCost) are internal costs: hidden like other purchase costs.
 ]);
 export const isPurchaseCostKey = (key: string) => PURCHASE_COST_KEY.test(key) && !VISIBLE_COST_KEYS.has(key);
 function redactPurchaseCosts(value:any):any{

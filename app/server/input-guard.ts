@@ -6,8 +6,9 @@ import { fail } from "./billing";
 
 // Record keys and timestamps are always assigned by the server.
 const ALWAYS_PROTECTED = ["id", "createdAt"];
-// Fields that change how a customer is taxed or how much credit they receive.
-const BILLING_FIELDS = ["taxExempt", "creditLimit"];
+// Fields that change how a customer (or payer) is taxed or how much credit they receive.
+// Only roles with customers.tax_terms (owner, admin, manager, accountant) may set them.
+export const TAX_TERM_FIELDS = ["taxExempt", "creditLimit"];
 const MAX_TEXT = 20000;
 
 // Mass-assignment guard for the generic create/update routes: keeps only real columns of
@@ -22,8 +23,8 @@ export function acceptFields(table: SQLiteTable, body: unknown, res: Response, p
   for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
     if (!Object.hasOwn(columns, key)) continue;
     if (blocked.has(key)) fail(`${key} is set by the server and cannot be changed here.`);
-    if (BILLING_FIELDS.includes(key) && !hasPermission(res.locals.staff?.role as Role, "billing.write"))
-      fail(`Changing ${key} requires billing permission.`, 403);
+    if (TAX_TERM_FIELDS.includes(key) && !hasPermission(res.locals.staff?.role as Role, "customers.tax_terms"))
+      fail(`Changing ${key} requires billing or management authorization.`, 403);
     out[key] = columnValue(key, value, columns[key].dataType);
   }
   return out;

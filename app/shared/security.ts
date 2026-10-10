@@ -4,6 +4,7 @@ export const PERMISSIONS = [
   "payments.record", "schedule.read", "schedule.write", "pricing.read", "marketing.read",
   "marketing.write", "activity.read", "activity.write", "reports.read", "settings.manage",
   "staff.manage", "audit.read", "mywork", "reports.write", "operations.read", "operations.write", "costs.read", "costs.write",
+  "customers.tax_terms", // change a customer's tax-exempt status or credit limit
 ] as const;
 export type Permission = typeof PERMISSIONS[number];
 export const ROLES = {
@@ -13,7 +14,7 @@ export const ROLES = {
   advisor: { label: "Service advisor", description: "Customers, estimates, work orders, scheduling, operational queues and payment recording. No merges or shop-wide reports.", permissions: ["customers.read","customers.write","jobs.read","jobs.write","estimates.read","estimates.write","billing.read","billing.write","payments.record","schedule.read","schedule.write","pricing.read","activity.read","activity.write","operations.read","operations.write"] },
   technician: { label: "Technician", description: "Assigned work only. No other customers, billing, estimates or shop-wide reports.", permissions: ["mywork"] },
   support: { label: "Support / dispatcher", description: "Customer contact details, jobs and scheduling. No financial documents, marketing or reports.", permissions: ["customers.read","customers.write","jobs.read","jobs.write","schedule.read","schedule.write"] },
-  accountant: { label: "Accounting", description: "Read operational records; issue invoices, record payments, manage direct costs and run reports. No estimate editing or staff administration.", permissions: ["dashboard.read","customers.read","jobs.read","estimates.read","billing.read","billing.write","payments.record","reports.read","reports.write","pricing.read","activity.read","schedule.read","operations.read","costs.read","costs.write"] },
+  accountant: { label: "Accounting", description: "Read operational records; issue invoices, record payments, manage direct costs, customer tax terms and run reports. No estimate editing or staff administration.", permissions: ["dashboard.read","customers.read","jobs.read","estimates.read","billing.read","billing.write","payments.record","reports.read","reports.write","pricing.read","activity.read","schedule.read","operations.read","costs.read","costs.write","customers.tax_terms"] },
   auditor: { label: "Read-only auditor", description: "Read records, reports and audit history. No business or staff changes.", permissions: ["dashboard.read","customers.read","jobs.read","estimates.read","billing.read","reports.read","pricing.read","activity.read","schedule.read","marketing.read","audit.read","operations.read","costs.read"] },
 } satisfies Record<string, { label: string; description: string; permissions: readonly string[] }>;
 export type Role = keyof typeof ROLES;
@@ -71,6 +72,7 @@ export function routePermission(method: string, path: string): Permission | "aut
     ["GET", /^\/api\/customers(?:\/(?:\d+|lookup))?$/, "customers.read"],
     ["POST", /^\/api\/customers$/, "customers.write"],
     ["PATCH", /^\/api\/customers\/\d+$/, "customers.write"],
+    ["PATCH", /^\/api\/customers\/\d+\/tax-terms$/, "customers.tax_terms"],
     ["DELETE", /^\/api\/customers\/\d+$/, "records.delete"],
     ["GET", /^\/api\/(?:assets|vehicles)(?:\/\d+)?$/, "customers.read"],
     ["POST", /^\/api\/(?:assets|vehicles)$/, "customers.write"],
