@@ -10,6 +10,7 @@ Prepared for McDowells Specialty Repair on September 28, 2026. This is a portabl
 4. Read `docs/ARCHITECTURE-AND-DATABASE.md` before changing financial logic or migrations.
 5. Use `docs/ACCEPTANCE-AND-TESTS.md` to plan independent acceptance testing.
 6. Follow `docs/BACKUP-AND-RECOVERY.md` for encrypted backups, key custody and restores.
+7. To try the CRM in a browser with demo data only, create a GitHub Codespace (see `.devcontainer/HOW-TO-USE-THE-DEMO.md`).
 
 ## Package contents
 

@@ -1,0 +1,25 @@
+// Private RepairPro demo for GitHub Codespaces. DEMO DATA ONLY: a fresh sample database is
+// created inside the codespace; it never connects to a real database and cannot send email.
+// Forwarded ports are private (only the codespace owner, signed in to GitHub, can open them).
+// Do not change port 5000 to "public".
+{
+  "name": "RepairPro private demo (demo data only)",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
+  "hostRequirements": { "cpus": 2 },
+  "postCreateCommand": "bash .devcontainer/demo.sh setup",
+  "postStartCommand": "bash .devcontainer/demo.sh start",
+  "waitFor": "postCreateCommand",
+  "forwardPorts": [5000],
+  "portsAttributes": {
+    "5000": { "label": "RepairPro demo", "onAutoForward": "openBrowser" }
+  },
+  "otherPortsAttributes": { "onAutoForward": "ignore" },
+  "customizations": {
+    "codespaces": {
+      "openFiles": [".devcontainer/HOW-TO-USE-THE-DEMO.md", "DEMO-LOGIN.md"]
+    },
+    "vscode": {
+      "settings": { "workbench.startupEditor": "none" }
+    }
+  }
+}

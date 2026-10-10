@@ -63,3 +63,23 @@ jobs:
         if: always()
         continue-on-error: true
         run: npm audit
+
+  codespaces-demo:
+    name: Codespaces demo setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: app/.nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      # Same script Codespaces runs: install, build, fresh demo database, demo login, sign-in check.
+      - name: Demo setup self-test (demo data only)
+        run: bash .devcontainer/demo.sh selftest
+        env:
+          DEMO_DIR: ${{ runner.temp }}/repairpro-demo
+          DEMO_PORT: "5190"

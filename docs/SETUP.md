@@ -37,6 +37,10 @@ HANDOFF_TEST_PORT=5188 node handoff/verify.mjs
 
 The API runner is a limited smoke suite, not a browser suite or replacement for independent acceptance tests. Historic scripts in `script/` have additional environment/path/fixture assumptions; do not run all of them blindly.
 
+## Private browser test version (GitHub Codespaces)
+
+For hands-on testing without installing anything: on GitHub choose **Code → Codespaces → Create codespace**. `.devcontainer/` installs and builds the app, creates a brand-new sample database outside the repository (`/workspaces/.repairpro-demo`), creates a demo owner login with a password generated for that codespace (shown in the git-ignored `DEMO-LOGIN.md`), and starts the CRM on private port 5000 with email credentials cleared. Owner-facing instructions: `.devcontainer/HOW-TO-USE-THE-DEMO.md`. `bash .devcontainer/demo.sh reset` starts over with fresh sample data. CI runs `bash .devcontainer/demo.sh selftest` on every push. Keep the port private; never point the demo at a real database.
+
 ## Run an interactive development copy
 
 Create a fresh working database, not a copy of the operating database:

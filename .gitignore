@@ -1,2 +1,5 @@
 # Local private files (activation codes, credentials). See docs/SETUP.md.
 .private/
+
+# Codespaces demo login (generated per codespace, demo data only). See .devcontainer/.
+DEMO-LOGIN.md
