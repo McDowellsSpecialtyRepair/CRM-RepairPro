@@ -19,6 +19,7 @@ import { migrateOperations } from "./operations";
 import { migrateCapacity } from "./capacity";
 import { migrateWorkOrders } from "./work-orders";
 import { migrateReporting } from "./reporting";
+import { migrateEstimateDents } from "./estimate-dents";
 import { TEST_EMAIL } from "./delivery-config";
 
 export const REFERENCE_CATALOG = "reference-catalog-v1";
@@ -60,7 +61,8 @@ export function runMigrations(options: { seedDemo?: boolean } = {}) {
   migrateCapacity();
   migrateWorkOrders();
   migrateReporting();
-  initializeSecurity(); // Include report definitions and ops_* tables in row-level auditing.
+  migrateEstimateDents();
+  initializeSecurity(); // Include report definitions, ops_* tables and dent records in row-level auditing.
   correctFalseSentEstimate23();
 
   if (applied(DEMO_DATA))

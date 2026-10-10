@@ -37,7 +37,7 @@ Do not treat `schema.sql` as an alternative installer. Audit triggers depend on 
 2. On a brand-new database only, load the reference catalog (service templates, pricing matrices, tax jurisdictions) once and record `reference-catalog-v1`. An existing database is only marked. Demonstration records load here only when `db:seed-demo` explicitly requests them (`demo-data-v1`); server startup never does.
 3. Apply the integrity migration (`integrity-v1`).
 4. Initialize labor tables and staff security.
-5. Initialize sales attribution, operations, capacity, work-order planning and report-definition tables.
+5. Initialize sales attribution, operations, capacity, work-order planning and report-definition tables, then the individual dent records table (`estimate_dents`, Phase 2.1).
 6. Recreate/extend audit triggers.
 7. Apply the narrowly gated historic false-sent correction.
 
@@ -54,6 +54,22 @@ Never run generic `drizzle-kit push` against the operating database. The schema 
 - **Labor:** Net labor credits are copied at issue and attributed per invoice line. They exclude non-labor charges and customer tax, and do not themselves calculate paychecks.
 - **Sales:** Saved salesperson splits allocate net invoice sales excluding customer tax. They are attribution, not commission pay.
 - **Internal purchases:** `unit_cost`, `use_tax_rate` and `tax_note` are estimates, not posted vendor bills or tax returns. They are snapshotted at issue and omitted from customer print documents.
+- **Dent records (Phase 2.1):** Each PDR dent is a row in `estimate_dents` with these fields:
+  - panel and body style
+  - size: dime, nickel, quarter, half dollar, softball or crease
+  - length: 1–36 inches, required for a crease
+  - severity, location difficulty and the "Paint damage correctable?" answer
+  - internal notes
+  - `line_item_id`: the estimate line that bills it
+  - the standard matrix price at billing time (`matrix_unit_price`, `price_source`)
+
+  Rules:
+  - Money still lives only in estimate lines. A dent is either not yet billed or counted in exactly one line: one line per panel and size, quantity = dent count, the same as before.
+  - A billed dent's panel and size, and its line's quantity, cannot change independently.
+  - Detail fields are recorded only and never change a price.
+  - Database triggers lock dents once the estimate is invoiced or production starts. Every change is row-audited.
+  - Removing a line keeps its dents, which become not yet billed.
+  - Hail and other services do not use dent records.
 - **Legacy:** Historical `line_type='legacy'` is neither verified labor nor verified parts. Showing it as unclassified reconciles the displayed subtotal; it does not resolve its tax basis or eligibility for compensation.
 
 ## Security model

@@ -13,6 +13,7 @@ import { Trash2, Plus, CheckCircle, FileText, Send, Printer, User, Car, Shield, 
 import { Link, useRoute, useLocation } from "wouter";
 import { WorkPlanning } from "@/components/work-planning";
 import { EstimateDamageMap, TintMatrixPicker } from "@/components/estimate-damage-map";
+import { PdrDentMap } from "@/components/pdr-dent-map";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useEffect, useState, useMemo } from "react";
 import {VinLookup} from "@/components/vin-lookup";
@@ -418,8 +419,9 @@ export default function EstimateBuilder() {
         </DialogContent>
       </Dialog>
 
-      <DeliveryStatus type="estimate" id={id!} />
-      {/* Estimate header */}
+      {/* 1. Estimate information, customer and vehicle */}
+      <section aria-labelledby="estimate-section-1" className="space-y-2" data-testid="estimate-section-1">
+      <SectionHeading id="estimate-section-1" n={1}>Estimate information, customer and vehicle</SectionHeading>
       <Card>
         <CardContent className="p-6">
           <div className="flex items-start justify-between flex-wrap gap-4">
@@ -510,56 +512,31 @@ export default function EstimateBuilder() {
               </div>
             </div>
 
-            {/* Action buttons */}
-            <div className="flex flex-col gap-2 shrink-0">
-              {estimate.status !== "invoiced" && estimate.status !== "rejected" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const cEmail = "service@mcdowellsrepair.com";
-                    setSendTo(cEmail); setSendResult(null); setSendError("");
-                    const who = selectedCustomer?.firstName || selectedCustomer?.companyName || "";
-                    setSendMessage(`Hi${who ? " " + who : ""},\n\nThank you for choosing McDowells Specialty Repair. Your estimate ${estimate.estimateNumber} is below. Reply to this email or call us to approve or schedule.\n\nMcDowells Specialty Repair`);
-                    setSendOpen(true);
-                  }}
-                  data-testid="button-send-estimate"
-                  disabled={!can("estimates.write")||unsavedEdits||addLineItem.isPending||updateEstimate.isPending||taxDraft===""||Number(taxDraft)!==taxRate}
-                >
-                  <Send className="h-4 w-4 mr-1" /> {estimate.status === "draft" ? "Send to Customer" : "Resend to Customer"}
-                </Button>
-              )}
-              {(estimate.status === "sent" || estimate.status === "draft") && (
-                <Button
-                  size="sm"
-                  onClick={() => updateEstimate.mutate({ status: "approved" })}
-                  data-testid="button-approve-estimate"
-                  disabled={!can("estimates.write")||updateEstimate.isPending||taxDraft===""||Number(taxDraft)!==taxRate||addLineItem.isPending||unsavedEdits}
-                >
-                  <CheckCircle className="h-4 w-4 mr-1" /> Mark Approved
-                </Button>
-              )}
-              {["rejected","expired"].includes(estimate.status) && <Button variant="outline" size="sm" disabled={updateEstimate.isPending} data-testid="button-reopen-estimate" onClick={()=>updateEstimate.mutate({status:"draft"})}>Reopen draft</Button>}
-              {["draft","sent","approved"].includes(estimate.status) && <Button variant="outline" size="sm" disabled={updateEstimate.isPending} data-testid="button-decline-estimate" onClick={()=>updateEstimate.mutate({status:"rejected"})}>Mark declined</Button>}
-              {["draft","sent","approved"].includes(estimate.status) && <Button variant="outline" size="sm" disabled={updateEstimate.isPending} data-testid="button-expire-estimate" onClick={()=>updateEstimate.mutate({status:"expired"})}>Mark expired</Button>}
-              {estimate.status !== "invoiced" && estimate.status !== "rejected" && (
-                <Button
-                  size="sm"
-                  onClick={() => convertToInvoice.mutate()}
-                  disabled={!can("billing.write")||convertToInvoice.isPending || estimate.status !== "approved"||updateEstimate.isPending||taxDraft===""||Number(taxDraft)!==taxRate||unsavedEdits}
-                  data-testid="button-convert-invoice"
-                >
-                  {convertToInvoice.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileText className="h-4 w-4 mr-1" />}
-                  Convert to Invoice
-                </Button>
-              )}
-            </div>
           </div>
         </CardContent>
       </Card>
+      </section>
 
-      {/* Main content: Line items + Summary sidebar */}
-      <WorkPlanning key={estimate.id} kind="estimates" id={estimate.id} />
+      {/* 2. Vehicle damage mapping and individual dent details */}
+      <section aria-labelledby="estimate-section-2" className="space-y-2" data-testid="estimate-section-2">
+        <SectionHeading id="estimate-section-2" n={2}>Damage map and dent details</SectionHeading>
+          {estimate.serviceType === "pdr" && pricingMatrices && linkedVehicle?.vehicleType !== "motorcycle" ? (
+            (!estimate.vehicleId || linkedVehicleData)
+              ? <PdrDentMap key={`${estimate.id}-${estimate.vehicleId}`} estimate={estimate} vehicle={linkedVehicle} matrices={pricingMatrices} readOnly={!can("estimates.write") || estimate.status === "invoiced"} />
+              : <p className="text-sm text-muted-foreground">Loading the linked vehicle before opening its damage map…</p>
+          ) : can("estimates.write")&&estimate.status !== "invoiced" && pricingMatrices && (
+            linkedVehicle?.vehicleType==="motorcycle" ? <p className="rounded-md border p-3 text-sm">No motorcycle-specific diagram or automatic matrix is configured. Use the manual line items below and enter an agreed price; car-body pricing is not applied.</p> : estimate.serviceType === "window_tint"
+              ? (!estimate.vehicleId || linkedVehicleData) ? <TintMatrixPicker key={`${estimate.id}-${estimate.vehicleId}`} vehicle={linkedVehicle} matrices={pricingMatrices} onAdd={addSplatItems} /> : <p className="text-sm">Loading the linked vehicle before opening tint pricing…</p>
+              : (!estimate.assetId || customerAssets) && (!estimate.vehicleId || linkedVehicleData)
+                ? <EstimateDamageMap key={`${estimate.id}-${estimate.vehicleId}-${estimate.assetId}`} estimate={estimate} vehicle={linkedVehicle} asset={linkedAsset} matrices={pricingMatrices} onAdd={addSplatItems} />
+                : <p className="text-sm text-muted-foreground">Loading the linked item before opening its damage map…</p>
+          )}
+          {estimate.serviceType !== "pdr" && (!can("estimates.write") || estimate.status === "invoiced") && <p className="rounded-md border p-3 text-sm text-muted-foreground">{estimate.status === "invoiced" ? "This estimate is invoiced, so the damage map is closed. The billed lines are below." : "Your role can view this estimate but not mark damage."}</p>}
+      </section>
+
+      {/* 3. Pricing, line items, labor, materials, totals and delivery */}
+      <section aria-labelledby="estimate-section-3" className="space-y-4" data-testid="estimate-section-3">
+      <SectionHeading id="estimate-section-3" n={3}>Pricing, line items, totals and delivery</SectionHeading>
       {unsavedEdits&&<p role="status" className="rounded-md border p-3 text-sm">Unsaved estimate changes. Save or cancel the line, notes, discount or staff assignments before approving, sending or invoicing.</p>}
       {(addLineItem.error || deleteLineItem.error || updateEstimate.error || convertToInvoice.error) && (
         <p role="alert" className="rounded-md border border-destructive/30 p-3 text-sm text-destructive">
@@ -571,13 +548,6 @@ export default function EstimateBuilder() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Line items - takes 2 columns */}
         <div className="lg:col-span-2 space-y-4">
-          {can("estimates.write")&&estimate.status !== "invoiced" && pricingMatrices && (
-            linkedVehicle?.vehicleType==="motorcycle" ? <p className="rounded-md border p-3 text-sm">No motorcycle-specific diagram or automatic matrix is configured. Use the manual line items below and enter an agreed price; car-body pricing is not applied.</p> : estimate.serviceType === "window_tint"
-              ? (!estimate.vehicleId || linkedVehicleData) ? <TintMatrixPicker key={`${estimate.id}-${estimate.vehicleId}`} vehicle={linkedVehicle} matrices={pricingMatrices} onAdd={addSplatItems} /> : <p className="text-sm">Loading the linked vehicle before opening tint pricing…</p>
-              : (!estimate.assetId || customerAssets) && (!estimate.vehicleId || linkedVehicleData)
-                ? <EstimateDamageMap key={`${estimate.id}-${estimate.vehicleId}-${estimate.assetId}`} estimate={estimate} vehicle={linkedVehicle} asset={linkedAsset} matrices={pricingMatrices} onAdd={addSplatItems} />
-                : <p className="text-sm text-muted-foreground">Loading the linked item before opening its damage map…</p>
-          )}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Line Items ({lineItems.length})</CardTitle>
@@ -843,6 +813,54 @@ export default function EstimateBuilder() {
               </div>
             </CardContent>
           </Card>
+          {/* Estimate actions and delivery */}
+          <Card data-testid="card-estimate-actions">
+            <CardHeader className="pb-3"><CardTitle className="text-base">Approval and delivery</CardTitle></CardHeader>
+            <CardContent className="flex flex-col gap-2">
+              {estimate.status !== "invoiced" && estimate.status !== "rejected" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const cEmail = "service@mcdowellsrepair.com";
+                    setSendTo(cEmail); setSendResult(null); setSendError("");
+                    const who = selectedCustomer?.firstName || selectedCustomer?.companyName || "";
+                    setSendMessage(`Hi${who ? " " + who : ""},\n\nThank you for choosing McDowells Specialty Repair. Your estimate ${estimate.estimateNumber} is below. Reply to this email or call us to approve or schedule.\n\nMcDowells Specialty Repair`);
+                    setSendOpen(true);
+                  }}
+                  data-testid="button-send-estimate"
+                  disabled={!can("estimates.write")||unsavedEdits||addLineItem.isPending||updateEstimate.isPending||taxDraft===""||Number(taxDraft)!==taxRate}
+                >
+                  <Send className="h-4 w-4 mr-1" /> {estimate.status === "draft" ? "Send to Customer" : "Resend to Customer"}
+                </Button>
+              )}
+              {(estimate.status === "sent" || estimate.status === "draft") && (
+                <Button
+                  size="sm"
+                  onClick={() => updateEstimate.mutate({ status: "approved" })}
+                  data-testid="button-approve-estimate"
+                  disabled={!can("estimates.write")||updateEstimate.isPending||taxDraft===""||Number(taxDraft)!==taxRate||addLineItem.isPending||unsavedEdits}
+                >
+                  <CheckCircle className="h-4 w-4 mr-1" /> Mark Approved
+                </Button>
+              )}
+              {["rejected","expired"].includes(estimate.status) && <Button variant="outline" size="sm" disabled={updateEstimate.isPending} data-testid="button-reopen-estimate" onClick={()=>updateEstimate.mutate({status:"draft"})}>Reopen draft</Button>}
+              {["draft","sent","approved"].includes(estimate.status) && <Button variant="outline" size="sm" disabled={updateEstimate.isPending} data-testid="button-decline-estimate" onClick={()=>updateEstimate.mutate({status:"rejected"})}>Mark declined</Button>}
+              {["draft","sent","approved"].includes(estimate.status) && <Button variant="outline" size="sm" disabled={updateEstimate.isPending} data-testid="button-expire-estimate" onClick={()=>updateEstimate.mutate({status:"expired"})}>Mark expired</Button>}
+              {estimate.status !== "invoiced" && estimate.status !== "rejected" && (
+                <Button
+                  size="sm"
+                  onClick={() => convertToInvoice.mutate()}
+                  disabled={!can("billing.write")||convertToInvoice.isPending || estimate.status !== "approved"||updateEstimate.isPending||taxDraft===""||Number(taxDraft)!==taxRate||unsavedEdits}
+                  data-testid="button-convert-invoice"
+                >
+                  {convertToInvoice.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileText className="h-4 w-4 mr-1" />}
+                  Convert to Invoice
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+          <DeliveryStatus type="estimate" id={id!} />
 
           {/* Estimate meta */}
           <Card>
@@ -873,6 +891,17 @@ export default function EstimateBuilder() {
           </Card>
         </div>
       </div>
+      </section>
+
+      {/* 4. Scheduling, work planning and technician assignments (always last) */}
+      <section aria-labelledby="estimate-section-4" className="space-y-2" data-testid="estimate-section-4">
+        <SectionHeading id="estimate-section-4" n={4}>Scheduling, work planning and technicians</SectionHeading>
+        <WorkPlanning key={estimate.id} kind="estimates" id={estimate.id} />
+      </section>
     </div>
   );
+}
+
+function SectionHeading({ id, n, children }: { id: string; n: number; children: React.ReactNode }) {
+  return <h2 id={id} className="text-sm font-semibold text-muted-foreground">{n}. {children}</h2>;
 }
