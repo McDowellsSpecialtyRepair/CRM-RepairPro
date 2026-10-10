@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [session?.user.id]);
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setError("");
-    if(mode==="activate"&&code.includes("@")){setError("That looks like your email address. Put service@mcdowellsrepair.com in Work email. Activation code needs the separate one-time code from your private activation instructions, not your email address.");return;}
+    if(mode==="activate"&&code.includes("@")){setError("That looks like an email address. Put your work email in Work email. Activation code needs the separate one-time code from your private activation instructions, not your email address.");return;}
     if (mode === "activate" && password !== confirmation) { setError("The passwords do not match."); return; }
     setBusy(true);
     try {
@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <div className="w-full max-w-md">
       <div className="flex items-center gap-3 mb-7"><ShieldCheck className="h-10 w-10 text-primary" /><div><h1 className="text-xl font-bold">RepairPro staff access</h1><p className="text-sm text-muted-foreground">McDowells Specialty Repair</p></div></div>
       <section className="border rounded-xl bg-card p-6 shadow-sm">
-        {setup.data?.setupRequired && <p role="status" className="mb-4 rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">First Owner setup is pending. Confirm the Owner email in the development conversation to receive a private one-time activation code. This does not use Facebook, WhatsApp or email delivery. Existing business records are preserved.</p>}
+        {setup.data?.setupRequired && <p role="status" className="mb-4 rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">First Owner setup is pending. An administrator with server access must issue the private one-time activation code. No email or message is sent. Existing business records are preserved.</p>}
         <h2 className="text-lg font-semibold">{mode === "login" ? "Sign in to your workspace" : "Activate your staff account"}</h2>
         <p className="text-sm text-muted-foreground mt-2 mb-5">{mode === "login" ? "Use your individual staff account. Shared demo logins are disabled." : "Use the one-time code from an owner or administrator, then choose your own password."}</p>
         <form onSubmit={submit} className="space-y-4">

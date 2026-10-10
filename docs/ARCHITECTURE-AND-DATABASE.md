@@ -62,6 +62,15 @@ Current staff roles are owner, administrator, manager, service advisor, technici
 
 Passwords use scrypt hashing in `staff_accounts`; bearer session tokens are hashed in `staff_sessions`. Client auth is held in memory, not browser local storage. A reload may require signing in again. Audit events and selected row before/after snapshots are recorded in SQLite.
 
+Phase 1 hardening (see `server/http-security.ts`, `server/input-guard.ts`, `server/security.ts`):
+
+- **Headers:** CSP (production), frame and MIME-sniffing protection, no-referrer, HSTS when HTTPS is detected through a trusted proxy (`TRUST_PROXY`).
+- **Network:** listens on `127.0.0.1` by default (`HOST`).
+- **Sign-in:** five failures lock an email from that client address for 15 minutes; a per-email ceiling (100) and per-address ceiling (60) slow distributed guessing without letting one client lock out staff. Activation is limited the same way.
+- **Anonymous requests:** rejected requests are throttled per address (120 per 15 minutes, in memory) and are no longer written to the audit table one by one.
+- **Data-entry routes:** only real columns are accepted; ids, record numbers, timestamps and ownership fields are server-controlled; tax-exempt status and credit limit require billing permission; activity authors are always the signed-in user.
+- **Purchase costs:** any response key that looks like a cost, use-tax or tax-note field is removed for roles without cost access, except the explicitly listed non-cost keys.
+
 Someone with raw database/file access can bypass application permissions. Protect filesystem access and backups; these controls are not a substitute for an independent security review, hardened hosting, or an incident-recovery procedure.
 
 ## Database backup and transfer
@@ -69,11 +78,13 @@ Someone with raw database/file access can bypass application permissions. Protec
 From `app/`, check or back up an explicitly selected existing database:
 
 ```sh
+node handoff/database.mjs keygen                      # once; store the key securely
 node handoff/database.mjs check /private/path/to/data.db
-node handoff/database.mjs backup /private/path/to/data.db /private/path/to/new-backup.db
+BACKUP_ENCRYPTION_KEY=... node handoff/database.mjs backup /private/path/to/data.db /private/path/to/backup.enc
+BACKUP_ENCRYPTION_KEY=... node handoff/database.mjs decrypt /private/path/to/backup.enc /isolated/restore.db
 ```
 
-The helper opens the source read-only, uses SQLite's consistent backup API, refuses to overwrite a destination, and limits backup-file permissions. It does not encrypt the output. Do not copy only a live `.db` file while ignoring active WAL contents.
+The helper opens the source read-only, uses SQLite's consistent backup API, refuses to overwrite a destination, and limits file permissions. Backups are encrypted with AES-256-GCM; without a key it refuses unless `--allow-unencrypted` is passed deliberately. `decrypt` only produces a file after the authentication tag verifies, then runs integrity and foreign-key checks. Losing the key means losing the ability to restore. Do not copy only a live `.db` file while ignoring active WAL contents.
 
 Before transfer, agree on the recipient, encrypted transport and retention. A full database can include customers, audit-history copies of private data, password hashes, session hashes and invitation hashes; clearing current customer rows alone is not sufficient anonymization.
 

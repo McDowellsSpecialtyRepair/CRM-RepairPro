@@ -6,7 +6,7 @@ Prepared for McDowells Specialty Repair on September 28, 2026. This is a portabl
 
 1. Read `docs/KNOWN-ISSUES.md` before evaluating completion claims.
 2. Follow `docs/SETUP.md` to install and run locally.
-3. Run `node handoff/verify.mjs`, `node handoff/fresh-install-check.mjs` and `npx tsx handoff/calculation-check.ts` from `app/` after building (CI runs them on every push).
+3. Run `node handoff/verify.mjs`, `node handoff/fresh-install-check.mjs`, `node handoff/security-check.mjs` and `npx tsx handoff/calculation-check.ts` from `app/` after building (CI runs them on every push).
 4. Read `docs/ARCHITECTURE-AND-DATABASE.md` before changing financial logic or migrations.
 5. Use `docs/ACCEPTANCE-AND-TESTS.md` to plan independent acceptance testing.
 
@@ -39,4 +39,4 @@ Those checks do not establish real-world usability, tax correctness for every jo
 
 Create a private repository from `app/`, retain this source baseline, and work on a separate stabilization branch. Do not point tests at the operating database or enable external messages/payments during onboarding.
 
-An operating-data transfer, if needed, should be a separately authorized encrypted handoff after the developer and destination are chosen. The included database helper can create a consistent backup, but it does not encrypt it or authorize its transfer.
+An operating-data transfer, if needed, should be a separately authorized encrypted handoff after the developer and destination are chosen. The included database helper can create a consistent, AES-256-GCM encrypted backup (`BACKUP_ENCRYPTION_KEY`), but it does not authorize its transfer.

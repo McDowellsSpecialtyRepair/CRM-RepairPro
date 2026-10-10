@@ -2,20 +2,28 @@
 // Runs the same runMigrations() the server runs on startup (server/migrations.ts).
 // It never loads demonstration data. An existing database is backed up first.
 import Database from "better-sqlite3";
-import { existsSync, statSync, chmodSync } from "node:fs";
+import { existsSync, statSync, chmodSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
+import { backupKey, encryptFile } from "./backup-crypto.mjs";
 
 const dbPath = process.env.DB_PATH;
 if (!dbPath) throw new Error("Set DB_PATH explicitly to the database you intend to migrate.");
 const target = resolve(dbPath);
 
 if (existsSync(target) && statSync(target).size > 0) {
-  const backup = `${target}.pre-migrate-${new Date().toISOString().replace(/[:.]/g, "-")}.bak`;
-  if (existsSync(backup)) throw new Error("Refusing to overwrite an existing backup file.");
+  const key = backupKey();
+  const plain = `${target}.pre-migrate-${new Date().toISOString().replace(/[:.]/g, "-")}.bak`;
+  const backup = key ? `${plain}.enc` : plain;
+  if (existsSync(plain) || existsSync(backup)) throw new Error("Refusing to overwrite an existing backup file.");
   const source = new Database(target, { readonly: true, fileMustExist: true });
-  try { await source.backup(backup); } finally { source.close(); }
-  chmodSync(backup, 0o600);
-  console.log(`Consistent pre-migration backup written to ${backup} (contains private data; not encrypted).`);
+  try { await source.backup(plain); } finally { source.close(); }
+  chmodSync(plain, 0o600);
+  if (key) {
+    try { await encryptFile(plain, backup, key); } finally { rmSync(plain, { force: true }); }
+    console.log(`Encrypted pre-migration backup written to ${backup}.`);
+  } else {
+    console.warn(`WARNING: pre-migration backup written UNENCRYPTED to ${backup} (owner-only permissions; contains private data). Set BACKUP_ENCRYPTION_KEY to encrypt it.`);
+  }
 }
 
 // Import only after the backup so opening the database cannot change it first.

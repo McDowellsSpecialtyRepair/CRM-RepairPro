@@ -146,8 +146,24 @@ function sessionFor(u: any, agent: string) {
   exec("UPDATE staff_accounts SET last_login_at=? WHERE id=?", now(), u.id);
   return { token, user: safeUser(u), expiresAt: new Date(time + 8 * HOUR).toISOString(), idleMinutes: 30 };
 }
+// Unauthenticated requests are not written to the audit table one by one (that let anyone grow
+// the database). Each client address gets UNAUTHENTICATED_LIMIT rejected requests per window;
+// beyond that it receives 429, and one audit event is recorded per address per window.
+const UNAUTHENTICATED_LIMIT = 120, UNAUTHENTICATED_WINDOW = 15 * 60000;
+const unauthenticated = new Map<string, { start: number; count: number; logged: boolean }>();
+function unauthenticatedThrottled(req: Request) {
+  const time = Date.now(), key = req.ip || "unknown";
+  if (unauthenticated.size > 10000) unauthenticated.forEach((v, k) => { if (time - v.start >= UNAUTHENTICATED_WINDOW) unauthenticated.delete(k); });
+  let entry = unauthenticated.get(key);
+  if (!entry || time - entry.start >= UNAUTHENTICATED_WINDOW) unauthenticated.set(key, entry = { start: time, count: 0, logged: false });
+  if (++entry.count <= UNAUTHENTICATED_LIMIT) return false;
+  if (!entry.logged) { entry.logged = true; audit("access.unauthenticated_throttled", "route", req.path, null, { method: req.method, network: tokenHash(`network:${key}`).slice(0, 16) }); }
+  return true;
+}
 function deny(req: Request, res: Response, status: number, message: string) {
-  audit(status === 401 ? "access.unauthenticated" : "access.denied", "route", req.path, null, { method: req.method });
+  if (status === 401) {
+    if (unauthenticatedThrottled(req)) return res.status(429).json({ error: "Too many requests. Try again later." });
+  } else audit("access.denied", "route", req.path, null, { method: req.method });
   return res.status(status).json({ error: message });
 }
 // Support users need contact/operational information, not typed financial fields.
@@ -156,9 +172,19 @@ function redactFinancial(value: any): any {
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).filter(([k]) => !/(price|amount|subtotal|total|balance|credit|cost|discount|budget|rate|revenue|value)/i.test(k) && !["activities","thirdPartyPayers","fleetAccounts"].includes(k)).map(([k, v]) => [k, redactFinancial(v)]));
   return value;
 }
+// Purchase costs, use tax and cost notes are hidden from roles without costs.read. Any key that
+// looks like one is removed (so new cost fields are hidden by default); only the keys listed in
+// VISIBLE_COST_KEYS are known not to be purchase costs and stay visible.
+const PURCHASE_COST_KEY = /cost|use_?tax|tax_?note/i;
+const VISIBLE_COST_KEYS = new Set([
+  "cost",                         // service_history.cost: the customer's charge for the visit
+  "claimCost", "claim_cost",      // warranty claim cost: visibility unchanged pending owner review
+  "costComplete", "cost_complete" // yes/no flag that cost review is finished, not an amount
+]);
+export const isPurchaseCostKey = (key: string) => PURCHASE_COST_KEY.test(key) && !VISIBLE_COST_KEYS.has(key);
 function redactPurchaseCosts(value:any):any{
   if(Array.isArray(value))return value.map(redactPurchaseCosts);
-  if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).filter(([k])=>!["unitCost","unit_cost","useTaxRate","use_tax_rate","taxNote","tax_note","estimatedCost","estimated_cost","useTax","use_tax","costs"].includes(k)).map(([k,v])=>[k,redactPurchaseCosts(v)]));
+  if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).filter(([k])=>!isPurchaseCostKey(k)).map(([k,v])=>[k,redactPurchaseCosts(v)]));
   return value;
 }
 export function assignmentPatch(body: any) {
@@ -220,25 +246,28 @@ export function registerSecurity(app: Express) {
   app.get("/api/auth/status", (_req, res) => res.json({ authenticationRequired: true, setupRequired:row("SELECT COUNT(*) n FROM staff_accounts").n===0, selfRegistration: false, idleMinutes: 30, sessionHours: 8 }));
   app.post("/api/auth/login", handle(async (req, res) => {
     fields(req.body, ["email","password"]);
-    const email = String(req.body.email || "").trim().toLowerCase().slice(0, 254), key = tokenHash(`login:${email}`), ip = tokenHash(`network:${req.ip}`);
-    rateCheck(key, 5); rateCheck(ip, 60);
+    // Lockout is per email *and* network address, so another client cannot lock a staff member
+    // out. A high per-email ceiling still slows guessing spread across many addresses.
+    const email = String(req.body.email || "").trim().toLowerCase().slice(0, 254), ip = tokenHash(`network:${req.ip}`);
+    const key = tokenHash(`login:${email}:${req.ip}`), emailKey = tokenHash(`login:${email}`);
+    rateCheck(key, 5); rateCheck(emailKey, 100); rateCheck(ip, 60);
     const u = row("SELECT * FROM staff_accounts WHERE email=?", email);
     const version = u?.version;
     if (!await passwordMatches(req.body.password, u?.password_hash) || u?.status !== "active") {
-      failedRate(key); failedRate(ip); audit("login.failed", "staff_accounts", u?.id || "", null, { attemptedEmail: email }); error("Invalid email or password.", 401);
+      failedRate(key); failedRate(emailKey); failedRate(ip); audit("login.failed", "staff_accounts", u?.id || "", null, { attemptedEmail: email }); error("Invalid email or password.", 401);
     }
     const fresh = row("SELECT * FROM staff_accounts WHERE id=?", u.id);
     if (fresh.version !== version || fresh.status !== "active") error("Invalid email or password.", 401);
     securityContext.getStore()!.userId = u.id; securityContext.getStore()!.label = u.full_name;
-    const session = sqlite.transaction(() => { exec("DELETE FROM staff_rate_limits WHERE key=?", key); const s = sessionFor(fresh, req.get("user-agent") || "Unknown browser"); audit("login.succeeded", "staff_accounts", u.id); return s; })();
+    const session = sqlite.transaction(() => { exec("DELETE FROM staff_rate_limits WHERE key IN (?,?)", key, emailKey); const s = sessionFor(fresh, req.get("user-agent") || "Unknown browser"); audit("login.succeeded", "staff_accounts", u.id); return s; })();
     res.json(session);
   }));
   app.post("/api/auth/activate", handle(async (req, res) => {
     fields(req.body, ["email","activationCode","password"]);
-    const email = emailValue(req.body.email), code = String(req.body.activationCode || ""), key = tokenHash(`activation:${email}`);
-    rateCheck(key, 5);
+    const email = emailValue(req.body.email), code = String(req.body.activationCode || ""), key = tokenHash(`activation:${email}:${req.ip}`), ip = tokenHash(`network:${req.ip}`);
+    rateCheck(key, 5); rateCheck(ip, 60);
     const inv = code.length === 43 ? row("SELECT i.*,u.email,u.version,u.status FROM staff_invitations i JOIN staff_accounts u ON u.id=i.user_id WHERE token_hash=?", tokenHash(code)) : null;
-    if (!inv || inv.email !== email || inv.used_at || inv.expires_at <= Date.now() || inv.status === "disabled") { failedRate(key); audit("activation.failed", "staff_accounts", "", null, { email }); error("Activation code is invalid, expired or already used."); }
+    if (!inv || inv.email !== email || inv.used_at || inv.expires_at <= Date.now() || inv.status === "disabled") { failedRate(key); failedRate(ip); audit("activation.failed", "staff_accounts", "", null, { email }); error("Activation code is invalid, expired or already used."); }
     const hash = await passwordHash(passwordValue(req.body.password, email));
     const session = sqlite.transaction(() => {
       const current = row("SELECT i.*,u.version,u.status FROM staff_invitations i JOIN staff_accounts u ON u.id=i.user_id WHERE i.id=?", inv.id);
@@ -246,7 +275,7 @@ export function registerSecurity(app: Express) {
       exec("UPDATE staff_invitations SET used_at=? WHERE id=?", Date.now(), inv.id);
       exec("UPDATE staff_accounts SET password_hash=?,status='active',version=version+1,updated_at=? WHERE id=?", hash, now(), inv.user_id);
       exec("DELETE FROM staff_sessions WHERE user_id=?", inv.user_id);
-      exec("DELETE FROM staff_rate_limits WHERE key IN (?,?)", key, tokenHash(`login:${email}`));
+      exec("DELETE FROM staff_rate_limits WHERE key IN (?,?,?)", key, tokenHash(`login:${email}`), tokenHash(`login:${email}:${req.ip}`));
       const u = row("SELECT * FROM staff_accounts WHERE id=?", inv.user_id);
       securityContext.getStore()!.userId = u.id; securityContext.getStore()!.label = u.full_name;
       audit("staff.activated", "staff_accounts", u.id, null, { email, role: u.role });
