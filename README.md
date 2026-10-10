@@ -9,6 +9,7 @@ Prepared for McDowells Specialty Repair on September 28, 2026. This is a portabl
 3. Run `node handoff/verify.mjs`, `node handoff/fresh-install-check.mjs`, `node handoff/security-check.mjs` and `npx tsx handoff/calculation-check.ts` from `app/` after building (CI runs them on every push).
 4. Read `docs/ARCHITECTURE-AND-DATABASE.md` before changing financial logic or migrations.
 5. Use `docs/ACCEPTANCE-AND-TESTS.md` to plan independent acceptance testing.
+6. Follow `docs/BACKUP-AND-RECOVERY.md` for encrypted backups, key custody and restores.
 
 ## Package contents
 

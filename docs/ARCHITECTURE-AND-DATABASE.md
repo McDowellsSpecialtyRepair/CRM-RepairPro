@@ -75,6 +75,8 @@ Someone with raw database/file access can bypass application permissions. Protec
 
 ## Database backup and transfer
 
+The operating procedure (key custody, nightly backups, retention, restore and drills) is in `BACKUP-AND-RECOVERY.md`.
+
 From `app/`, check or back up an explicitly selected existing database:
 
 ```sh
