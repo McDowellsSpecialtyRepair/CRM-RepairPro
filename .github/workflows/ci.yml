@@ -53,6 +53,11 @@ jobs:
         env:
           HANDOFF_TEST_PORT: "5189"
 
+      - name: Estimating regression (Phase 2.1 dent records, customer and vehicle workflow)
+        run: node handoff/estimating-check.mjs
+        env:
+          HANDOFF_TEST_PORT: "5191"
+
       - name: Calculation regression
         run: npx tsx handoff/calculation-check.ts
 

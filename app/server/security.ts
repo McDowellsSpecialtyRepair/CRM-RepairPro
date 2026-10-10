@@ -64,7 +64,7 @@ export function initializeSecurity() {
       WHERE assigned_tech_id IS NULL AND (SELECT COUNT(*) FROM technicians WHERE name=jobs.assigned_tech)=1`);
     // Row triggers make before/after auditing atomic with the write. Never audit credentials.
     const tables = ["customers","contacts","vehicles","assets","jobs","estimates","estimate_line_items","invoices","invoice_line_items","payments","campaigns","activities","technicians","schedule_slots","bookings","service_history","coi_certificates","third_party_payers","fleet_accounts","fleet_authorized_contacts","warranty_claims","asset_details","tax_jurisdictions","report_definitions"];
-    tables.push("estimate_labor_allocations","invoice_labor_credits","document_deliveries");
+    tables.push("estimate_labor_allocations","invoice_labor_credits","document_deliveries","estimate_dents");
     tables.push(...rows("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'ops_%'").map(t=>t.name));
     for (const table of tables) {
       const cols = rows(`PRAGMA table_info("${table}")`).map(c => c.name);

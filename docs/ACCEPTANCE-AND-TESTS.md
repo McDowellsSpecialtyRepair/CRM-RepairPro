@@ -10,10 +10,30 @@ From `app/` after installation/build:
 node handoff/verify.mjs
 node handoff/fresh-install-check.mjs
 node handoff/security-check.mjs
+node handoff/estimating-check.mjs
 npx tsx handoff/calculation-check.ts
 ```
 
 These run in CI on every push (`.github/workflows/ci.yml`).
+
+`estimating-check.mjs` (Phase 2.1) covers the following:
+- **Upgrade:** an existing database gains the dent table, its locks and its audit triggers, and every existing estimate, line and invoice stays byte-for-byte unchanged.
+- **Customers and vehicles:** a customer can be created during New Estimate, with the duplicate check and without access to tax-exempt status. A vehicle can be saved with only its VIN. The duplicate-VIN rule still applies within one customer.
+- **Dent records:**
+  - Validation of size, length (1–36 inches), severity, location difficulty, the "Paint damage correctable?" answer and notes; a crease must have a length.
+  - Permissions for advisor, technician, auditor and signed-out users.
+  - Billing: one line per panel and size at the existing matrix price, and a crease only at an entered price. The matrix price is kept on every dent.
+  - Line and dent consistency, approval behavior, and dents surviving removal of their line.
+  - Audit history, and locks after invoicing or the start of production, enforced by both the API and the database.
+- **Printed estimate:** internal dent notes never appear on it.
+
+`script/phase21-browser.mjs` is a local-only browser check; it needs Playwright and Chromium, which CI does not install. It runs the New Estimate and dent workflow at desktop (1366 px) and phone (390 px) widths. It checks:
+- an inline customer and a VIN-only vehicle
+- the four page sections in order
+- dent details that persist after leaving the estimate, reloading and signing in again
+- a crease saved only after its length is chosen
+- dents added to the estimate
+- no horizontal scrolling and no CSP errors
 
 `fresh-install-check.mjs` confirms a production start on an empty database creates no demonstration data, accounts or default credentials, that restarts and `db:migrate` are idempotent, and that `db:seed-demo` refuses unsafe targets.
 
