@@ -80,12 +80,15 @@ try{
  for(let i=0;i<5;i++){const r=await call("POST","/api/auth/login",{email:ownerEmail,password:"wrong-password-attempt"},{ip:"10.0.0.1"});assert.equal(r.status,401);}
  check("Five failures lock that email from that address",(await call("POST","/api/auth/login",{email:ownerEmail,password:ownerPassword},{ip:"10.0.0.1"})).status===429);
  check("The same account can still sign in from another address",(await call("POST","/api/auth/login",{email:ownerEmail,password:ownerPassword},{ip:"10.0.0.2"})).status===200);
+ for(let i=0;i<6;i++)await call("POST","/api/auth/login",{email:`${ownerEmail}:10.0.0.3`,password:"wrong-password-attempt"},{ip:"10.0.0.4"});
+ check("A crafted email cannot lock the owner out of another address (no key collision)",(await call("POST","/api/auth/login",{email:ownerEmail,password:ownerPassword},{ip:"10.0.0.3"})).status===200);
 
  // ---- unauthenticated throttling without per-request audit rows ----
  const statuses=[];for(let i=0;i<125;i++)statuses.push((await call("GET","/api/invoices",undefined,{ip:"10.0.0.9"})).status);
  check("Unauthenticated requests receive 401 up to the limit",statuses.slice(0,120).every(s=>s===401));
  check("Repeated unauthenticated requests are throttled with 429",statuses.slice(120).every(s=>s===429));
  check("Other addresses are not throttled",(await call("GET","/api/invoices",undefined,{ip:"10.0.0.10"})).status===401);
+ check("A stale session token from a throttled address still gets 401 (returns to sign-in)",(await call("GET","/api/invoices",undefined,{ip:"10.0.0.9",token:randomBytes(32).toString("base64url")})).status===401);
 
  // ---- mass assignment ----
  const c1=(await ok("GET","/api/customers",undefined,{token:owner}))[0];
@@ -156,6 +159,10 @@ try{
  writeFileSync(old,"old");writeFileSync(other,"other");
  const threeDaysAgo=(Date.now()-3*86400000)/1000;utimesSync(old,threeDaysAgo,threeDaysAgo);utimesSync(other,threeDaysAgo,threeDaysAgo);
  await ok("POST",`/api/invoices/${inv.id}/email`,{},{token:owner});
+ const est2=await ok("POST","/api/estimates",{customerId:cust.id,serviceType:"pdr",vehicleId:veh.id,taxRate:6},{token:owner});
+ await ok("POST",`/api/estimates/${est2.id}/line-items`,{serviceCategory:"labor",description:"Repair labor",unitPrice:150},{token:owner});
+ const sent=await call("POST",`/api/estimates/${est2.id}/send`,{},{token:owner});
+ check("Estimate email still renders from its print page (internal server call)",sent.status===200&&readdirSync(emails).some(f=>f.startsWith(`estimate-${est2.estimateNumber}`)));
  const copy=readdirSync(emails).find(f=>f.startsWith(`invoice-${inv.invoiceNumber}`));
  check("Email copy is saved with owner-only permissions",!!copy&&(statSync(join(emails,copy)).mode&0o777)===0o600);
  check("Email copies older than the retention period are removed; other files are kept",!existsSync(old)&&existsSync(other));

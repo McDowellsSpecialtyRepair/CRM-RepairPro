@@ -6,6 +6,7 @@ import { existsSync, statSync, chmodSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { backupKey, encryptFile } from "./backup-crypto.mjs";
 
+process.umask(0o077); // backups (including temporary plain copies) are owner-only from creation
 const dbPath = process.env.DB_PATH;
 if (!dbPath) throw new Error("Set DB_PATH explicitly to the database you intend to migrate.");
 const target = resolve(dbPath);

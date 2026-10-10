@@ -67,7 +67,7 @@ Phase 1 hardening (see `server/http-security.ts`, `server/input-guard.ts`, `serv
 - **Headers:** CSP (production), frame and MIME-sniffing protection, no-referrer, HSTS when HTTPS is detected through a trusted proxy (`TRUST_PROXY`).
 - **Network:** listens on `127.0.0.1` by default (`HOST`).
 - **Sign-in:** five failures lock an email from that client address for 15 minutes; a per-email ceiling (100) and per-address ceiling (60) slow distributed guessing without letting one client lock out staff. Activation is limited the same way.
-- **Anonymous requests:** rejected requests are throttled per address (120 per 15 minutes, in memory) and are no longer written to the audit table one by one.
+- **Anonymous requests:** requests without a session token are throttled per address (120 rejections per 15-minute window, in memory, at most 50,000 addresses tracked) and are no longer written to the audit table one by one. Requests carrying a stale token always get 401 so the app returns to sign-in. Rate-limit keys are structured so a crafted email cannot collide with another account's key.
 - **Data-entry routes:** only real columns are accepted; ids, record numbers, timestamps and ownership fields are server-controlled; tax-exempt status and credit limit require billing permission; activity authors are always the signed-in user.
 - **Purchase costs:** any response key that looks like a cost, use-tax or tax-note field is removed for roles without cost access, except the explicitly listed non-cost keys.
 

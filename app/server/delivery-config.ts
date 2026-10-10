@@ -16,6 +16,7 @@ export function emailOutputDir() {
 export function saveEmailCopy(fileName: string, html: string) {
   const dir = emailOutputDir();
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try { fs.chmodSync(dir, 0o700); } catch { /* not owned by this process; leave as configured */ }
   pruneEmailCopies(dir);
   const file = path.join(dir, path.basename(fileName));
   fs.writeFileSync(file, html, { mode: 0o600 });
@@ -30,6 +31,7 @@ function pruneEmailCopies(dir: string) {
   for (const name of fs.readdirSync(dir)) {
     if (!/^(invoice|estimate)-.+\.html$/.test(name)) continue;
     const file = path.join(dir, name);
-    if (fs.statSync(file).mtimeMs < cutoff) fs.rmSync(file, { force: true });
+    try { if (fs.statSync(file).mtimeMs < cutoff) fs.rmSync(file, { force: true }); }
+    catch { /* removed concurrently; retention must never block sending */ }
   }
 }

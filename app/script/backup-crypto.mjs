@@ -19,11 +19,19 @@ export function backupKey(value = process.env.BACKUP_ENCRYPTION_KEY) {
 
 export async function encryptFile(source, destination, key) {
   const iv = randomBytes(IV_BYTES), cipher = createCipheriv("aes-256-gcm", key, iv);
-  await pipeline(createReadStream(source), cipher, async function* (encrypted) {
-    yield Buffer.concat([MAGIC, iv]);
-    for await (const chunk of encrypted) yield chunk;
-    yield cipher.getAuthTag();
-  }, createWriteStream(destination, { flags: "wx", mode: 0o600 }));
+  const out = createWriteStream(destination, { flags: "wx", mode: 0o600 });
+  try {
+    await pipeline(createReadStream(source), cipher, async function* (encrypted) {
+      yield Buffer.concat([MAGIC, iv]);
+      for await (const chunk of encrypted) yield chunk;
+      yield cipher.getAuthTag();
+    }, out);
+  } catch (e) {
+    // With "wx", any failure other than EEXIST means this call created the file: never leave a
+    // truncated backup behind, and never delete a file that already existed.
+    if (e?.code !== "EEXIST") rmSync(destination, { force: true });
+    throw e;
+  }
   chmodSync(destination, 0o600);
 }
 

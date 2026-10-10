@@ -37,6 +37,12 @@ export function trustProxySetting(value = process.env.TRUST_PROXY): boolean | nu
 // Set HOST=0.0.0.0 only on a private network or inside a container behind a proxy.
 export const listenHost = (value = process.env.HOST) => (value || "").trim() || "127.0.0.1";
 
+// Origin the server uses to call itself (e.g. rendering an estimate email from its print page).
+export function internalOrigin(port: string | number, host = listenHost()) {
+  const target = host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host;
+  return `http://${target.includes(":") ? `[${target}]` : target}:${port}`;
+}
+
 export function applyHttpSecurity(app: Express, production: boolean) {
   app.disable("x-powered-by");
   app.set("trust proxy", trustProxySetting());

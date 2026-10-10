@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import {resolve,dirname,join} from "node:path";
 import {existsSync,mkdirSync,writeFileSync,chmodSync,rmSync} from "node:fs";
 import {backupKey,newBackupKey,encryptFile,decryptFile} from "../script/backup-crypto.mjs";
+process.umask(0o077); // every file this tool creates (including temporary copies) is owner-only
 const args=process.argv.slice(2),allowUnencrypted=args.includes("--allow-unencrypted");
 const [command,sourceArg,destinationArg]=args.filter(a=>a!=="--allow-unencrypted");
 const usage="Usage: node handoff/database.mjs <check|schema|backup|decrypt> <source> [destination] [--allow-unencrypted]\n       node handoff/database.mjs keygen";

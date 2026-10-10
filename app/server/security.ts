@@ -128,6 +128,8 @@ async function passwordMatches(password: unknown, hash: string | null) {
   const expected = supported ? Buffer.from(pieces![3], "hex") : Buffer.alloc(64);
   return valid && !!supported && expected.length === actual.length && timingSafeEqual(actual, expected);
 }
+// Structured (JSON) keys: an email containing ":" or an address cannot collide with another key.
+const rateKey = (...parts: unknown[]) => tokenHash(JSON.stringify(["rate-limit", ...parts]));
 function rateCheck(key: string, limit: number) {
   const r = row("SELECT * FROM staff_rate_limits WHERE key=?", key);
   if (r && Date.now() - r.window_start < 15 * 60000 && r.failures >= limit) error("Too many unsuccessful attempts. Try again in 15 minutes.", 429);
@@ -147,22 +149,28 @@ function sessionFor(u: any, agent: string) {
   return { token, user: safeUser(u), expiresAt: new Date(time + 8 * HOUR).toISOString(), idleMinutes: 30 };
 }
 // Unauthenticated requests are not written to the audit table one by one (that let anyone grow
-// the database). Each client address gets UNAUTHENTICATED_LIMIT rejected requests per window;
-// beyond that it receives 429, and one audit event is recorded per address per window.
-const UNAUTHENTICATED_LIMIT = 120, UNAUTHENTICATED_WINDOW = 15 * 60000;
-const unauthenticated = new Map<string, { start: number; count: number; logged: boolean }>();
+// the database). Requests without a session token get UNAUTHENTICATED_LIMIT rejections per client
+// address per fixed window; beyond that they receive 429, and one audit event is recorded per
+// address per window. Requests that carry a (stale) token always get 401 so the app returns to
+// sign-in. Memory is bounded: the table is cleared each window and holds at most MAX addresses.
+const UNAUTHENTICATED_LIMIT = 120, UNAUTHENTICATED_WINDOW = 15 * 60000, UNAUTHENTICATED_MAX_ADDRESSES = 50000;
+const unauthenticated = new Map<string, { count: number; logged: boolean }>();
+let unauthenticatedWindow = Date.now();
 function unauthenticatedThrottled(req: Request) {
   const time = Date.now(), key = req.ip || "unknown";
-  if (unauthenticated.size > 10000) unauthenticated.forEach((v, k) => { if (time - v.start >= UNAUTHENTICATED_WINDOW) unauthenticated.delete(k); });
+  if (time - unauthenticatedWindow >= UNAUTHENTICATED_WINDOW) { unauthenticated.clear(); unauthenticatedWindow = time; }
   let entry = unauthenticated.get(key);
-  if (!entry || time - entry.start >= UNAUTHENTICATED_WINDOW) unauthenticated.set(key, entry = { start: time, count: 0, logged: false });
+  if (!entry) {
+    if (unauthenticated.size >= UNAUTHENTICATED_MAX_ADDRESSES) return false;
+    unauthenticated.set(key, entry = { count: 0, logged: false });
+  }
   if (++entry.count <= UNAUTHENTICATED_LIMIT) return false;
   if (!entry.logged) { entry.logged = true; audit("access.unauthenticated_throttled", "route", req.path, null, { method: req.method, network: tokenHash(`network:${key}`).slice(0, 16) }); }
   return true;
 }
-function deny(req: Request, res: Response, status: number, message: string) {
+function deny(req: Request, res: Response, status: number, message: string, throttle = false) {
   if (status === 401) {
-    if (unauthenticatedThrottled(req)) return res.status(429).json({ error: "Too many requests. Try again later." });
+    if (throttle && unauthenticatedThrottled(req)) return res.status(429).json({ error: "Too many requests. Try again later." });
   } else audit("access.denied", "route", req.path, null, { method: req.method });
   return res.status(status).json({ error: message });
 }
@@ -212,7 +220,7 @@ export function registerSecurity(app: Express) {
       const s = token ? row("SELECT s.*,u.status,u.role,u.full_name,u.email,u.technician_id,u.version,u.id AS account_id FROM staff_sessions s JOIN staff_accounts u ON u.id=s.user_id WHERE token_hash=?", tokenHash(token)) : null;
       if (!s || s.status !== "active" || s.expires_at <= Date.now() || s.last_seen <= Date.now() - IDLE) {
         if (s) { exec("DELETE FROM staff_sessions WHERE id=?", s.id); audit("session.expired", "staff_accounts", s.account_id); }
-        return deny(req, res, 401, "Sign in to continue.");
+        return deny(req, res, 401, "Sign in to continue.", !token);
       }
       const ctx = securityContext.getStore()!; ctx.userId = s.account_id; ctx.label = s.full_name;
       res.locals.staff = { ...s, id: s.account_id }; res.locals.sessionId = s.id;
@@ -249,7 +257,7 @@ export function registerSecurity(app: Express) {
     // Lockout is per email *and* network address, so another client cannot lock a staff member
     // out. A high per-email ceiling still slows guessing spread across many addresses.
     const email = String(req.body.email || "").trim().toLowerCase().slice(0, 254), ip = tokenHash(`network:${req.ip}`);
-    const key = tokenHash(`login:${email}:${req.ip}`), emailKey = tokenHash(`login:${email}`);
+    const key = rateKey("login", email, req.ip), emailKey = rateKey("login-email", email);
     rateCheck(key, 5); rateCheck(emailKey, 100); rateCheck(ip, 60);
     const u = row("SELECT * FROM staff_accounts WHERE email=?", email);
     const version = u?.version;
@@ -264,7 +272,7 @@ export function registerSecurity(app: Express) {
   }));
   app.post("/api/auth/activate", handle(async (req, res) => {
     fields(req.body, ["email","activationCode","password"]);
-    const email = emailValue(req.body.email), code = String(req.body.activationCode || ""), key = tokenHash(`activation:${email}:${req.ip}`), ip = tokenHash(`network:${req.ip}`);
+    const email = emailValue(req.body.email), code = String(req.body.activationCode || ""), key = rateKey("activation", email, req.ip), ip = tokenHash(`network:${req.ip}`);
     rateCheck(key, 5); rateCheck(ip, 60);
     const inv = code.length === 43 ? row("SELECT i.*,u.email,u.version,u.status FROM staff_invitations i JOIN staff_accounts u ON u.id=i.user_id WHERE token_hash=?", tokenHash(code)) : null;
     if (!inv || inv.email !== email || inv.used_at || inv.expires_at <= Date.now() || inv.status === "disabled") { failedRate(key); failedRate(ip); audit("activation.failed", "staff_accounts", "", null, { email }); error("Activation code is invalid, expired or already used."); }
@@ -275,7 +283,7 @@ export function registerSecurity(app: Express) {
       exec("UPDATE staff_invitations SET used_at=? WHERE id=?", Date.now(), inv.id);
       exec("UPDATE staff_accounts SET password_hash=?,status='active',version=version+1,updated_at=? WHERE id=?", hash, now(), inv.user_id);
       exec("DELETE FROM staff_sessions WHERE user_id=?", inv.user_id);
-      exec("DELETE FROM staff_rate_limits WHERE key IN (?,?,?)", key, tokenHash(`login:${email}`), tokenHash(`login:${email}:${req.ip}`));
+      exec("DELETE FROM staff_rate_limits WHERE key IN (?,?,?)", key, rateKey("login-email", email), rateKey("login", email, req.ip));
       const u = row("SELECT * FROM staff_accounts WHERE id=?", inv.user_id);
       securityContext.getStore()!.userId = u.id; securityContext.getStore()!.label = u.full_name;
       audit("staff.activated", "staff_accounts", u.id, null, { email, role: u.role });

@@ -23,7 +23,7 @@ import { registerWorkOrders, planning, updatePlanning, estimatePlanningList } fr
 import { runMigrations } from "./migrations";
 import { TEST_EMAIL, saveEmailCopy } from "./delivery-config";
 import { acceptFields } from "./input-guard";
-import { AUTO_PRINT_SCRIPT } from "./http-security";
+import { AUTO_PRINT_SCRIPT, internalOrigin } from "./http-security";
 import { actorLabel } from "./security-context";
 import { customers, vehicles, assets, serviceHistory, jobs, campaigns, activities, technicians, scheduleSlots, bookings,
   coiCertificates, thirdPartyPayers, fleetAccounts, fleetAuthorizedContacts, warrantyClaims, assetDetails, taxJurisdictions } from "@shared/schema";
@@ -979,7 +979,7 @@ export async function registerRoutes(
     let html = "";
     try {
       const port = process.env.PORT || 5000;
-      const r = await fetch(`http://127.0.0.1:${port}/print/estimate/${estimate.id}`, {headers:{Authorization:req.headers.authorization || ""}});
+      const r = await fetch(`${internalOrigin(port)}/print/estimate/${estimate.id}`, {headers:{Authorization:req.headers.authorization || ""}});
       if (!r.ok) throw new Error("Printable estimate was unavailable.");
       html = (await r.text()).replace(/<script[\s\S]*?<\/script>/gi, "");
     } catch (e: any) {
