@@ -137,6 +137,9 @@ export function updateEstimateLine(id:number,body:any){
     const est=editableEstimate(raw.estimate_id),old=storage.getEstimateLineItems(est.id).find(l=>l.id===id)!;
     if(body.expectedVersion!==old.allocationVersion)fail("This line changed. Reload before editing.",409);
     const line=validatedLine({...old,...body},est.id);
+    const dentCount=(sqlite.prepare("SELECT COUNT(*) n FROM estimate_dents WHERE line_item_id=?").get(id) as any).n;
+    if(dentCount&&(line.quantity!==old.quantity||line.panelLocation!==(old.panelLocation||"")||line.damageSize!==(old.damageSize||"")))
+      fail(`This line counts ${dentCount} saved dent record${dentCount===1?"":"s"}. To change the dents, remove this line, edit them in the damage map, then add them again.`,409);
     if(savedHailCarriers([...storage.getEstimateLineItems(est.id).filter(l=>l.id!==id),line]).length>1)fail("Do not mix carrier-tagged hail lines",409);
     sqlite.prepare("UPDATE estimate_line_items SET service_category=?,description=?,line_type=?,quantity=?,unit=?,unit_price=?,total=?,unit_cost=?,use_tax_rate=?,tax_note=?,repair_action=?,panel_location=?,damage_size=?,damage_severity=?,allocation_version=allocation_version+1 WHERE id=?")
       .run(line.serviceCategory,line.description,line.lineType,line.quantity,line.unit||"each",line.unitPrice,line.total,line.unitCost,line.useTaxRate,line.taxNote,line.repairAction,line.panelLocation||null,line.damageSize||null,line.damageSeverity||null,id);
@@ -164,6 +167,8 @@ export function deleteEstimateLine(id: number) {
     const item = sqlite.prepare("SELECT estimate_id FROM estimate_line_items WHERE id=?").get(id) as any;
     if (!item) fail("Line item not found", 404);
     const est = editableEstimate(item.estimate_id);
+    // Dent records stay; they become unbilled and can be added again from the damage map.
+    sqlite.prepare("UPDATE estimate_dents SET line_item_id=NULL,updated_at=? WHERE line_item_id=?").run(new Date().toISOString(), id);
     storage.deleteEstimateLineItem(id);
     if (est.status === "approved") storage.updateEstimate(est.id, { status: "draft", approvedDate: null });
     recalculateEstimate(est.id);

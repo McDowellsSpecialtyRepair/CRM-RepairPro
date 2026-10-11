@@ -110,7 +110,7 @@ export function CustomerLookup({ onNewEstimate, onNewWorkOrder, onSelect, autoFo
 }
 
 // Warning panel shown while entering a new customer
-export function DuplicateWarning({ matches, onUse }: { matches: any[]; onUse: (c: any, action: "open" | "estimate") => void }) {
+export function DuplicateWarning({ matches, onUse, useOnlyLabel }: { matches: any[]; onUse: (c: any, action: "open" | "estimate") => void; useOnlyLabel?: string }) {
   if (!matches.length) return null;
   const likely = matches.some((m) => m.level === "likely");
   return (
@@ -127,8 +127,10 @@ export function DuplicateWarning({ matches, onUse }: { matches: any[]; onUse: (c
           <div className="text-xs text-muted-foreground mt-0.5">{[m.phone, m.email, [m.address, m.city].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}</div>
           <div className="mt-1 flex flex-wrap gap-1">{m.reasons.map((r: string) => <Badge key={r} variant="outline" className="text-[10px]">{r}</Badge>)}</div>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => onUse(m, "open")}>Open existing</Button>
-            <Button size="sm" onClick={() => onUse(m, "estimate")}>Use existing &amp; start estimate</Button>
+            {useOnlyLabel ? <Button size="sm" onClick={() => onUse(m, "estimate")}>{useOnlyLabel}</Button> : <>
+              <Button size="sm" variant="outline" onClick={() => onUse(m, "open")}>Open existing</Button>
+              <Button size="sm" onClick={() => onUse(m, "estimate")}>Use existing &amp; start estimate</Button>
+            </>}
           </div>
         </div>
       ))}

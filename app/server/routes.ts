@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { createEstimateSafe, updateEstimateSafe, addEstimateLines, deleteEstimateLine,
   convertEstimate, postPayment, updateInvoiceSafe, fail, editableEstimate, recalculateEstimate, updateEstimateLine, validateEstimateServices } from "./billing";
 import {registerEstimateSales} from "./estimate-sales";
+import {registerEstimateDents} from "./estimate-dents";
 import {nonLaborCategory,categoryTaxable,customerLineLabel,documentBreakdown} from "../shared/estimate-rules";
 import nodemailer from "nodemailer";
 import { registerReporting } from "./reporting";
@@ -61,6 +62,7 @@ export async function registerRoutes(
   // Authentication must precede every API and print route, including reporting.
   registerSecurity(app);
   registerEstimateSales(app);
+  registerEstimateDents(app);
   app.patch("/api/estimates/line-items/:id",(req,res)=>res.json(updateEstimateLine(Number(req.params.id),req.body)));
   registerWorkOrders(app);
   registerOperations(app);

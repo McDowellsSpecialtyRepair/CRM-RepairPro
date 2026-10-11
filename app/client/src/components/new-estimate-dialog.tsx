@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Car, Caravan, Ship, Sofa, Check, Plus } from "lucide-react";
-import { CustomerLookup } from "@/components/customer-lookup";
+import { CustomerLookup, DuplicateWarning } from "@/components/customer-lookup";
+import { useAuth } from "@/components/auth-provider";
 import {VinLookup,useVinAutofill} from "@/components/vin-lookup";
 import {normalizeVin} from "@shared/vin";
 import { SERVICES, DOMAIN_LABELS, DOMAIN_VEHICLE_TYPES, ASSET_TYPES, ASSET_TYPE_LABELS, type ServiceDef, type ServiceDomain } from "@/lib/services";
@@ -38,6 +39,8 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
   const [newVehicle, setNewVehicle] = useState({ year: "", make: "", model: "", vin: "", vehicleType: "auto", color: "" });
   const fillVin=useVinAutofill(setNewVehicle,newVehicle.vin);
   const [newAsset, setNewAsset] = useState({ assetType: "chair", name: "", location: "", description: "" });
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const { can } = useAuth();
 
   const cid = customerId ? String(customerId) : pickedCustomer;
 
@@ -68,6 +71,7 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
     setNewVehicle({ year: "", make: "", model: "", vin: "", vehicleType: "auto", color: "" });
     setNewAsset({ assetType: "chair", name: "", location: "", description: "" });
     if (!customerId) { setPickedCustomer(""); setPickedName(""); }
+    setCreatingCustomer(false);
   };
 
   const chooseService = (value: string) => {
@@ -80,9 +84,15 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
 
   const effectiveItem = itemId || (svc ? (candidates.length === 0 ? "new" : candidates.length === 1 ? String(candidates[0].id) : "") : "");
 
+  // A vehicle can be saved with only its VIN (for example when the VIN lookup fails), or with a make or model.
+  const newVehicleReady = normalizeVin(newVehicle.vin).length >= 5 || !!(newVehicle.make.trim() || newVehicle.model.trim());
+  const missingReason = !cid ? "Choose or create the customer first." : !svc ? "Choose the service." :
+    effectiveItem === "" ? `Choose which ${svc.target === "asset" ? "item" : "vehicle"} this is for, add a new one, or skip.` :
+    effectiveItem === "new" && svc.target === "asset" && !newAsset.name.trim() ? "Enter a name for the new item." :
+    effectiveItem === "new" && svc.target === "vehicle" && !newVehicleReady ? "Enter the VIN, or the make or model, to save this vehicle." : "";
   const canCreate = !!cid && !!svc && (
     effectiveItem === "none" ||
-    (effectiveItem === "new" && (svc.target === "asset" ? !!newAsset.name.trim() : !!(newVehicle.make.trim() || newVehicle.model.trim()))) ||
+    (effectiveItem === "new" && (svc.target === "asset" ? !!newAsset.name.trim() : newVehicleReady)) ||
     (effectiveItem !== "" && effectiveItem !== "new" && effectiveItem !== "none")
   );
 
@@ -166,7 +176,16 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
                   <button type="button" className="text-xs text-primary hover:underline" onClick={() => { setPickedCustomer(""); setPickedName(""); setItemId(""); }}>Change</button>
                 </div>
               ) : (
-                <CustomerLookup autoFocus placeholder="Find customer: name, phone, email, VIN, plate…" onSelect={(c) => { setPickedCustomer(String(c.id)); setPickedName(`${c.name} (${c.customerNumber})`); setItemId(""); }} />
+                creatingCustomer ? (
+                  <QuickCustomerForm onCancel={() => setCreatingCustomer(false)} onPicked={(c) => {
+                    setPickedCustomer(String(c.id)); setPickedName(`${c.name} (${c.customerNumber})`); setItemId(""); setCreatingCustomer(false);
+                  }} />
+                ) : <>
+                  <CustomerLookup autoFocus placeholder="Find customer: name, phone, email, VIN, plate…" onSelect={(c) => { setPickedCustomer(String(c.id)); setPickedName(`${c.name} (${c.customerNumber})`); setItemId(""); }} />
+                  {can("customers.write") && <Button type="button" size="sm" variant="outline" onClick={() => setCreatingCustomer(true)} data-testid="button-create-customer-inline">
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Create new customer
+                  </Button>}
+                </>
               )}
             </div>
           )}
@@ -244,6 +263,7 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
               {effectiveItem === "new" && svc.target === "vehicle" && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 rounded-md border border-border p-3">
                   <div className="col-span-full"><Label htmlFor="estimate-vin" className="text-xs">{svc.domain === "marine" ? "HIN / VIN (optional)" : "VIN (automatic lookup)"}</Label><Input id="estimate-vin" autoComplete="off" className="font-mono uppercase" value={newVehicle.vin} onChange={(e) => setNewVehicle({ ...newVehicle, vin: normalizeVin(e.target.value) })} placeholder="Enter or scan VIN" /></div>
+                  <p className="col-span-full text-xs text-muted-foreground">If the VIN lookup fails or finds nothing, you can still save the vehicle with only the VIN, or type the year, make and model yourself.</p>
                   <div className="col-span-full"><VinLookup vin={newVehicle.vin} customerId={Number(cid)} enabled={open} onDecoded={fillVin} onUseVehicle={v=>setItemId(String(v.id))}/></div>
                   <div><Label className="text-xs">Year</Label><Input aria-label="Vehicle year" value={newVehicle.year} onChange={(e) => setNewVehicle({ ...newVehicle, year: e.target.value })} placeholder="2021" /></div>
                   <div><Label className="text-xs">Make</Label><Input aria-label="Vehicle make" value={newVehicle.make} onChange={(e) => setNewVehicle({ ...newVehicle, make: e.target.value })} placeholder={svc.domain === "marine" ? "Sea Ray" : svc.domain === "rv" ? "Forest River" : "Honda"} /></div>
@@ -283,7 +303,8 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
             </div>
           )}
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+          {!error && !saving && missingReason && (svc || cid) && <p className="text-xs text-muted-foreground" data-testid="text-create-missing">{missingReason}</p>}
         </div>
 
         <DialogFooter>
@@ -294,5 +315,79 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Create a customer without leaving New Estimate. Uses the same duplicate check as the Customers page;
+// tax-exempt status and credit terms stay on the customer profile for authorized roles.
+function QuickCustomerForm({ onPicked, onCancel }: { onPicked: (c: { id: number; name: string; customerNumber: string }) => void; onCancel: () => void }) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({ customerType: "retail", firstName: "", lastName: "", companyName: "", phone: "", email: "" });
+  const [matches, setMatches] = useState<any[]>([]);
+  const [confirmed, setConfirmed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const retail = form.customerType === "retail";
+  const named = retail ? !!(form.firstName.trim() || form.lastName.trim()) : !!form.companyName.trim();
+  useEffect(() => {
+    const filled = [form.firstName, form.lastName, form.companyName, form.phone, form.email].some(v => v.trim().length >= 2);
+    if (!filled) { setMatches([]); return; }
+    const t = setTimeout(async () => {
+      try { setMatches((await apiRequest("POST", "/api/customers/check-duplicates", form)).matches || []); } catch { /* the server checks again on save */ }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.firstName, form.lastName, form.companyName, form.phone, form.email]);
+  useEffect(() => setConfirmed(false), [matches.length]);
+  const likely = matches.some(m => m.level === "likely");
+  const save = async () => {
+    setSaving(true); setError("");
+    try {
+      const body = { customerType: form.customerType, status: "active", phone: form.phone.trim(), email: form.email.trim(),
+        ...(retail ? { firstName: form.firstName.trim(), lastName: form.lastName.trim() } : { companyName: form.companyName.trim() }), confirmDuplicate: confirmed };
+      const c = await apiRequest("POST", "/api/customers", body);
+      await queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      onPicked({ id: c.id, customerNumber: c.customerNumber, name: c.companyName || `${c.firstName || ""} ${c.lastName || ""}`.trim() });
+    } catch (e: any) {
+      const msg = String(e.message || "Could not create the customer");
+      if (/duplicate/i.test(msg)) {
+        try { setMatches((await apiRequest("POST", "/api/customers/check-duplicates", form)).matches || []); } catch { /* keep message */ }
+        setError("This customer may already exist. Use the existing customer, or confirm this is a different customer.");
+      } else setError(msg);
+    } finally { setSaving(false); }
+  };
+  return (
+    <div className="rounded-md border border-border p-3 space-y-3" data-testid="form-quick-customer">
+      <div className="text-sm font-medium">New customer</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div><Label htmlFor="qc-type" className="text-xs">Customer type</Label>
+          <Select value={form.customerType} onValueChange={v => setForm({ ...form, customerType: v })}>
+            <SelectTrigger id="qc-type"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="retail">Retail</SelectItem>
+              <SelectItem value="dealership">Dealership</SelectItem>
+              <SelectItem value="insurance">Insurance</SelectItem>
+              <SelectItem value="fleet">Fleet</SelectItem>
+              <SelectItem value="commercial">Commercial</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {retail ? <>
+          <div><Label htmlFor="qc-first" className="text-xs">First name</Label><Input id="qc-first" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} /></div>
+          <div><Label htmlFor="qc-last" className="text-xs">Last name</Label><Input id="qc-last" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} /></div>
+        </> : <div><Label htmlFor="qc-company" className="text-xs">Company name</Label><Input id="qc-company" value={form.companyName} onChange={e => setForm({ ...form, companyName: e.target.value })} /></div>}
+        <div><Label htmlFor="qc-phone" className="text-xs">Phone</Label><Input id="qc-phone" inputMode="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
+        <div><Label htmlFor="qc-email" className="text-xs">Email (optional)</Label><Input id="qc-email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
+      </div>
+      <DuplicateWarning matches={matches} useOnlyLabel="Use this existing customer" onUse={c => onPicked({ id: c.id, name: c.name, customerNumber: c.customerNumber })} />
+      {likely && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} data-testid="checkbox-confirm-different" /> This is a different customer; create a new account</label>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" onClick={save} disabled={!named || saving || (likely && !confirmed)} data-testid="button-save-quick-customer">
+          {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />} Create customer
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>Back to search</Button>
+      </div>
+      {!named && <p className="text-xs text-muted-foreground">{retail ? "Enter a first or last name." : "Enter the company name."} Address, tax and billing details can be added later on the customer profile.</p>}
+    </div>
   );
 }
