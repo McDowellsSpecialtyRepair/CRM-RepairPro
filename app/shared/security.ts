@@ -5,6 +5,8 @@ export const PERMISSIONS = [
   "marketing.write", "activity.read", "activity.write", "reports.read", "settings.manage",
   "staff.manage", "audit.read", "mywork", "reports.write", "operations.read", "operations.write", "costs.read", "costs.write",
   "customers.tax_terms", // change a customer's tax-exempt status or credit limit
+  "pricing.manage", // edit the PDR price matrices, adjustments and package approval threshold
+  "pricing.approve", // approve a package price below the calculated individual dent total
 ] as const;
 export type Permission = typeof PERMISSIONS[number];
 export const ROLES = {
@@ -38,6 +40,19 @@ export function routePermission(method: string, path: string): Permission | "aut
     ["POST", /^\/api\/estimates\/\d+\/dents(?:\/bill)?$/, "estimates.write"],
     ["PATCH", /^\/api\/estimates\/dents\/\d+$/, "estimates.write"],
     ["DELETE", /^\/api\/estimates\/dents\/\d+$/, "estimates.write"],
+    ["PUT", /^\/api\/estimates\/dents\/\d+\/price$/, "estimates.write"],
+    ["POST", /^\/api\/estimates\/\d+\/dents\/reprice$/, "estimates.write"],
+    ["GET", /^\/api\/estimates\/\d+\/(?:dent-groups|pricing-options)$/, "estimates.read"],
+    ["POST", /^\/api\/estimates\/\d+\/dent-groups$/, "estimates.write"],
+    ["PUT", /^\/api\/estimates\/\d+\/pricing-options$/, "estimates.write"],
+    ["PATCH", /^\/api\/estimates\/dent-groups\/\d+$/, "estimates.write"],
+    ["DELETE", /^\/api\/estimates\/dent-groups\/\d+$/, "estimates.write"],
+    ["POST", /^\/api\/estimates\/dent-groups\/\d+\/approve$/, "pricing.approve"],
+    ["GET", /^\/api\/pdr-pricing$/, "pricing.read"],
+    ["PUT", /^\/api\/pdr-pricing\/(?:standard|crease|adjustments|settings)$/, "pricing.manage"],
+    ["POST", /^\/api\/pdr-pricing\/(?:categories|ranges)$/, "pricing.manage"],
+    ["PATCH", /^\/api\/pdr-pricing\/(?:categories\/[a-z0-9_]+|ranges\/\d+)$/, "pricing.manage"],
+    ["DELETE", /^\/api\/pdr-pricing\/ranges\/\d+$/, "pricing.manage"],
     ["GET", /^\/api\/invoices\/\d+\/commercial$/, "billing.read"],
     ["GET", /^\/api\/reports\/commercial$/, "reports.read"],
     ["GET", /^\/api\/operations(?:\/owners|\/cases\/\d+)?$/, "operations.read"],

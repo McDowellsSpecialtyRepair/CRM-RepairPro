@@ -107,14 +107,62 @@ try{
   check(`${label}: dent details persist after reopening and signing in again`,
    await reopened.getByLabel("Severity").textContent()==="Deep"&&await reopened.getByLabel("Location difficulty").textContent()==="Difficult"&&
    await reopened.getByLabel("Paint damage correctable?").textContent()==="No"&&await reopened.getByLabel(/Estimator notes/).inputValue()==="Browser note: behind the brace");
-  // Add to the estimate: the crease needs an entered price first.
-  const toAdd=p.getByTestId("dents-to-add");
-  check(`${label}: Add to estimate waits for the crease price`,await toAdd.getByTestId("button-add-dents").isDisabled());
-  await toAdd.getByLabel("Unit price for Hood: crease").fill("125");
-  await toAdd.getByTestId("button-add-dents").click();
-  await p.getByTestId("estimate-section-3").getByRole("cell",{name:"Hood: crease"}).waitFor();
-  check(`${label}: dents become estimate lines in section 3`,await p.getByTestId("estimate-section-3").getByRole("cell",{name:/^Hood: \w+ dent$/}).count()===1);
-  check(`${label}: dent records remain after adding`,await p.getByTestId("text-dent-summary").getByText("2 on estimate lines").isVisible());
+  // Section 3 billing (Phase 2.2): the crease has no crease matrix price, so it is "pricing incomplete" until entered.
+  const billing=p.getByTestId("card-dent-billing");
+  await billing.waitFor();
+  check(`${label}: unpriced crease shows Pricing incomplete, not $0`,await billing.getByText("Pricing incomplete").first().isVisible());
+  await billing.getByRole("button",{name:"Select all not billed"}).click();
+  check(`${label}: individual billing waits for every selected price`,await billing.getByTestId("button-bill-individually").isDisabled());
+  await billing.getByRole("button",{name:"Enter price"}).click();
+  await billing.getByLabel("Price",{exact:true}).fill("125");
+  await billing.getByRole("button",{name:"Save price"}).click();
+  await billing.getByText(/Entered price by .*No matrix price available/).waitFor();
+  await billing.getByRole("button",{name:"Select all not billed"}).click();
+  await billing.getByTestId("button-bill-individually").click();
+  await p.getByTestId("estimate-section-3").getByRole("cell",{name:/^Hood: crease #\d$/}).waitFor();
+  check(`${label}: individual billing adds one line per dent in section 3`,await p.getByTestId("estimate-section-3").getByRole("cell",{name:/^Hood: (Dime dent|crease) #\d$/}).count()===2);
+  check(`${label}: dent records remain after billing`,await p.getByTestId("text-dent-summary").getByText("2 billed").isVisible());
+  if(label==="desktop"){
+   // Panel package below the calculated total needs management approval.
+   const map=p.getByTestId("card-dent-map");
+   await map.getByTestId("vpanel-option-roof").click();
+   await map.getByTestId("button-add-dent").click();
+   await p.waitForFunction(()=>document.querySelectorAll('[data-testid="card-dent-billing"] [data-testid^="dent-price-"]').length===2);
+   await billing.getByRole("button",{name:"Select all not billed"}).click();
+   await billing.getByTestId("button-panel-package").click();
+   const form=billing.getByTestId("form-package");
+   await form.getByLabel("Package price (you enter it)").fill("100");
+   check(`${label}: package form shows calculated total, price, difference and percent`,await form.getByTestId("package-comparison").getByText("Calculated total").isVisible()&&await form.getByText(/will need approval/).isVisible());
+   await form.getByTestId("button-create-package").click();
+   await billing.getByText("Roof: dent repair package (2 dents)").waitFor();
+   check(`${label}: an unapproved package is flagged and blocks sending`,await billing.getByTestId("text-package-needs-approval").isVisible());
+   await billing.getByRole("button",{name:"Approve package price"}).click();
+   await billing.getByText(/Approved by Owner/).waitFor();
+   check(`${label}: an owner can approve the package price, recording who`,await billing.getByText(/Approved by Owner/).isVisible());
+   await billing.getByTestId("switch-show-dent-details").click();
+   await billing.getByText("Dent details will show on the customer estimate and invoice.").waitFor();
+   check(`${label}: Show dent details to customer can be switched on`,await billing.getByTestId("switch-show-dent-details").isChecked());
+   if(shots)await p.screenshot({path:join(shots,`${label}-billing.png`),fullPage:true});
+   // Management pricing editor.
+   await p.goto(base+"/#/pricing-matrix");
+   const editor=p.getByTestId("pdr-pricing-editor");
+   await editor.waitFor();
+   await editor.getByLabel("New range from inches").fill("1");await editor.getByLabel("New range to inches").fill("6");
+   await editor.getByRole("button",{name:"Add range"}).click();
+   const cell=editor.getByLabel('Crease 1"–6" Deep price, Sedan');
+   await cell.waitFor();
+   await cell.fill("210");await cell.blur();
+   await editor.getByTestId("pricing-save-status").getByText("Saved").waitFor();
+   check(`${label}: management can add a length range and a crease price`,await cell.inputValue()==="210.00");
+   const adj=editor.getByLabel("Crease adjustment, Difficult amount");
+   await editor.getByLabel("Crease adjustment, Difficult type").selectOption("percent");
+   await adj.fill("10");
+   await editor.getByRole("button",{name:"Save"}).first().click();
+   await editor.getByTestId("pricing-save-status").getByText("Saved").waitFor();
+   check(`${label}: management can set a percentage adjustment`,await adj.inputValue()==="10");
+   if(shots)await p.screenshot({path:join(shots,`${label}-pricing-editor.png`),fullPage:true});
+   await p.goto(estimateUrl);await p.getByTestId("card-dent-billing").waitFor();
+  }
   const overflow=await p.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
   check(`${label}: no horizontal page scrolling`,overflow<=1,`overflow ${overflow}px`);
   if(shots)await p.screenshot({path:join(shots,`${label}-estimate.png`),fullPage:true});

@@ -58,6 +58,11 @@ jobs:
         env:
           HANDOFF_TEST_PORT: "5191"
 
+      - name: Pricing regression (Phase 2.2 price master, dent pricing, packages and approvals)
+        run: node handoff/pricing-check.mjs
+        env:
+          HANDOFF_TEST_PORT: "5194"
+
       - name: Calculation regression
         run: npx tsx handoff/calculation-check.ts
 

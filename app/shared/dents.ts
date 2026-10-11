@@ -28,3 +28,49 @@ export const dentLineDescription = (panelId: string, panelName: string, size: st
   size === "crease" ? `${panelName}: crease`
     : NON_PDR_PANELS.has(panelId) ? `${panelName}: dent (non-PDR)`
     : `${panelName}: ${DENT_SIZE_LABELS[size] || size} dent`;
+
+// ---------- Phase 2.2: pricing ----------
+export const STANDARD_DENT_SIZES = ["dime", "nickel", "quarter", "half_dollar", "softball"] as const;
+export const BODY_STYLE_LABELS: Record<string, string> = { sedan: "Sedan", suv: "SUV", pickup: "Pickup" };
+
+// Exterior panels a dent can be priced on (the diagram's PDR panels; glass and plastic excluded).
+export const PDR_PANELS: { id: string; name: string }[] = [
+  { id: "hood", name: "Hood" }, { id: "roof", name: "Roof" }, { id: "cab-roof", name: "Cab Roof" },
+  { id: "trunk", name: "Trunk Lid" }, { id: "liftgate", name: "Liftgate" }, { id: "tailgate", name: "Tailgate" },
+  { id: "lf-fender", name: "LF Fender" }, { id: "rf-fender", name: "RF Fender" },
+  { id: "lf-door", name: "LF Door" }, { id: "rf-door", name: "RF Door" }, { id: "lr-door", name: "LR Door" }, { id: "rr-door", name: "RR Door" },
+  { id: "lr-quarter", name: "LR Quarter" }, { id: "rr-quarter", name: "RR Quarter" },
+  { id: "bed-side-l", name: "Bed Side (L)" }, { id: "bed-side-r", name: "Bed Side (R)" },
+];
+
+// Optional adjustments management can set. Blank = no adjustment.
+export const ADJUSTMENT_DIMENSIONS: Record<"crease" | "standard", { key: string; label: string }[]> = {
+  crease: [{ key: "location_difficulty", label: "Location difficulty" }, { key: "panel", label: "Panel" }],
+  standard: [{ key: "severity", label: "Severity" }, { key: "location_difficulty", label: "Location difficulty" },
+    { key: "length_range", label: "Length range" }, { key: "panel", label: "Panel" }],
+};
+
+export const lengthRangeLabel = (r: { minIn: number; maxIn: number }) => r.minIn === r.maxIn ? `${r.minIn}"` : `${r.minIn}"–${r.maxIn}"`;
+
+// Customer-facing dent details: panel, size, length and severity only. Never the paint answer or notes.
+export function customerDentDetail(d: { panelName: string; size: string; lengthIn: number | null; severity: string | null }) {
+  return [d.panelName, DENT_SIZE_LABELS[d.size] || d.size, d.lengthIn ? `${d.lengthIn}" long` : "", d.severity ? `${DENT_SEVERITY_LABELS[d.severity]} severity` : ""]
+    .filter(Boolean).join(" · ");
+}
+
+export const roundMoney = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+// Package price comparison. Unpriced dents make the comparison "Pricing incomplete", never $0.
+export function packageComparison(calculated: number | null, manual: number) {
+  if (calculated === null) return { complete: false as const, difference: null, percent: null };
+  const difference = roundMoney(manual - calculated);
+  return { complete: true as const, difference, percent: calculated > 0 ? Math.round((difference / calculated) * 1000) / 10 : null };
+}
+// Below the calculated total needs management approval: always while no threshold is set,
+// otherwise when the reduction is larger than the threshold percentage. Incomplete pricing always needs it.
+export function packageNeedsApproval(calculated: number | null, manual: number, thresholdPercent: number | null) {
+  if (calculated === null) return true;
+  if (manual >= calculated) return false;
+  if (thresholdPercent === null) return true;
+  return calculated > 0 && ((calculated - manual) / calculated) * 100 > thresholdPercent;
+}

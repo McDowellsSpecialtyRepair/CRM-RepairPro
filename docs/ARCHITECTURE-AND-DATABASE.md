@@ -70,6 +70,18 @@ Never run generic `drizzle-kit push` against the operating database. The schema 
   - Database triggers lock dents once the estimate is invoiced or production starts. Every change is row-audited.
   - Removing a line keeps its dents, which become not yet billed.
   - Hail and other services do not use dent records.
+- **PDR pricing (Phase 2.2):**
+  - **Price master tables:**
+    - `pdr_vehicle_categories`: each diagram body style belongs to one category.
+    - The existing `pricing_matrices` rows with `matrix_type = 'pdr_dent'` hold the standard per-dent prices.
+    - `pdr_length_ranges`, `pdr_crease_prices` (range × severity × category), `pdr_price_adjustments` (dollar or percent) and `pdr_pricing_settings` (the package approval threshold).
+  - **Saved prices:** each dent stores its calculated price (`suggested_price`, `suggested_source`, `suggested_at`) and any override (`override_*`). The master is applied only when a dent's details change or the estimate is explicitly repriced.
+  - **Packages:** `estimate_dent_groups` stores the scope, calculated total, entered price and approval. Rows are never deleted; removed packages are marked `removed`.
+  - **One billing place per dent:** a dent is billed on its own line, or through `group_id` and its package's line.
+  - **Approval gate:** `server/dent-approval.ts` blocks sending, approval, production start and invoicing while a package needs approval.
+  - **Customer documents:** `estimate_pricing_options.show_dent_details` turns on customer-facing dent details. Invoices copy them into the immutable `invoice_line_dent_details`.
+  - **Auditing:** all of these tables are row-audited.
+  - **Owner guide:** `docs/PDR-PRICING.md`.
 - **Legacy:** Historical `line_type='legacy'` is neither verified labor nor verified parts. Showing it as unclassified reconciles the displayed subtotal; it does not resolve its tax basis or eligibility for compensation.
 
 ## Security model
