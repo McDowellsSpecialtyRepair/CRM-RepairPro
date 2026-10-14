@@ -61,7 +61,7 @@ try{
   await ed.getByLabel("Crease adjustment, Difficult type").selectOption("percent");
   await ed.getByLabel("Crease adjustment, Difficult amount").fill("10");
   await ed.getByRole("button",{name:"Save"}).first().click();await ed.getByTestId("pricing-save-status").getByText("Saved").waitFor();
-  check("Overlapping range is refused with an explanation",await (async()=>{await ed.getByLabel("New range from inches").fill("5");await ed.getByLabel("New range to inches").fill("8");await ed.getByRole("button",{name:"Add range"}).click();return await ed.getByTestId("pricing-save-status").getByText(/cannot overlap/).isVisible();})());
+  check("Overlapping range is refused with an explanation",await (async()=>{await ed.getByLabel("New range from inches").fill("5");await ed.getByLabel("New range to inches").fill("8");await ed.getByRole("button",{name:"Add range"}).click();await ed.getByTestId("pricing-save-status").getByText(/cannot overlap/).waitFor();return true;})());
   await shot(p,"desktop-1-pricing-editor");
   await reload();await nav("Pricing Matrix");await p.getByRole("tab",{name:"PDR Dent & Crease"}).click();
   const ed2=p.getByTestId("pdr-pricing-editor");await ed2.waitFor();
