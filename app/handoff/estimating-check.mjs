@@ -126,47 +126,49 @@ try{
  check("Auditor can read but not change dent records",(await call("GET",ep+"/dents",undefined,staff.auditor)).status===200&&(await call("DELETE",`/api/estimates/dents/${d1.id}`,undefined,staff.auditor)).status===403);
  check("Signed-out requests cannot read dent records",(await call("GET",ep+"/dents",undefined,null)).status===401);
 
- // ---- billing: one line per panel and size, standard matrix price ----
+ // ---- billing (Phase 2.2): one separately priced line per dent at its own price ----
  const matrices=await ok("GET","/api/pricing-matrices");
  const price=size=>matrices.find(m=>m.matrixType==="pdr_dent"&&m.sizeCategory===size&&m.vehicleCategory==="sedan").price;
- check("Mixed panel or size groups are refused",(await call("POST",ep+"/dents/bill",{groups:[{dentIds:[d1.id,d4.id],unitPrice:10}]})).status===400);
- check("A crease cannot be added without an entered price",(await call("POST",ep+"/dents/bill",{groups:[{dentIds:[d3.id],unitPrice:0}]})).status===400);
- check("A dent cannot be counted twice in one request",(await call("POST",ep+"/dents/bill",{groups:[{dentIds:[d1.id,d1.id],unitPrice:price("dime")}]})).status===400);
- const billed=await ok("POST",ep+"/dents/bill",{groups:[
-  {dentIds:[d1.id,d2.id],unitPrice:price("dime")},
-  {dentIds:[d3.id],unitPrice:150,priceConfirmed:true},
-  {dentIds:[d4.id],unitPrice:55},
- ]});
+ const saved1=await ok("GET",ep+"/dents"),s1=Object.fromEntries(saved1.map(d=>[d.id,d]));
+ check("Each standard dent is priced from the existing matrix when saved",s1[d1.id].suggestedPrice===price("dime")&&s1[d4.id].suggestedPrice===price("nickel"));
+ check("A crease with no crease matrix price is 'pricing incomplete', not $0",s1[d3.id].referencePrice===null&&s1[d3.id].suggestedPrice===null);
+ check("A dent with incomplete pricing cannot be billed",(await call("POST",ep+"/dents/bill",{dentIds:[d3.id]})).status===400);
+ check("A dent cannot be chosen twice in one request",(await call("POST",ep+"/dents/bill",{dentIds:[d1.id,d1.id]})).status===400);
+ await ok("PUT",`/api/estimates/dents/${d3.id}/price`,{price:150});
+ check("Changing a calculated price requires a reason",(await call("PUT",`/api/estimates/dents/${d4.id}/price`,{price:55})).status===400);
+ await ok("PUT",`/api/estimates/dents/${d4.id}/price`,{price:55,reason:"Customer return visit"});
+ const billed=await ok("POST",ep+"/dents/bill",{dentIds:[d1.id,d2.id,d3.id,d4.id]});
  const after=await ok("GET",ep),lines=after.lineItems;
- const hoodLine=lines.find(l=>l.description==="Hood: Dime dent"),creaseLine=lines.find(l=>l.description==="Hood: crease"),doorLine=lines.find(l=>l.description==="RF Door: Nickel dent");
- check("Dents become one line per panel and size (quantity = dent count)",billed.created===3&&hoodLine?.quantity===2&&creaseLine?.quantity===1&&doorLine?.quantity===1);
- check("Standard dents bill at the existing matrix price",hoodLine.unitPrice===price("dime")&&hoodLine.total===Math.round(price("dime")*2*100)/100&&hoodLine.serviceCategory==="pdr_dent"&&hoodLine.lineType==="labor");
+ const hoodLines=lines.filter(l=>/^Hood: Dime dent #\d$/.test(l.description)),creaseLine=lines.find(l=>/^Hood: crease #\d$/.test(l.description)),doorLine=lines.find(l=>l.description==="RF Door: Nickel dent");
+ const hoodLine=hoodLines[0];
+ check("Individual billing makes one line per dent (quantity 1 each)",billed.created===4&&hoodLines.length===2&&lines.every(l=>l.quantity===1));
+ check("Standard dents bill at the existing matrix price",hoodLines.every(l=>l.unitPrice===price("dime")&&l.serviceCategory==="pdr_dent"&&l.lineType==="labor"));
  check("Crease bills at the entered price only",creaseLine.unitPrice===150&&creaseLine.damageSize==="crease");
  const expectSub=Math.round((price("dime")*2+150+55)*100)/100;
  check("Estimate subtotal, tax and total follow the existing calculation",after.subtotal===expectSub&&after.taxAmount===0&&after.total===expectSub);
  const dents=await ok("GET",ep+"/dents");
  const byId=Object.fromEntries(dents.map(d=>[d.id,d]));
- check("Each dent links to its line and keeps its matrix-calculated price",byId[d1.id].lineItemId===hoodLine.id&&byId[d2.id].lineItemId===hoodLine.id&&byId[d1.id].matrixUnitPrice===price("dime")&&byId[d3.id].lineItemId===creaseLine.id&&byId[d3.id].matrixUnitPrice===null);
- check("An entered price keeps the matrix price for reference",byId[d4.id].matrixUnitPrice===price("nickel")&&/estimator entered 55\.00/.test(byId[d4.id].priceSource));
- check("Dents already on a line cannot be added again",(await call("POST",ep+"/dents/bill",{groups:[{dentIds:[d1.id],unitPrice:price("dime")}]})).status===409);
+ check("Each dent links to its own line and keeps its calculated price",new Set([d1.id,d2.id,d3.id,d4.id].map(i=>byId[i].lineItemId)).size===4&&byId[d1.id].suggestedPrice===price("dime"));
+ check("An override keeps the calculated price, final price, employee and reason",byId[d4.id].overrideSuggestedPrice===price("nickel")&&byId[d4.id].overridePrice===55&&/advisor/i.test(byId[d4.id].overrideBy)&&byId[d4.id].overrideReason==="Customer return visit"&&!!byId[d4.id].overrideAt);
+ check("Dents already billed cannot be billed again",(await call("POST",ep+"/dents/bill",{dentIds:[d1.id]})).status===409);
 
  // ---- billed dents and their lines stay in step ----
  check("A billed dent's size and panel are locked",(await call("PATCH",`/api/estimates/dents/${d1.id}`,{size:"quarter"})).status===409&&(await call("PATCH",`/api/estimates/dents/${d1.id}`,{panelId:"roof",panelName:"Roof"})).status===409);
- check("A billed dent cannot be deleted",(await call("DELETE",`/api/estimates/dents/${d1.id}`)).status===409);
+ check("A billed dent's other price details are locked too",(await call("PATCH",`/api/estimates/dents/${d1.id}`,{severity:"deep"})).status===409&&(await call("PATCH",`/api/estimates/dents/${d1.id}`,{lengthIn:9})).status===409);
+ check("A billed dent cannot be deleted or repriced",(await call("DELETE",`/api/estimates/dents/${d1.id}`)).status===409&&(await call("PUT",`/api/estimates/dents/${d1.id}/price`,{price:1,reason:"x"})).status===409);
  check("A dent-backed line's quantity cannot drift from its dents",(await call("PATCH",`/api/estimates/line-items/${hoodLine.id}`,{expectedVersion:hoodLine.allocationVersion,quantity:5})).status===409);
- const repriced=await ok("PATCH",`/api/estimates/line-items/${doorLine.id}`,{expectedVersion:doorLine.allocationVersion,unitPrice:60});
- check("A dent-backed line's price can still be edited",repriced.unitPrice===60&&(await ok("GET",ep)).subtotal===Math.round((price("dime")*2+150+60)*100)/100);
+ check("A dent-backed line's price is changed through its dent, not the line editor",(await call("PATCH",`/api/estimates/line-items/${doorLine.id}`,{expectedVersion:doorLine.allocationVersion,unitPrice:60})).status===409);
 
  // ---- approval behaviour ----
  const techs=(await ok("GET","/api/technicians")).filter(t=>t.status==="active");
  for(const l of (await ok("GET",ep)).lineItems)
   await ok("PATCH",`/api/estimates/line-items/${l.id}/classification`,{expectedVersion:l.allocationVersion,lineType:"labor",splits:[{technicianId:techs[0].id,shareBps:10000}]});
  await ok("PATCH",ep,{status:"approved"});
- await ok("PATCH",`/api/estimates/dents/${d1.id}`,{notes:"Detail-only change",lengthIn:2,paintCorrectable:"no"});
+ await ok("PATCH",`/api/estimates/dents/${d1.id}`,{notes:"Detail-only change",paintCorrectable:"no"});
  check("Detail-only dent edits keep an approved estimate approved",(await ok("GET",ep)).status==="approved");
  const d5=await ok("POST",ep+"/dents",{panelId:"roof",panelName:"Roof",bodyStyle:"sedan",size:"quarter"});
  check("Saving a new unbilled dent does not change approval or money",(await ok("GET",ep)).status==="approved");
- await ok("POST",ep+"/dents/bill",{groups:[{dentIds:[d5.id],unitPrice:price("quarter")}]});
+ await ok("POST",ep+"/dents/bill",{dentIds:[d5.id]});
  check("Adding dents to the estimate requires approval again (as for any line)",(await ok("GET",ep)).status==="draft");
 
  // ---- removing a line keeps its dents ----
@@ -181,7 +183,7 @@ try{
  db=new Database(dbPath,{readonly:true});
  const auditRows=db.prepare("SELECT event,actor_label,before_json,after_json FROM security_audit WHERE entity='estimate_dents' AND record_id=?").all(String(d1.id));
  check("Every dent change is in the append-only audit history with the staff member",auditRows.some(r=>r.event==="record.insert")&&auditRows.some(r=>r.event==="record.update"&&/Detail-only change/.test(r.after_json))&&auditRows.every(r=>/advisor/i.test(r.actor_label)));
- check("Adding dents to the estimate is audited with the dents and prices",!!db.prepare("SELECT 1 FROM security_audit WHERE event='estimate.dents_billed' AND record_id=?").get(String(est.id)));
+ check("Adding dents to the estimate is audited with the dents and prices",!!db.prepare("SELECT 1 FROM security_audit WHERE event='estimate.dents_billed_individually' AND record_id=?").get(String(est.id)));
  db.close();
 
  // ---- invoiced: dents are locked like the estimate ----

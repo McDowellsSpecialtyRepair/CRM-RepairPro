@@ -12,6 +12,22 @@ This is a **private test copy** of the CRM that runs on GitHub's computers. It c
 5. The CRM opens in a **new browser tab** by itself. If it doesn't, or you closed it: click **Ports** at the bottom of the editor window, find **RepairPro demo (5000)**, and click the small globe icon.
 6. Sign in with the email and password from **DEMO-LOGIN.md**. You are the demo Owner, so you can see and change everything.
 
+## Before a long testing session (important)
+
+A codespace **stops by itself after 30 minutes without activity in the codespace window**. Clicking around the CRM tab does **not** count as activity. When the codespace stops, the CRM tab may still show its screens, but nothing loads or saves. That causes messages like "Failed to fetch", empty price tables, or "could not reach its server".
+
+To avoid this:
+1. **Raise the idle timeout (recommended, do it once):** on GitHub, click your profile picture → **Settings** → **Codespaces** → **Default idle timeout**, enter **240** minutes, and click **Save**. This applies to codespaces created afterward.
+2. **Keep the codespace window open.** It now shows a terminal named for the RepairPro demo request log. Each CRM click writes a line there, which counts as activity.
+
+If it happens anyway: go to the codespace tab (restart it if asked), wait about a minute, then reload the CRM tab and sign in again.
+
+## Check that you are testing the right version
+
+At the bottom of the CRM's left-hand menu (open the menu on a phone) you'll see **Version** followed by a short code, for example `Version 1e1bc80`. It should match the latest commit shown on the pull request page.
+
+To check from the codespace: open **Terminal → New Terminal** and type `bash .devcontainer/demo.sh status`. If you synced newer code into an existing codespace, `bash .devcontainer/demo.sh start` rebuilds and restarts the CRM. The codespace also does this by itself each time it starts.
+
 ## Things to know
 
 - **Private:** only you can open the CRM tab, after signing in to GitHub. Never change the port to "Public".

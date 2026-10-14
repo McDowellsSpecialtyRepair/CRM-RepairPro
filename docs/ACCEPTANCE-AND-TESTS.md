@@ -11,6 +11,7 @@ node handoff/verify.mjs
 node handoff/fresh-install-check.mjs
 node handoff/security-check.mjs
 node handoff/estimating-check.mjs
+node handoff/pricing-check.mjs
 npx tsx handoff/calculation-check.ts
 ```
 
@@ -26,6 +27,30 @@ These run in CI on every push (`.github/workflows/ci.yml`).
   - Line and dent consistency, approval behavior, and dents surviving removal of their line.
   - Audit history, and locks after invoicing or the start of production, enforced by both the API and the database.
 - **Printed estimate:** internal dent notes never appear on it.
+
+`pricing-check.mjs` (Phase 2.2, 65 checks) covers:
+- **Price master:** the starting values are the existing standard prices, with no crease prices or adjustments invented. Only owner, administrator and manager can edit; others can read. Ranges are validated and cannot overlap; crease prices and adjustments are validated. Every change is audited.
+- **Calculation:** base price plus dollar and percentage adjustments. A missing price is "pricing incomplete", never $0.
+- **Saved prices:** a master change never reprices an estimate or a billed line. Explicit repricing is audited.
+- **Overrides:** a reason is required; the calculated price, final price, employee and time are recorded.
+- **Billing:** individual billing makes one line per dent. Panel and whole-vehicle packages show the calculated total, the entered price, and the dollar and percent difference.
+- **No double charging:** a dent is billed in exactly one place. Switching between individual billing and packages keeps every dent and its price.
+- **Package approval:**
+  - Unapproved packages block sending, approving and production start.
+  - Approval is restricted to owner, administrator and manager, is for the exact price, is cleared when the price changes, and respects the threshold.
+- **Customer documents:** dent details are optional; the paint answer, notes and internal pricing never print; invoices copy the details immutably.
+- **Unchanged:** tax treatment.
+- **Upgrade:** Phase 2.1 dent records keep their billed prices; prices entered by hand become recorded overrides.
+
+`script/phase22-acceptance.mjs` runs the Phase 2.2 owner checklist through the real screens, signed in as the demo owner of a server started with `.devcontainer/demo.sh`:
+- standard and crease pricing: editing, saving, refreshing and reopening
+- dent prices used on an estimate
+- individual billing, panel packages and whole-vehicle packages
+- approval blocks, re-approval, saved prices and explicit repricing
+- printing with dent details off and on
+- section order, at desktop and phone widths
+
+It is local only, because it needs Playwright and Chromium.
 
 `script/phase21-browser.mjs` is a local-only browser check; it needs Playwright and Chromium, which CI does not install. It runs the New Estimate and dent workflow at desktop (1366 px) and phone (390 px) widths. It checks:
 - an inline customer and a VIN-only vehicle

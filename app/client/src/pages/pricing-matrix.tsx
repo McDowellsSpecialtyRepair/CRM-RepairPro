@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { PricingPrintPreview } from "@/components/pricing-print-preview";
 import { HailReference } from "@/components/hail-reference";
+import { PdrPricingEditor } from "@/components/pdr-pricing-editor";
 import { HAIL_REFERENCE_ROWS } from "@shared/hail-reference";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +34,7 @@ function formatPanel(p: string) {
 }
 
 export default function PricingMatrix() {
-  const { data: matrices, isLoading } = useQuery({
+  const { data: matrices, isLoading, error, refetch } = useQuery({
     queryKey: ["/api/pricing-matrices"],
     queryFn: () => apiRequest("GET", "/api/pricing-matrices"),
   });
@@ -87,7 +88,7 @@ export default function PricingMatrix() {
             Pricing Matrices
           </h1>
           <p className="text-sm text-muted-foreground">
-            {(matrices || []).length} stored entries across {Object.keys(grouped).length} categories, plus {HAIL_REFERENCE_ROWS.length} carrier-source State Farm cells
+            {error ? "Prices not loaded" : `${(matrices || []).length} stored entries across ${Object.keys(grouped).length} categories, plus ${HAIL_REFERENCE_ROWS.length} carrier-source State Farm cells`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -95,14 +96,20 @@ export default function PricingMatrix() {
         </div>
       </div>
 
-      {isLoading ? (
+      {error ? (
+        <Card><CardContent className="p-4 space-y-3" role="alert" data-testid="pricing-load-error">
+          <p className="text-sm font-medium">Prices could not be loaded, so no tables are shown. Nothing has been changed.</p>
+          <p className="text-sm">{(error as Error).message}</p>
+          <Button variant="outline" onClick={() => void refetch()}>Try again</Button>
+        </CardContent></Card>
+      ) : isLoading ? (
         <div className="flex items-center justify-center py-12">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
       ) : (
         <Tabs defaultValue="pdr_dent" className="space-y-4">
           <TabsList className="flex-wrap h-auto">
-            <TabsTrigger value="pdr_dent" data-testid="tab-pdr-dent">PDR Dent</TabsTrigger>
+            <TabsTrigger value="pdr_dent" data-testid="tab-pdr-dent">PDR Dent &amp; Crease</TabsTrigger>
             <TabsTrigger value="pdr_hail" data-testid="tab-hail-generic">Hail (Generic)</TabsTrigger>
             <TabsTrigger value="hail_insurance" data-testid="tab-hail-insurance">Insurance Hail</TabsTrigger>
             <TabsTrigger value="window_tint" data-testid="tab-window-tint">Window Tint</TabsTrigger>
@@ -115,48 +122,7 @@ export default function PricingMatrix() {
 
           {/* PDR DENT MATRIX */}
           <TabsContent value="pdr_dent" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Car className="h-4 w-4" /> PDR Dent Size Pricing
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-xs text-muted-foreground">
-                        <th className="text-left font-medium pb-2 pr-4">Vehicle Category</th>
-                        <th className="text-right font-medium pb-2 px-3">Dime</th>
-                        <th className="text-right font-medium pb-2 px-3">Nickel</th>
-                        <th className="text-right font-medium pb-2 px-3">Quarter</th>
-                        <th className="text-right font-medium pb-2 px-3">Half Dollar</th>
-                        <th className="text-right font-medium pb-2 px-3">Softball</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {["sedan", "suv"].map((vc) => {
-                        const rows = (grouped["pdr_dent"] || []).filter((m: any) => m.vehicleCategory === vc);
-                        const getPrice = (size: string) => rows.find((r: any) => r.sizeCategory === size)?.price || 0;
-                        return (
-                          <tr key={vc} className="border-b border-border/50 hover:bg-muted/30">
-                            <td className="py-3 pr-4 font-medium capitalize">{vc === "suv" ? "SUV / Truck" : vc}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getPrice("dime"))}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getPrice("nickel"))}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getPrice("quarter"))}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getPrice("half_dollar"))}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getPrice("softball"))}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="mt-3 text-xs text-muted-foreground">
-                  Configured shop prices per dent, not verified carrier rates. Use Insurance Hail for carrier-specific sources, upcharges and exceptions; do not apply generic adjustments to an insurance claim.
-                </div>
-              </CardContent>
-            </Card>
+            <PdrPricingEditor />
           </TabsContent>
 
           {/* HAIL GENERIC */}

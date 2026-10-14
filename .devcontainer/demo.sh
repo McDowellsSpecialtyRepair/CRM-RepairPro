@@ -5,6 +5,12 @@
 #   bash .devcontainer/demo.sh start     start the demo server (every start of the codespace)
 #   bash .devcontainer/demo.sh reset     throw away all demo changes and start again with fresh sample data
 #   bash .devcontainer/demo.sh selftest  setup + start + sign-in check, then stop (used by CI)
+#   bash .devcontainer/demo.sh status    which code version is checked out, built and running
+#   bash .devcontainer/demo.sh logs      show the demo server's request log as it happens
+#
+# A codespace stops after ~30 minutes without editor or terminal activity; using the CRM in another
+# browser tab does not count. The request log is shown in a terminal (postAttachCommand runs "logs"),
+# so each CRM request produces terminal output while the codespace window is open.
 #
 # The database lives in DEMO_DIR, outside the repository, and is always a brand-new sample
 # database created by `db:seed-demo`. This script never reads DB_PATH, never touches a real
@@ -30,7 +36,7 @@ start_server() { # $1 = port
   mkdir -p "$DEMO_DIR"
   (cd "$APP" && DB_PATH="$DB" EMAIL_OUTPUT_DIR="$DEMO_DIR/emails" PORT="$1" \
     setsid -f nohup node dist/index.cjs "--repairpro-demo-port=$1" >>"$DEMO_DIR/server.log" 2>&1 </dev/null)
-  for _ in $(seq 1 150); do is_up "$1" && return 0; sleep 0.2; done
+  for _ in $(seq 1 150); do is_up "$1" && { built_commit >"$DEMO_DIR/running-$1"; return 0; }; sleep 0.2; done
   echo "The demo server did not start. Details: $DEMO_DIR/server.log" >&2
   return 1
 }
@@ -42,9 +48,24 @@ stop_server() { # $1 = port. The server is tagged with its port so only the demo
   return 1
 }
 
+BUILD_MARK="$APP/dist/.build-commit"
+head_commit() { git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown; }
+built_commit() { cat "$BUILD_MARK" 2>/dev/null || echo none; }
+
 build_app() {
   # Development tools are needed to build, so install without NODE_ENV=production.
   (cd "$APP" && env -u NODE_ENV npm ci --no-audit --no-fund && env -u NODE_ENV npm run build)
+  head_commit >"$BUILD_MARK"
+}
+
+# The checked-out code changed since the last build (for example after syncing a newer version of the
+# branch): rebuild, and restart a server that is still running the old build.
+rebuild_if_stale() {
+  if [ "$(built_commit)" != "$(head_commit)" ] || [ ! -f "$APP/dist/index.cjs" ]; then
+    echo "Code version $(head_commit) is checked out but $(built_commit) was built. Rebuilding (2-3 minutes)..."
+    stop_server "$PORT"
+    build_app
+  fi
 }
 
 create_demo() {
@@ -90,9 +111,24 @@ case "${1:-}" in
     [ -f "$DB" ] || create_demo
     ;;
   start)
+    rebuild_if_stale
     [ -f "$DB" ] || create_demo
-    if is_up "$PORT"; then echo "RepairPro demo is already running on port $PORT."
-    else start_server "$PORT" && echo "RepairPro demo is running on port $PORT. Your login is in DEMO-LOGIN.md."; fi
+    # A server started from an older build keeps the old code in memory: restart it on the new build.
+    if is_up "$PORT" && [ "$(cat "$DEMO_DIR/running-$PORT" 2>/dev/null)" != "$(built_commit)" ]; then
+      echo "Restarting the demo server on the new build $(built_commit)..."; stop_server "$PORT"
+    fi
+    if is_up "$PORT"; then echo "RepairPro demo version $(built_commit) is already running on port $PORT."
+    else start_server "$PORT" && echo "RepairPro demo version $(built_commit) is running on port $PORT. Your login is in DEMO-LOGIN.md."; fi
+    ;;
+  status)
+    echo "Checked-out code: $(head_commit)   Built: $(built_commit)   Server on port $PORT: $(is_up "$PORT" && echo "running $(cat "$DEMO_DIR/running-$PORT" 2>/dev/null || echo "unknown version")" || echo NOT running)"
+    { [ "$(built_commit)" = "$(head_commit)" ] && { ! is_up "$PORT" || [ "$(cat "$DEMO_DIR/running-$PORT" 2>/dev/null)" = "$(built_commit)" ]; }; } \
+      || echo "The demo is not running the checked-out code. Run: bash .devcontainer/demo.sh start"
+    ;;
+  logs)
+    mkdir -p "$DEMO_DIR" && touch "$DEMO_DIR/server.log"
+    echo "RepairPro demo request log (keep this terminal open while testing; it keeps the codespace active)."
+    exec tail -n 5 -F "$DEMO_DIR/server.log"
     ;;
   reset)
     case "$DEMO_DIR" in *demo*) ;; *) echo "Refusing to reset: DEMO_DIR does not look like a demo folder." >&2; exit 1 ;; esac
@@ -120,10 +156,16 @@ case "${1:-}" in
         console.log(`Demo self-test passed: signed in, ${customers.length} sample customers, app page served.`);
       })().catch(e => { console.error(e.message); process.exit(1); });
     ' "$PORT" "$OWNER_EMAIL" "$password"
+    # A codespace whose checked-out code is newer than its build must rebuild and restart on start.
+    echo stale >"$BUILD_MARK"
+    rebuild_if_stale >/dev/null
+    start_server "$PORT"
+    [ "$(built_commit)" = "$(head_commit)" ] || { echo "Stale build was not rebuilt" >&2; exit 1; }
+    echo "Stale-build check passed: rebuilt $(built_commit) and restarted."
     stop_server "$PORT"
     ;;
   *)
-    echo "Usage: bash .devcontainer/demo.sh setup|start|reset|selftest" >&2
+    echo "Usage: bash .devcontainer/demo.sh setup|start|reset|selftest|status|logs" >&2
     exit 2
     ;;
 esac

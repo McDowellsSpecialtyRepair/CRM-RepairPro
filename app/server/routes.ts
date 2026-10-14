@@ -7,7 +7,10 @@ import { createEstimateSafe, updateEstimateSafe, addEstimateLines, deleteEstimat
   convertEstimate, postPayment, updateInvoiceSafe, fail, editableEstimate, recalculateEstimate, updateEstimateLine, validateEstimateServices } from "./billing";
 import {registerEstimateSales} from "./estimate-sales";
 import {registerEstimateDents} from "./estimate-dents";
+import {registerPdrPricing} from "./pdr-pricing";
+import {unapprovedPackages} from "./dent-approval";
 import {nonLaborCategory,categoryTaxable,customerLineLabel,documentBreakdown} from "../shared/estimate-rules";
+import {customerDentDetail} from "../shared/dents";
 import nodemailer from "nodemailer";
 import { registerReporting } from "./reporting";
 import { registerSecurity, assignmentPatch } from "./security";
@@ -52,6 +55,24 @@ function getEmailTransporter() {
   return emailTransporter;
 }
 
+// Customer-facing dent details under a line (Phase 2.2). Estimates read the live dent records when the
+// estimate is set to show them; invoices read the details copied when the invoice was issued.
+// Panel, size, length and severity only: never the paint answer, notes or internal pricing.
+function estimateDentDetails(estimateId: number): Record<number, string[]> {
+  if (!(sqlite.prepare("SELECT show_dent_details s FROM estimate_pricing_options WHERE estimate_id=?").get(estimateId) as any)?.s) return {};
+  const out: Record<number, string[]> = {};
+  for (const d of sqlite.prepare("SELECT line_item_id,panel_name,size,length_in,severity FROM estimate_dents WHERE estimate_id=? AND line_item_id IS NOT NULL ORDER BY id").all(estimateId) as any[])
+    (out[d.line_item_id] ||= []).push(customerDentDetail({ panelName: d.panel_name, size: d.size, lengthIn: d.length_in, severity: d.severity }));
+  return out;
+}
+function invoiceDentDetails(invoiceId: number): Record<number, string[]> {
+  const out: Record<number, string[]> = {};
+  for (const d of sqlite.prepare("SELECT x.invoice_line_id,x.detail FROM invoice_line_dent_details x JOIN invoice_line_items l ON l.id=x.invoice_line_id WHERE l.invoice_id=? ORDER BY x.invoice_line_id,x.position").all(invoiceId) as any[])
+    (out[d.invoice_line_id] ||= []).push(d.detail);
+  return out;
+}
+const detailHtml = (details?: string[]) => details?.length ? `<ul style="margin:4px 0 0 16px;padding:0;font-size:12px;color:#444">${details.map(t => `<li>${printable(t)}</li>`).join("")}</ul>` : "";
+
 export async function registerRoutes(
   _httpServer: Server,
   app: Express
@@ -63,6 +84,7 @@ export async function registerRoutes(
   registerSecurity(app);
   registerEstimateSales(app);
   registerEstimateDents(app);
+  registerPdrPricing(app);
   app.patch("/api/estimates/line-items/:id",(req,res)=>res.json(updateEstimateLine(Number(req.params.id),req.body)));
   registerWorkOrders(app);
   registerOperations(app);
@@ -929,7 +951,7 @@ export async function registerRoutes(
       <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
         <thead><tr><th style="background:#f0f4f5;padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#555;border-bottom:2px solid #0e7490;">Description</th><th style="background:#f0f4f5;padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;color:#555;border-bottom:2px solid #0e7490;">Qty</th><th style="background:#f0f4f5;padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;color:#555;border-bottom:2px solid #0e7490;">Unit Price</th><th style="background:#f0f4f5;padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;color:#555;border-bottom:2px solid #0e7490;">Total</th></tr></thead>
         <tbody>
-          ${lineItems.map((item: any) => `<tr><td style="padding:10px 12px;font-size:13px;border-bottom:1px solid #e0e0e0;">${item.description}<br><small>${customerLineLabel(item)}</small></td><td style="padding:10px 12px;font-size:13px;border-bottom:1px solid #e0e0e0;text-align:right;">${item.quantity} ${item.unit}</td><td style="padding:10px 12px;font-size:13px;border-bottom:1px solid #e0e0e0;text-align:right;">$${(item.unitPrice || 0).toFixed(2)}</td><td style="padding:10px 12px;font-size:13px;border-bottom:1px solid #e0e0e0;text-align:right;">$${(item.total || 0).toFixed(2)}</td></tr>`).join("")}
+          ${lineItems.map((item: any) => `<tr><td style="padding:10px 12px;font-size:13px;border-bottom:1px solid #e0e0e0;">${item.description}<br><small>${customerLineLabel(item)}</small>${detailHtml(invoiceDentDetails(invoice.id)[item.id])}</td><td style="padding:10px 12px;font-size:13px;border-bottom:1px solid #e0e0e0;text-align:right;">${item.quantity} ${item.unit}</td><td style="padding:10px 12px;font-size:13px;border-bottom:1px solid #e0e0e0;text-align:right;">$${(item.unitPrice || 0).toFixed(2)}</td><td style="padding:10px 12px;font-size:13px;border-bottom:1px solid #e0e0e0;text-align:right;">$${(item.total || 0).toFixed(2)}</td></tr>`).join("")}
           ${lineItems.length === 0 ? '<tr><td colspan="4" style="text-align:center;color:#999;padding:20px;">No line items</td></tr>' : ""}
         </tbody>
       </table>
@@ -987,6 +1009,9 @@ export async function registerRoutes(
     if (!estimate) return res.status(404).json({ message: "Estimate not found" });
     if (estimate.invoiceId || estimate.status === "invoiced" || sqlite.prepare("SELECT id FROM invoices WHERE estimate_id=?").get(estimate.id))
       return res.status(409).json({ message: "This estimate is invoiced and locked. Use the invoice document instead." });
+    const unapproved = unapprovedPackages(estimate.id);
+    if (unapproved.length)
+      return res.status(409).json({ message: `An owner, administrator or manager must approve the package price before this estimate can be sent: ${unapproved.map(g => g.label).join("; ")}.` });
     const customer: any = storage.getCustomers().find((c: any) => c.id === estimate.customerId);
     const to = TEST_EMAIL;
     const note = String(req.body?.message || "").trim();
@@ -1093,6 +1118,7 @@ export async function registerRoutes(
     const estimate = printable(storage.getEstimate(parseInt(req.params.id)));
     if (!estimate) return res.status(404).send("Estimate not found");
     const lineItems = printable(storage.getEstimateLineItems(estimate.id));
+    const dentDetails = estimateDentDetails(estimate.id);
     const customer = printable(storage.getCustomers().find((c: any) => c.id === estimate.customerId));
     const vehicle: any = printable(estimate.vehicleId ? storage.getVehicle(estimate.vehicleId) : null);
     const asset: any = printable(estimate.assetId && customer ? storage.getAssets(customer.id).find((a: any) => a.id === estimate.assetId) : null);
@@ -1157,7 +1183,7 @@ export async function registerRoutes(
       <table>
         <thead><tr><th>Description</th><th>Repair area</th>${["pdr","hail"].includes(estimate.serviceType)?"<th>Dent size</th>":""}<th class="text-right">Qty</th><th class="text-right">Unit Price</th><th class="text-right">Total</th></tr></thead>
         <tbody>
-          ${lineItems.map((item: any) => `<tr><td>${item.description}<br><small>${customerLineLabel(item)}</small></td><td>${item.panelLocation || ""}</td>${["pdr","hail"].includes(estimate.serviceType)?`<td>${item.damageSize || ""}</td>`:""}<td class="text-right">${item.quantity} ${item.unit}</td><td class="text-right">$${(item.unitPrice || 0).toFixed(2)}</td><td class="text-right">$${(item.total || 0).toFixed(2)}</td></tr>`).join("")}
+          ${lineItems.map((item: any) => `<tr><td>${item.description}<br><small>${customerLineLabel(item)}</small>${detailHtml(dentDetails[item.id])}</td><td>${item.panelLocation || ""}</td>${["pdr","hail"].includes(estimate.serviceType)?`<td>${item.damageSize || ""}</td>`:""}<td class="text-right">${item.quantity} ${item.unit}</td><td class="text-right">$${(item.unitPrice || 0).toFixed(2)}</td><td class="text-right">$${(item.total || 0).toFixed(2)}</td></tr>`).join("")}
           ${lineItems.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:#999;padding:20px">No line items</td></tr>' : ""}
         </tbody>
       </table>
@@ -1182,6 +1208,7 @@ export async function registerRoutes(
     const lineItems = printable(storage.getInvoiceLineItems(invoice.id));
     const customer = printable(storage.getCustomers().find((c: any) => c.id === invoice.customerId));
     const estimate: any = printable(invoice.estimateId ? storage.getEstimate(invoice.estimateId) : null);
+    const dentDetails = invoiceDentDetails(invoice.id);
     const job: any = printable(invoice.jobId ? storage.getJobs().find((j: any) => j.id === invoice.jobId) : null);
     const vehId = estimate?.vehicleId || job?.vehicleId;
     const vehicle: any = printable(vehId ? storage.getVehicle(vehId) : null);
@@ -1250,7 +1277,7 @@ export async function registerRoutes(
       <table>
         <thead><tr><th>Description</th><th class="text-right">Qty</th><th class="text-right">Unit Price</th><th class="text-right">Total</th></tr></thead>
         <tbody>
-          ${lineItems.map((item: any) => `<tr><td>${item.description}<br><small>${customerLineLabel(item)}</small></td><td class="text-right">${item.quantity} ${item.unit}</td><td class="text-right">$${(item.unitPrice || 0).toFixed(2)}</td><td class="text-right">$${(item.total || 0).toFixed(2)}</td></tr>`).join("")}
+          ${lineItems.map((item: any) => `<tr><td>${item.description}<br><small>${customerLineLabel(item)}</small>${detailHtml(dentDetails[item.id])}</td><td class="text-right">${item.quantity} ${item.unit}</td><td class="text-right">$${(item.unitPrice || 0).toFixed(2)}</td><td class="text-right">$${(item.total || 0).toFixed(2)}</td></tr>`).join("")}
           ${lineItems.length === 0 ? '<tr><td colspan="4" style="text-align:center;color:#999;padding:20px">No line items</td></tr>' : ""}
         </tbody>
       </table>

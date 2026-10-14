@@ -2,16 +2,28 @@ import type { Express } from "express";
 import { sqlite } from "./storage-db";
 import { storage } from "./storage";
 import { audit } from "./security";
-import { addEstimateLines, editableEstimate, fail } from "./billing";
+import { securityContext, actorLabel } from "./security-context";
+import { addEstimateLines, deleteEstimateLine, editableEstimate, fail, recalculateEstimate } from "./billing";
+import { suggestDentPrice } from "./pdr-pricing";
+import { packageStatus } from "./dent-approval";
 import {
   DENT_SIZES, DENT_SEVERITIES, LOCATION_DIFFICULTIES, PAINT_CORRECTABLE, DENT_BODY_STYLES,
-  DENT_LENGTH_MIN, DENT_LENGTH_MAX, DENT_NOTES_MAX, DENT_SIZE_LABELS,
-  dentMatrixCategory, dentNeedsManualPrice, dentLineDescription,
+  DENT_LENGTH_MIN, DENT_LENGTH_MAX, DENT_NOTES_MAX, dentLineDescription, roundMoney,
 } from "../shared/dents";
 
-// Individual PDR dent records. Money still lives only in estimate_line_items: a dent is either
-// unbilled (line_item_id NULL) or counted in exactly one estimate line. Detail fields (length,
-// severity, location difficulty, paint, notes) are recorded only and never change a price.
+// Individual PDR dent records (Phase 2.1) and their pricing (Phase 2.2).
+// Money still lives only in estimate_line_items. Each dent is either not billed (line_item_id NULL),
+// billed on its own individual line, or part of exactly one active package (group_id + the package's line).
+// Every dent keeps the price calculated from the master when it was priced (suggested_price), any
+// manual override with who/why/when, and its billing relationship. Master changes never reprice an
+// estimate unless someone explicitly reprices it.
+const DENT_COLUMNS = [
+  ["suggested_price", "REAL"], ["suggested_source", "TEXT"], ["suggested_at", "TEXT"],
+  ["override_price", "REAL"], ["override_reason", "TEXT"], ["override_suggested_price", "REAL"],
+  ["override_by_id", "INTEGER"], ["override_by", "TEXT"], ["override_at", "TEXT"], ["group_id", "INTEGER"],
+] as const;
+const LOCK = (alias: string) => `EXISTS(SELECT 1 FROM invoices WHERE estimate_id=${alias}.estimate_id) OR EXISTS(SELECT 1 FROM ops_cases WHERE estimate_id=${alias}.estimate_id)`;
+
 export function migrateEstimateDents() {
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS estimate_dents (
@@ -35,36 +47,129 @@ export function migrateEstimateDents() {
     );
     CREATE INDEX IF NOT EXISTS estimate_dents_estimate ON estimate_dents(estimate_id);
     CREATE INDEX IF NOT EXISTS estimate_dents_line ON estimate_dents(line_item_id);
-    CREATE TRIGGER IF NOT EXISTS estimate_dents_lock_insert BEFORE INSERT ON estimate_dents
-      WHEN EXISTS(SELECT 1 FROM invoices WHERE estimate_id=NEW.estimate_id) OR EXISTS(SELECT 1 FROM ops_cases WHERE estimate_id=NEW.estimate_id)
+    CREATE TRIGGER IF NOT EXISTS estimate_dents_lock_insert BEFORE INSERT ON estimate_dents WHEN ${LOCK("NEW")}
       BEGIN SELECT RAISE(ABORT,'Estimate is invoiced or in production; dent records are locked'); END;
-    CREATE TRIGGER IF NOT EXISTS estimate_dents_lock_update BEFORE UPDATE ON estimate_dents
-      WHEN EXISTS(SELECT 1 FROM invoices WHERE estimate_id=OLD.estimate_id) OR EXISTS(SELECT 1 FROM ops_cases WHERE estimate_id=OLD.estimate_id)
+    CREATE TRIGGER IF NOT EXISTS estimate_dents_lock_update BEFORE UPDATE ON estimate_dents WHEN ${LOCK("OLD")}
       BEGIN SELECT RAISE(ABORT,'Estimate is invoiced or in production; dent records are locked'); END;
-    CREATE TRIGGER IF NOT EXISTS estimate_dents_lock_delete BEFORE DELETE ON estimate_dents
-      WHEN EXISTS(SELECT 1 FROM invoices WHERE estimate_id=OLD.estimate_id) OR EXISTS(SELECT 1 FROM ops_cases WHERE estimate_id=OLD.estimate_id)
+    CREATE TRIGGER IF NOT EXISTS estimate_dents_lock_delete BEFORE DELETE ON estimate_dents WHEN ${LOCK("OLD")}
       BEGIN SELECT RAISE(ABORT,'Estimate is invoiced or in production; dent records are locked'); END;
     CREATE TRIGGER IF NOT EXISTS estimate_dents_estimate_fixed BEFORE UPDATE OF estimate_id ON estimate_dents
       BEGIN SELECT RAISE(ABORT,'A dent cannot move to another estimate'); END;
+
+    CREATE TABLE IF NOT EXISTS estimate_dent_groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      estimate_id INTEGER NOT NULL REFERENCES estimates(id) DEFERRABLE INITIALLY DEFERRED,
+      scope TEXT NOT NULL CHECK(scope IN ('panel','vehicle')),
+      panel_id TEXT, panel_name TEXT,
+      label TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','removed')),
+      line_item_id INTEGER REFERENCES estimate_line_items(id) ON DELETE SET NULL,
+      manual_price REAL NOT NULL CHECK(manual_price >= 0 AND manual_price <= 1000000),
+      calculated_total REAL CHECK(calculated_total IS NULL OR calculated_total >= 0),
+      approved_price REAL, approved_by_id INTEGER, approved_by TEXT, approved_at TEXT,
+      created_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, removed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS estimate_dent_groups_estimate ON estimate_dent_groups(estimate_id);
+    CREATE TRIGGER IF NOT EXISTS estimate_dent_groups_lock_insert BEFORE INSERT ON estimate_dent_groups WHEN ${LOCK("NEW")}
+      BEGIN SELECT RAISE(ABORT,'Estimate is invoiced or in production; packages are locked'); END;
+    CREATE TRIGGER IF NOT EXISTS estimate_dent_groups_lock_update BEFORE UPDATE ON estimate_dent_groups WHEN ${LOCK("OLD")}
+      BEGIN SELECT RAISE(ABORT,'Estimate is invoiced or in production; packages are locked'); END;
+    CREATE TRIGGER IF NOT EXISTS estimate_dent_groups_no_delete BEFORE DELETE ON estimate_dent_groups
+      BEGIN SELECT RAISE(ABORT,'Package history is kept; mark it removed instead'); END;
+
+    CREATE TABLE IF NOT EXISTS estimate_pricing_options (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      estimate_id INTEGER NOT NULL UNIQUE REFERENCES estimates(id) DEFERRABLE INITIALLY DEFERRED,
+      show_dent_details INTEGER NOT NULL DEFAULT 0 CHECK(show_dent_details IN (0,1)),
+      updated_at TEXT NOT NULL
+    );
+    CREATE TRIGGER IF NOT EXISTS estimate_pricing_options_lock BEFORE UPDATE ON estimate_pricing_options
+      WHEN EXISTS(SELECT 1 FROM invoices WHERE estimate_id=OLD.estimate_id)
+      BEGIN SELECT RAISE(ABORT,'Estimate is invoiced; document options are locked'); END;
+
+    -- Customer-facing dent details copied onto an invoice line when it is issued. Immutable like invoice lines.
+    CREATE TABLE IF NOT EXISTS invoice_line_dent_details (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      invoice_line_id INTEGER NOT NULL REFERENCES invoice_line_items(id),
+      position INTEGER NOT NULL,
+      detail TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS invoice_line_dent_details_line ON invoice_line_dent_details(invoice_line_id);
+    CREATE TRIGGER IF NOT EXISTS invoice_line_dent_details_no_update BEFORE UPDATE ON invoice_line_dent_details
+      BEGIN SELECT RAISE(ABORT,'Issued invoice details are immutable'); END;
+    CREATE TRIGGER IF NOT EXISTS invoice_line_dent_details_no_delete BEFORE DELETE ON invoice_line_dent_details
+      BEGIN SELECT RAISE(ABORT,'Issued invoice details are immutable'); END;
   `);
+  const cols = (sqlite.prepare("PRAGMA table_info(estimate_dents)").all() as any[]).map(c => c.name);
+  const missing = DENT_COLUMNS.filter(([c]) => !cols.includes(c));
+  if (missing.length) {
+    for (const [c, t] of missing) sqlite.exec(`ALTER TABLE estimate_dents ADD COLUMN ${c} ${t}`);
+    // Row-level audit triggers list columns; let initializeSecurity() recreate them with the new ones.
+    for (const op of ["insert", "update", "delete"]) sqlite.exec(`DROP TRIGGER IF EXISTS staff_audit_estimate_dents_${op}`);
+  }
+  sqlite.exec("CREATE INDEX IF NOT EXISTS estimate_dents_group ON estimate_dents(group_id)");
+  upgradePhase21Dents();
+}
+
+// One time: dents saved in Phase 2.1 keep the price they were billed at. A billed dent's matrix price
+// becomes its calculated price; if a different price was entered, that becomes a recorded override.
+// Dents not yet billed are priced from the current master (they never had a price).
+function upgradePhase21Dents() {
+  if (sqlite.prepare("SELECT 1 FROM app_migrations WHERE version='estimate-dent-pricing-v1'").get()) return;
+  sqlite.transaction(() => {
+    const stamp = new Date().toISOString();
+    for (const d of sqlite.prepare("SELECT d.*,l.unit_price line_price FROM estimate_dents d LEFT JOIN estimate_line_items l ON l.id=d.line_item_id WHERE d.suggested_at IS NULL").all() as any[]) {
+      if (sqlite.prepare("SELECT 1 FROM invoices WHERE estimate_id=? UNION SELECT 1 FROM ops_cases WHERE estimate_id=?").get(d.estimate_id, d.estimate_id)) {
+        // Locked estimates are left exactly as they are.
+        continue;
+      }
+      if (d.line_item_id) {
+        const source = (d.price_source || "Phase 2.1 matrix price").replace(/ \(estimator entered [^)]*\)$/, "");
+        const overridden = d.matrix_unit_price === null || d.line_price !== d.matrix_unit_price;
+        sqlite.prepare(`UPDATE estimate_dents SET suggested_price=?,suggested_source=?,suggested_at=?,
+          override_price=?,override_reason=?,override_suggested_price=?,override_by=?,override_at=? WHERE id=?`)
+          .run(d.matrix_unit_price, source, stamp, overridden ? d.line_price : null,
+            overridden ? "Price entered when the dent was added to the estimate (before Phase 2.2)" : null,
+            overridden ? d.matrix_unit_price : null, overridden ? "Phase 2.2 upgrade" : null, overridden ? stamp : null, d.id);
+      } else {
+        const s = suggestDentPrice(d);
+        sqlite.prepare("UPDATE estimate_dents SET suggested_price=?,suggested_source=?,suggested_at=? WHERE id=?").run(s.price, s.source, stamp, d.id);
+      }
+    }
+    sqlite.prepare("INSERT INTO app_migrations(version,applied_at) VALUES('estimate-dent-pricing-v1',?)").run(stamp);
+  })();
 }
 
 const COLUMNS: Record<string, string> = {
   panelId: "panel_id", panelName: "panel_name", bodyStyle: "body_style", size: "size", lengthIn: "length_in",
   severity: "severity", locationDifficulty: "location_difficulty", paintCorrectable: "paint_correctable", notes: "notes",
 };
-// Fields that decide which estimate line a dent is counted in. Locked once the dent is billed.
-const BILLING_FIELDS = ["panelId", "panelName", "bodyStyle", "size"];
+// Fields that decide a dent's price. Locked while the dent is billed; changing them re-prices an unbilled dent.
+const PRICING_FIELDS = ["panelId", "panelName", "bodyStyle", "size", "lengthIn", "severity", "locationDifficulty"];
 
-const toDent = (r: any) => r && ({
-  id: r.id, estimateId: r.estimate_id, panelId: r.panel_id, panelName: r.panel_name, bodyStyle: r.body_style, size: r.size,
-  lengthIn: r.length_in, severity: r.severity, locationDifficulty: r.location_difficulty, paintCorrectable: r.paint_correctable,
-  notes: r.notes, lineItemId: r.line_item_id, matrixUnitPrice: r.matrix_unit_price, priceSource: r.price_source,
-  createdAt: r.created_at, updatedAt: r.updated_at,
-});
+const referencePrice = (r: any): number | null => r.override_price ?? r.suggested_price ?? null;
+const toDent = (r: any) => {
+  if (!r) return r;
+  const current = r.line_item_id ? null : suggestDentPrice(r);
+  return {
+    id: r.id, estimateId: r.estimate_id, panelId: r.panel_id, panelName: r.panel_name, bodyStyle: r.body_style, size: r.size,
+    lengthIn: r.length_in, severity: r.severity, locationDifficulty: r.location_difficulty, paintCorrectable: r.paint_correctable,
+    notes: r.notes, lineItemId: r.line_item_id, groupId: r.group_id,
+    suggestedPrice: r.suggested_price, suggestedSource: r.suggested_source, suggestedAt: r.suggested_at,
+    overridePrice: r.override_price, overrideReason: r.override_reason, overrideSuggestedPrice: r.override_suggested_price,
+    overrideBy: r.override_by, overrideAt: r.override_at,
+    referencePrice: referencePrice(r),
+    // For unbilled dents: what the master would suggest now, so the screen can offer an explicit reprice.
+    currentSuggestedPrice: current?.price ?? null, currentSuggestedSource: current?.source ?? null,
+    matrixChanged: !!current && (current.price !== r.suggested_price || current.source !== r.suggested_source),
+    createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+};
 const rawDent = (id: number) => sqlite.prepare("SELECT * FROM estimate_dents WHERE id=?").get(id) as any;
 export const listDents = (estimateId: number) =>
   (sqlite.prepare("SELECT * FROM estimate_dents WHERE estimate_id=? ORDER BY id").all(estimateId) as any[]).map(toDent);
+const actor = () => ({ id: securityContext.getStore()?.userId ?? null, label: actorLabel() });
+const stamp = () => new Date().toISOString();
 
 // Same rules as estimate lines: no changes once invoiced or once production has started.
 function dentEditableEstimate(id: number) {
@@ -88,6 +193,10 @@ function text(value: any, label: string, max: number, required: boolean) {
   if (trimmed.length > max) fail(`${label} is too long`);
   return trimmed;
 }
+const price = (v: any, label: string) => {
+  if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1000000) fail(`${label} must be a dollar amount from 0 to 1,000,000`);
+  return roundMoney(v);
+};
 // Validates a complete dent (after merging an update onto the stored values).
 function validDent(d: any) {
   const lengthIn = d.lengthIn === null || d.lengthIn === undefined || d.lengthIn === "" ? null : d.lengthIn;
@@ -109,6 +218,7 @@ function onlyKnownFields(body: any) {
   const unknown = Object.keys(body).filter(k => !(k in COLUMNS));
   if (unknown.length) fail(`Unsupported dent field: ${unknown[0]}`);
 }
+const snake = (d: ReturnType<typeof validDent>) => ({ panel_id: d.panelId, body_style: d.bodyStyle, size: d.size, length_in: d.lengthIn, severity: d.severity, location_difficulty: d.locationDifficulty });
 
 export function createDent(estimateId: number, body: any) {
   return sqlite.transaction(() => {
@@ -116,9 +226,9 @@ export function createDent(estimateId: number, body: any) {
     onlyKnownFields(body);
     const count = (sqlite.prepare("SELECT COUNT(*) n FROM estimate_dents WHERE estimate_id=?").get(estimateId) as any).n;
     if (count >= 1000) fail("An estimate can hold up to 1,000 dent records");
-    const d = validDent(body), now = new Date().toISOString();
-    const info = sqlite.prepare(`INSERT INTO estimate_dents(estimate_id,panel_id,panel_name,body_style,size,length_in,severity,location_difficulty,paint_correctable,notes,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(estimateId, d.panelId, d.panelName, d.bodyStyle, d.size, d.lengthIn, d.severity, d.locationDifficulty, d.paintCorrectable, d.notes, now, now);
+    const d = validDent(body), now = stamp(), s = suggestDentPrice(snake(d));
+    const info = sqlite.prepare(`INSERT INTO estimate_dents(estimate_id,panel_id,panel_name,body_style,size,length_in,severity,location_difficulty,paint_correctable,notes,suggested_price,suggested_source,suggested_at,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(estimateId, d.panelId, d.panelName, d.bodyStyle, d.size, d.lengthIn, d.severity, d.locationDifficulty, d.paintCorrectable, d.notes, s.price, s.source, now, now, now);
     return toDent(rawDent(Number(info.lastInsertRowid)));
   }).immediate();
 }
@@ -130,12 +240,18 @@ export function updateDent(id: number, body: any) {
     dentEditableEstimate(old.estimate_id);
     onlyKnownFields(body);
     const current = toDent(old);
-    if (old.line_item_id && BILLING_FIELDS.some(k => Object.hasOwn(body, k) && body[k] !== (current as any)[k]))
-      fail("This dent is already counted in an estimate line. Remove that line first to change its panel or size.", 409);
+    const pricingChanged = PRICING_FIELDS.some(k => Object.hasOwn(body, k) && body[k] !== (current as any)[k]);
+    if (old.line_item_id && pricingChanged)
+      fail("This dent is already billed. Remove its estimate line or package first to change details that affect its price.", 409);
     const d = validDent({ ...current, ...body });
-    // Detail-only edits do not change money, so an approved estimate stays approved (row audit records the change).
     sqlite.prepare(`UPDATE estimate_dents SET panel_id=?,panel_name=?,body_style=?,size=?,length_in=?,severity=?,location_difficulty=?,paint_correctable=?,notes=?,updated_at=? WHERE id=?`)
-      .run(d.panelId, d.panelName, d.bodyStyle, d.size, d.lengthIn, d.severity, d.locationDifficulty, d.paintCorrectable, d.notes, new Date().toISOString(), id);
+      .run(d.panelId, d.panelName, d.bodyStyle, d.size, d.lengthIn, d.severity, d.locationDifficulty, d.paintCorrectable, d.notes, stamp(), id);
+    if (pricingChanged) {
+      // New measurements: price this dent from the current master. An override was for the old details, so it is cleared (the audit history keeps it).
+      const s = suggestDentPrice(snake(d));
+      sqlite.prepare(`UPDATE estimate_dents SET suggested_price=?,suggested_source=?,suggested_at=?,override_price=NULL,override_reason=NULL,
+        override_suggested_price=NULL,override_by_id=NULL,override_by=NULL,override_at=NULL WHERE id=?`).run(s.price, s.source, stamp(), id);
+    }
     return toDent(rawDent(id));
   }).immediate();
 }
@@ -145,64 +261,196 @@ export function deleteDent(id: number) {
     const old = rawDent(id);
     if (!old) fail("Dent not found", 404);
     dentEditableEstimate(old.estimate_id);
-    if (old.line_item_id) fail("This dent is counted in an estimate line. Remove that line first, then delete the dent.", 409);
+    if (old.line_item_id) fail("This dent is billed. Remove its estimate line or package first, then delete the dent.", 409);
     sqlite.prepare("DELETE FROM estimate_dents WHERE id=?").run(id);
   }).immediate();
 }
 
-// The standard PDR matrix price for one dent, chosen the same way the damage map always has
-// (first matching row). Creases and glass/plastic panels have no matrix price.
-function matrixPrice(d: any): { price: number | null; source: string } {
-  if (dentNeedsManualPrice(d.size, d.panel_id))
-    return { price: null, source: d.size === "crease" ? "No crease matrix yet: entered price" : "Not a PDR panel: entered price" };
-  const cat = dentMatrixCategory(d.body_style);
-  const row = sqlite.prepare("SELECT price FROM pricing_matrices WHERE matrix_type='pdr_dent' AND size_category=? AND vehicle_category=? ORDER BY id LIMIT 1").get(d.size, cat) as any;
-  return row ? { price: row.price, source: `Standard PDR matrix · ${DENT_SIZE_LABELS[d.size]} · ${cat}` } : { price: null, source: "No matrix row found" };
+// Manual price for one dent. Records the suggested price at that moment, the final price, who and why.
+export function overrideDentPrice(id: number, body: any) {
+  return sqlite.transaction(() => {
+    const old = rawDent(id);
+    if (!old) fail("Dent not found", 404);
+    dentEditableEstimate(old.estimate_id);
+    if (old.line_item_id) fail("This dent is billed. Remove its estimate line or package first to change its price.", 409);
+    if (body?.price === null) {
+      sqlite.prepare(`UPDATE estimate_dents SET override_price=NULL,override_reason=NULL,override_suggested_price=NULL,override_by_id=NULL,override_by=NULL,override_at=NULL,updated_at=? WHERE id=?`).run(stamp(), id);
+      audit("estimate.dent_price_override_cleared", "estimate_dents", id, { price: old.override_price, reason: old.override_reason }, null);
+      return toDent(rawDent(id));
+    }
+    const final = price(body?.price, "Price");
+    let reason = text(body?.reason, "Reason", 500, false);
+    if (!reason) {
+      if (old.suggested_price !== null) fail("Enter a reason for changing the suggested price");
+      reason = "No matrix price available";
+    }
+    const who = actor();
+    sqlite.prepare(`UPDATE estimate_dents SET override_price=?,override_reason=?,override_suggested_price=?,override_by_id=?,override_by=?,override_at=?,updated_at=? WHERE id=?`)
+      .run(final, reason, old.suggested_price, who.id, who.label, stamp(), stamp(), id);
+    audit("estimate.dent_price_override", "estimate_dents", id, { suggestedPrice: old.suggested_price, previousOverride: old.override_price }, { price: final, reason, by: who.label });
+    return toDent(rawDent(id));
+  }).immediate();
 }
 
-// Adds unbilled dents to the estimate: one line per panel and size (quantity = number of dents),
-// exactly as the damage map has always billed them. The dents are linked to their line and keep
-// the matrix price they were calculated from, even when the estimator entered a different price.
-export function billDents(estimateId: number, body: any) {
+// Explicit repricing: apply the current master to every dent that is not billed. Overrides stay.
+export function repriceDents(estimateId: number) {
   return sqlite.transaction(() => {
     dentEditableEstimate(estimateId);
-    const groups = body?.groups;
-    if (!Array.isArray(groups) || !groups.length || groups.length > 200) fail("Choose 1 to 200 dent groups to add");
-    const seen = new Set<number>();
-    const prepared = groups.map((g: any) => {
-      if (!g || !Array.isArray(g.dentIds) || !g.dentIds.length) fail("Each group needs at least one dent");
-      const dents = g.dentIds.map((id: any) => {
-        if (!Number.isInteger(id) || seen.has(id)) fail("Each dent can be added once");
-        seen.add(id);
-        const d = rawDent(id);
-        if (!d || d.estimate_id !== estimateId) fail("Dent not found on this estimate", 404);
-        if (d.line_item_id) fail("A dent is already counted in an estimate line. Reload the estimate.", 409);
-        return d;
-      });
-      const first = dents[0];
-      if (dents.some((d: any) => d.panel_id !== first.panel_id || d.size !== first.size || d.body_style !== first.body_style))
-        fail("Group dents by the same panel and size");
-      const matrix = matrixPrice(first);
-      const unitPrice = g.unitPrice;
-      if (typeof unitPrice !== "number" || !Number.isFinite(unitPrice) || unitPrice < 0) fail("Enter a valid unit price for each group");
-      if (matrix.price === null && g.priceConfirmed !== true) fail(`Enter a price for ${dentLineDescription(first.panel_id, first.panel_name, first.size)}`);
-      return { dents, matrix, line: {
-        serviceCategory: "pdr_dent", lineType: "labor", repairAction: "repair",
-        description: dentLineDescription(first.panel_id, first.panel_name, first.size),
-        panelLocation: first.panel_name, damageSize: first.size, damageSeverity: "moderate",
-        quantity: dents.length, unit: "each", unitPrice,
-      } };
-    });
-    const created = addEstimateLines(estimateId, prepared.map(p => p.line));
-    prepared.forEach((p, i) => {
-      for (const d of p.dents)
-        sqlite.prepare("UPDATE estimate_dents SET line_item_id=?,matrix_unit_price=?,price_source=?,updated_at=? WHERE id=?")
-          .run(created[i].id, p.matrix.price, p.matrix.price !== null && p.matrix.price !== p.line.unitPrice ? `${p.matrix.source} (estimator entered ${p.line.unitPrice.toFixed(2)})` : p.matrix.source, new Date().toISOString(), d.id);
-    });
-    audit("estimate.dents_billed", "estimates", estimateId, null, { lines: created.map((l: any, i: number) => ({ lineId: l.id, dentIds: prepared[i].dents.map((d: any) => d.id), unitPrice: l.unitPrice, matrixUnitPrice: prepared[i].matrix.price })) });
+    const changes: any[] = [];
+    for (const d of sqlite.prepare("SELECT * FROM estimate_dents WHERE estimate_id=? AND line_item_id IS NULL").all(estimateId) as any[]) {
+      const s = suggestDentPrice(d);
+      if (s.price === d.suggested_price && s.source === d.suggested_source) continue;
+      sqlite.prepare("UPDATE estimate_dents SET suggested_price=?,suggested_source=?,suggested_at=?,updated_at=? WHERE id=?").run(s.price, s.source, stamp(), stamp(), d.id);
+      changes.push({ dentId: d.id, before: d.suggested_price, after: s.price, source: s.source });
+    }
+    audit("estimate.dents_repriced", "estimates", estimateId, null, { changes });
+    return { changed: changes.length, dents: listDents(estimateId) };
+  }).immediate();
+}
+
+function loadDents(estimateId: number, ids: any, allowIndividuallyBilled = false) {
+  if (!Array.isArray(ids) || !ids.length || ids.length > 500) fail("Choose 1 to 500 dents");
+  const seen = new Set<number>();
+  return ids.map((id: any) => {
+    if (!Number.isInteger(id) || seen.has(id)) fail("Each dent can be chosen once");
+    seen.add(id);
+    const d = rawDent(id);
+    if (!d || d.estimate_id !== estimateId) fail("Dent not found on this estimate", 404);
+    if (d.line_item_id) {
+      const shared = (sqlite.prepare("SELECT COUNT(*) n FROM estimate_dents WHERE line_item_id=?").get(d.line_item_id) as any).n;
+      if (!allowIndividuallyBilled || d.group_id || shared !== 1)
+        fail(d.group_id ? "A chosen dent is already in a package. Remove that package first." :
+          shared !== 1 ? "A chosen dent is on a combined line from before Phase 2.2. Remove that line first." :
+          "A chosen dent is already billed. Reload the estimate.", 409);
+    }
+    return d;
+  });
+}
+const label = (d: any) => dentLineDescription(d.panel_id, d.panel_name, d.size);
+
+// Individual billing: one separately priced line per dent, at its own price (override or calculated).
+export function billIndividually(estimateId: number, body: any) {
+  return sqlite.transaction(() => {
+    dentEditableEstimate(estimateId);
+    const dents = loadDents(estimateId, body?.dentIds);
+    const missing = dents.filter((d: any) => referencePrice(d) === null);
+    if (missing.length) fail(`Pricing incomplete: enter a price for ${missing.map(label).join(", ")}`);
+    const ordinal = (d: any) => (sqlite.prepare("SELECT COUNT(*) n FROM estimate_dents WHERE estimate_id=? AND panel_id=? AND id<=?").get(estimateId, d.panel_id, d.id) as any).n;
+    const multi = (d: any) => (sqlite.prepare("SELECT COUNT(*) n FROM estimate_dents WHERE estimate_id=? AND panel_id=?").get(estimateId, d.panel_id) as any).n > 1;
+    const created = addEstimateLines(estimateId, dents.map((d: any) => ({
+      serviceCategory: "pdr_dent", lineType: "labor", repairAction: "repair",
+      description: `${label(d)}${multi(d) ? ` #${ordinal(d)}` : ""}`,
+      panelLocation: d.panel_name, damageSize: d.size, damageSeverity: "moderate",
+      quantity: 1, unit: "each", unitPrice: referencePrice(d),
+    })));
+    dents.forEach((d: any, i: number) => sqlite.prepare("UPDATE estimate_dents SET line_item_id=?,group_id=NULL,matrix_unit_price=?,price_source=?,updated_at=? WHERE id=?")
+      .run(created[i].id, d.suggested_price, d.suggested_source, stamp(), d.id));
+    audit("estimate.dents_billed_individually", "estimates", estimateId, null, { lines: created.map((l: any, i: number) => ({ lineId: l.id, dentId: dents[i].id, price: l.unitPrice })) });
     return { created: created.length, dents: listDents(estimateId) };
   }).immediate();
 }
+
+const groupRow = (id: number) => sqlite.prepare("SELECT * FROM estimate_dent_groups WHERE id=?").get(id) as any;
+const toGroup = (g: any) => {
+  const st = packageStatus(g);
+  return {
+    id: g.id, estimateId: g.estimate_id, scope: g.scope, panelId: g.panel_id, panelName: g.panel_name, label: g.label, status: g.status,
+    lineItemId: g.line_item_id, manualPrice: g.manual_price, calculatedTotal: g.calculated_total,
+    pricingComplete: st.comparison.complete, difference: st.comparison.difference, differencePercent: st.comparison.percent,
+    approvalRequired: st.approvalRequired, approved: st.approved, approvedPrice: g.approved_price, approvedBy: g.approved_by, approvedAt: g.approved_at,
+    createdBy: g.created_by, createdAt: g.created_at, removedAt: g.removed_at,
+    dentIds: (sqlite.prepare("SELECT id FROM estimate_dents WHERE group_id=? ORDER BY id").all(g.id) as any[]).map(r => r.id),
+  };
+};
+export const listGroups = (estimateId: number) =>
+  (sqlite.prepare("SELECT * FROM estimate_dent_groups WHERE estimate_id=? AND status='active' ORDER BY id").all(estimateId) as any[]).map(toGroup);
+
+// Panel or whole-vehicle package: one line at the price the estimator enters. Never discounted automatically.
+// Dents billed on their own individual lines may be moved into the package; those lines are removed in the same step.
+export function createPackage(estimateId: number, body: any) {
+  return sqlite.transaction(() => {
+    dentEditableEstimate(estimateId);
+    const scope = body?.scope;
+    if (!["panel", "vehicle"].includes(scope)) fail("Choose a panel package or a whole-vehicle package");
+    const manual = price(body?.manualPrice, "Package price");
+    const dents = loadDents(estimateId, body?.dentIds, true);
+    if (scope === "panel" && dents.some((d: any) => d.panel_id !== dents[0].panel_id)) fail("A panel package can only include dents on one panel");
+    for (const lineId of Array.from(new Set(dents.map((d: any) => d.line_item_id).filter(Boolean)))) deleteEstimateLine(lineId as number);
+    const refs = dents.map(referencePrice);
+    const calculated = refs.some((p: number | null) => p === null) ? null : roundMoney(refs.reduce((s: number, p: number | null) => s + (p as number), 0));
+    const n = dents.length, noun = `${n} dent${n === 1 ? "" : "s"}`;
+    const lbl = scope === "panel" ? `${dents[0].panel_name}: dent repair package (${noun})` : `Whole-vehicle dent repair package (${noun})`;
+    const [line] = addEstimateLines(estimateId, [{
+      serviceCategory: "pdr_dent", lineType: "labor", repairAction: "repair", description: lbl,
+      panelLocation: scope === "panel" ? dents[0].panel_name : "Whole vehicle", damageSize: "package", damageSeverity: "moderate",
+      quantity: 1, unit: "package", unitPrice: manual,
+    }]);
+    const who = actor(), now = stamp();
+    const info = sqlite.prepare(`INSERT INTO estimate_dent_groups(estimate_id,scope,panel_id,panel_name,label,line_item_id,manual_price,calculated_total,created_by,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(estimateId, scope, scope === "panel" ? dents[0].panel_id : null, scope === "panel" ? dents[0].panel_name : null, lbl, line.id, manual, calculated, who.label, now, now);
+    const gid = Number(info.lastInsertRowid);
+    for (const d of dents) sqlite.prepare("UPDATE estimate_dents SET line_item_id=?,group_id=?,matrix_unit_price=?,price_source=?,updated_at=? WHERE id=?")
+      .run(line.id, gid, d.suggested_price, d.suggested_source, now, d.id);
+    const g = toGroup(groupRow(gid));
+    audit("estimate.dent_package_created", "estimate_dent_groups", gid, null, { estimateId, scope, dentIds: g.dentIds, calculatedTotal: calculated, manualPrice: manual, approvalRequired: g.approvalRequired });
+    return g;
+  }).immediate();
+}
+
+function activeGroup(id: number) {
+  const g = groupRow(id);
+  if (!g || g.status !== "active") fail("Package not found", 404);
+  dentEditableEstimate(g.estimate_id);
+  return g;
+}
+
+// Changing a package price updates its line and needs a fresh approval for the new price.
+export function repricePackage(id: number, body: any) {
+  return sqlite.transaction(() => {
+    const g = activeGroup(id);
+    const manual = price(body?.manualPrice, "Package price");
+    if (manual === g.manual_price) return toGroup(g);
+    const est = editableEstimate(g.estimate_id);
+    sqlite.prepare("UPDATE estimate_line_items SET unit_price=?,total=?,allocation_version=allocation_version+1 WHERE id=?").run(manual, manual, g.line_item_id);
+    sqlite.prepare("UPDATE estimate_dent_groups SET manual_price=?,approved_price=NULL,approved_by_id=NULL,approved_by=NULL,approved_at=NULL,updated_at=? WHERE id=?").run(manual, stamp(), id);
+    if (est.status === "approved") storage.updateEstimate(est.id, { status: "draft", approvedDate: null });
+    recalculateEstimate(est.id);
+    audit("estimate.dent_package_repriced", "estimate_dent_groups", id, { manualPrice: g.manual_price, approvedPrice: g.approved_price }, { manualPrice: manual });
+    return toGroup(groupRow(id));
+  }).immediate();
+}
+
+// Management approval of the exact package price shown on screen.
+export function approvePackage(id: number, body: any) {
+  return sqlite.transaction(() => {
+    const g = activeGroup(id);
+    if (body?.manualPrice !== g.manual_price) fail("The package price changed. Reload and review it before approving.", 409);
+    if (!packageStatus(g).approvalRequired) fail("This package price does not need approval.", 409);
+    const who = actor();
+    sqlite.prepare("UPDATE estimate_dent_groups SET approved_price=?,approved_by_id=?,approved_by=?,approved_at=?,updated_at=? WHERE id=?")
+      .run(g.manual_price, who.id, who.label, stamp(), stamp(), id);
+    audit("estimate.dent_package_approved", "estimate_dent_groups", id, null, { price: g.manual_price, calculatedTotal: g.calculated_total, by: who.label });
+    return toGroup(groupRow(id));
+  }).immediate();
+}
+
+// Removing a package removes its line; its dents keep their prices and become not billed.
+export function removePackage(id: number) {
+  return sqlite.transaction(() => {
+    const g = activeGroup(id);
+    if (g.line_item_id) deleteEstimateLine(g.line_item_id);
+    else markPackageRemoved(g.id);
+    audit("estimate.dent_package_removed", "estimate_dent_groups", id, { manualPrice: g.manual_price }, null);
+    return { dents: listDents(g.estimate_id) };
+  }).immediate();
+}
+export function markPackageRemoved(groupId: number) {
+  sqlite.prepare("UPDATE estimate_dents SET group_id=NULL,line_item_id=NULL,updated_at=? WHERE group_id=?").run(stamp(), groupId);
+  sqlite.prepare("UPDATE estimate_dent_groups SET status='removed',line_item_id=NULL,removed_at=?,updated_at=? WHERE id=?").run(stamp(), stamp(), groupId);
+}
+
+export const showDentDetails = (estimateId: number) =>
+  !!(sqlite.prepare("SELECT show_dent_details s FROM estimate_pricing_options WHERE estimate_id=?").get(estimateId) as any)?.s;
 
 export function registerEstimateDents(app: Express) {
   app.get("/api/estimates/:id/dents", (req, res) => {
@@ -211,7 +459,35 @@ export function registerEstimateDents(app: Express) {
     res.json(listDents(id));
   });
   app.post("/api/estimates/:id/dents", (req, res) => res.json(createDent(Number(req.params.id), req.body)));
-  app.post("/api/estimates/:id/dents/bill", (req, res) => res.json(billDents(Number(req.params.id), req.body)));
+  app.post("/api/estimates/:id/dents/bill", (req, res) => res.json(billIndividually(Number(req.params.id), req.body)));
+  app.post("/api/estimates/:id/dents/reprice", (req, res) => res.json(repriceDents(Number(req.params.id))));
   app.patch("/api/estimates/dents/:id", (req, res) => res.json(updateDent(Number(req.params.id), req.body)));
+  app.put("/api/estimates/dents/:id/price", (req, res) => res.json(overrideDentPrice(Number(req.params.id), req.body)));
   app.delete("/api/estimates/dents/:id", (req, res) => { deleteDent(Number(req.params.id)); res.json({ success: true }); });
+
+  app.get("/api/estimates/:id/dent-groups", (req, res) => {
+    const id = Number(req.params.id);
+    if (!storage.getEstimate(id)) fail("Estimate not found", 404);
+    res.json(listGroups(id));
+  });
+  app.post("/api/estimates/:id/dent-groups", (req, res) => res.json(createPackage(Number(req.params.id), req.body)));
+  app.patch("/api/estimates/dent-groups/:id", (req, res) => res.json(repricePackage(Number(req.params.id), req.body)));
+  app.post("/api/estimates/dent-groups/:id/approve", (req, res) => res.json(approvePackage(Number(req.params.id), req.body)));
+  app.delete("/api/estimates/dent-groups/:id", (req, res) => res.json(removePackage(Number(req.params.id))));
+
+  app.get("/api/estimates/:id/pricing-options", (req, res) => {
+    const id = Number(req.params.id);
+    if (!storage.getEstimate(id)) fail("Estimate not found", 404);
+    res.json({ showDentDetails: showDentDetails(id) });
+  });
+  // Document option only: it never changes the amount billed, so approval is unaffected.
+  app.put("/api/estimates/:id/pricing-options", (req, res) => res.json(sqlite.transaction(() => {
+    const id = Number(req.params.id);
+    editableEstimate(id);
+    const body = req.body || {};
+    if (Object.keys(body).some(k => k !== "showDentDetails") || typeof body.showDentDetails !== "boolean") fail("Choose whether to show dent details to the customer");
+    sqlite.prepare(`INSERT INTO estimate_pricing_options(estimate_id,show_dent_details,updated_at) VALUES(?,?,?)
+      ON CONFLICT(estimate_id) DO UPDATE SET show_dent_details=excluded.show_dent_details,updated_at=excluded.updated_at`).run(id, body.showDentDetails ? 1 : 0, stamp());
+    return { showDentDetails: showDentDetails(id) };
+  }).immediate()));
 }

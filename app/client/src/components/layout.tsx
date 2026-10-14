@@ -203,6 +203,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <button className="text-sm px-2 py-2 underline text-sidebar-foreground" onClick={() => void logout().catch(e => setLogoutError(e.message))}>Sign out</button>
+          <p className="px-2 text-[11px] text-sidebar-foreground/70" data-testid="text-build-version">Version {__BUILD_COMMIT__} · built {__BUILD_DATE__}</p>
           {logoutError && <p role="alert" className="text-xs text-destructive">{logoutError}</p>}
         </div>
       </aside>

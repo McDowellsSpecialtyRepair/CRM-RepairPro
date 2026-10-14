@@ -14,6 +14,7 @@ import { Link, useRoute, useLocation } from "wouter";
 import { WorkPlanning } from "@/components/work-planning";
 import { EstimateDamageMap, TintMatrixPicker } from "@/components/estimate-damage-map";
 import { PdrDentMap } from "@/components/pdr-dent-map";
+import { DentBillingPanel } from "@/components/dent-billing-panel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useEffect, useState, useMemo } from "react";
 import {VinLookup} from "@/components/vin-lookup";
@@ -522,7 +523,7 @@ export default function EstimateBuilder() {
         <SectionHeading id="estimate-section-2" n={2}>Damage map and dent details</SectionHeading>
           {estimate.serviceType === "pdr" && pricingMatrices && linkedVehicle?.vehicleType !== "motorcycle" ? (
             (!estimate.vehicleId || linkedVehicleData)
-              ? <PdrDentMap key={`${estimate.id}-${estimate.vehicleId}`} estimate={estimate} vehicle={linkedVehicle} matrices={pricingMatrices} readOnly={!can("estimates.write") || estimate.status === "invoiced"} />
+              ? <PdrDentMap key={`${estimate.id}-${estimate.vehicleId}`} estimate={estimate} vehicle={linkedVehicle} readOnly={!can("estimates.write") || estimate.status === "invoiced"} />
               : <p className="text-sm text-muted-foreground">Loading the linked vehicle before opening its damage map…</p>
           ) : can("estimates.write")&&estimate.status !== "invoiced" && pricingMatrices && (
             linkedVehicle?.vehicleType==="motorcycle" ? <p className="rounded-md border p-3 text-sm">No motorcycle-specific diagram or automatic matrix is configured. Use the manual line items below and enter an agreed price; car-body pricing is not applied.</p> : estimate.serviceType === "window_tint"
@@ -537,6 +538,7 @@ export default function EstimateBuilder() {
       {/* 3. Pricing, line items, labor, materials, totals and delivery */}
       <section aria-labelledby="estimate-section-3" className="space-y-4" data-testid="estimate-section-3">
       <SectionHeading id="estimate-section-3" n={3}>Pricing, line items, totals and delivery</SectionHeading>
+      {estimate.serviceType === "pdr" && <DentBillingPanel estimate={estimate} readOnly={!can("estimates.write") || estimate.status === "invoiced"} />}
       {unsavedEdits&&<p role="status" className="rounded-md border p-3 text-sm">Unsaved estimate changes. Save or cancel the line, notes, discount or staff assignments before approving, sending or invoicing.</p>}
       {(addLineItem.error || deleteLineItem.error || updateEstimate.error || convertToInvoice.error) && (
         <p role="alert" className="rounded-md border border-destructive/30 p-3 text-sm text-destructive">
