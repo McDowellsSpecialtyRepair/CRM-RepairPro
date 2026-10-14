@@ -40,6 +40,9 @@ try{
  {
   const {p,problems,signIn,nav,reload}=await session({width:1366,height:900},"desktop");
   await p.goto(base+"/");await signIn();
+  const version=(await p.getByTestId("text-build-version").textContent())||"";
+  check("The menu shows the version under test",/^Version [0-9a-f]{7,} · built \d{4}-\d{2}-\d{2}$/.test(version.trim()),version);
+  if(process.env.ACCEPT_EXPECT_VERSION)check(`Running version is ${process.env.ACCEPT_EXPECT_VERSION}`,version.includes(process.env.ACCEPT_EXPECT_VERSION),version);
   // 1. Edit standard dent prices through the normal navigation.
   await nav("Pricing Matrix");
   await p.getByRole("tab",{name:"PDR Dent & Crease"}).click();

@@ -36,7 +36,7 @@ start_server() { # $1 = port
   mkdir -p "$DEMO_DIR"
   (cd "$APP" && DB_PATH="$DB" EMAIL_OUTPUT_DIR="$DEMO_DIR/emails" PORT="$1" \
     setsid -f nohup node dist/index.cjs "--repairpro-demo-port=$1" >>"$DEMO_DIR/server.log" 2>&1 </dev/null)
-  for _ in $(seq 1 150); do is_up "$1" && return 0; sleep 0.2; done
+  for _ in $(seq 1 150); do is_up "$1" && { built_commit >"$DEMO_DIR/running-$1"; return 0; }; sleep 0.2; done
   echo "The demo server did not start. Details: $DEMO_DIR/server.log" >&2
   return 1
 }
@@ -113,12 +113,17 @@ case "${1:-}" in
   start)
     rebuild_if_stale
     [ -f "$DB" ] || create_demo
+    # A server started from an older build keeps the old code in memory: restart it on the new build.
+    if is_up "$PORT" && [ "$(cat "$DEMO_DIR/running-$PORT" 2>/dev/null)" != "$(built_commit)" ]; then
+      echo "Restarting the demo server on the new build $(built_commit)..."; stop_server "$PORT"
+    fi
     if is_up "$PORT"; then echo "RepairPro demo version $(built_commit) is already running on port $PORT."
     else start_server "$PORT" && echo "RepairPro demo version $(built_commit) is running on port $PORT. Your login is in DEMO-LOGIN.md."; fi
     ;;
   status)
-    echo "Checked-out code: $(head_commit)   Built: $(built_commit)   Server on port $PORT: $(is_up "$PORT" && echo running || echo NOT running)"
-    [ "$(built_commit)" = "$(head_commit)" ] || echo "The build is out of date. Run: bash .devcontainer/demo.sh start"
+    echo "Checked-out code: $(head_commit)   Built: $(built_commit)   Server on port $PORT: $(is_up "$PORT" && echo "running $(cat "$DEMO_DIR/running-$PORT" 2>/dev/null || echo "unknown version")" || echo NOT running)"
+    { [ "$(built_commit)" = "$(head_commit)" ] && { ! is_up "$PORT" || [ "$(cat "$DEMO_DIR/running-$PORT" 2>/dev/null)" = "$(built_commit)" ]; }; } \
+      || echo "The demo is not running the checked-out code. Run: bash .devcontainer/demo.sh start"
     ;;
   logs)
     mkdir -p "$DEMO_DIR" && touch "$DEMO_DIR/server.log"
