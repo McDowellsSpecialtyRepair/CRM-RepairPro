@@ -69,9 +69,10 @@ export function PdrPricingEditor() {
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">2. Standard dent prices (per dent)</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto">
+          <p className="text-xs text-muted-foreground mb-2 sm:hidden">Swipe the table sideways to see every vehicle category.</p>
           <table className="text-sm min-w-[420px]">
-            <thead><tr className="text-xs text-muted-foreground"><th className="text-left pr-3 pb-2">Dent size</th>{m.categories.map(c => <th key={c.key} className="text-left px-2 pb-2">{c.label}</th>)}</tr></thead>
-            <tbody>{STANDARD_DENT_SIZES.map(size => <tr key={size}><td className="pr-3 py-1 font-medium">{DENT_SIZE_LABELS[size]}</td>
+            <thead><tr className="text-xs text-muted-foreground"><th className="text-left pr-3 pb-2 sticky left-0 bg-card z-10">Dent size</th>{m.categories.map(c => <th key={c.key} className="text-left px-2 pb-2">{c.label}</th>)}</tr></thead>
+            <tbody>{STANDARD_DENT_SIZES.map(size => <tr key={size}><td className="pr-3 py-1 font-medium sticky left-0 bg-card z-10">{DENT_SIZE_LABELS[size]}</td>
               {m.categories.map(c => <td key={c.key} className="px-2 py-1"><PriceCell label={`Standard ${DENT_SIZE_LABELS[size]} dent price, ${c.label}`} disabled={!editable}
                 value={m.standard.find(r => r.size === size && r.category === c.key)?.price ?? null}
                 onSave={price => save("PUT", "/api/pdr-pricing/standard", { size, category: c.key, price })} /></td>)}</tr>)}
@@ -92,14 +93,14 @@ export function PdrPricingEditor() {
 
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">4. Crease prices (per crease)</CardTitle>
-          <p className="text-xs text-muted-foreground">Length range × severity, for each vehicle category.</p></CardHeader>
+          <p className="text-xs text-muted-foreground">Length range × severity, for each vehicle category. On a phone, swipe a table sideways to see every severity.</p></CardHeader>
         <CardContent className="space-y-4">
           {!m.ranges.length ? <p className="text-sm text-muted-foreground">Add length ranges first (section 3).</p> : m.categories.map(c => (
             <div key={c.key} className="overflow-x-auto">
               <div className="text-sm font-semibold mb-1">{c.label}</div>
               <table className="text-sm min-w-[420px]">
-                <thead><tr className="text-xs text-muted-foreground"><th className="text-left pr-3 pb-2">Length</th>{DENT_SEVERITIES.map(s => <th key={s} className="text-left px-2 pb-2">{DENT_SEVERITY_LABELS[s]}</th>)}</tr></thead>
-                <tbody>{m.ranges.map(r => <tr key={r.id}><td className="pr-3 py-1 font-medium whitespace-nowrap">{lengthRangeLabel(r)}</td>
+                <thead><tr className="text-xs text-muted-foreground"><th className="text-left pr-3 pb-2 sticky left-0 bg-card z-10">Length</th>{DENT_SEVERITIES.map(s => <th key={s} className="text-left px-2 pb-2">{DENT_SEVERITY_LABELS[s]}</th>)}</tr></thead>
+                <tbody>{m.ranges.map(r => <tr key={r.id}><td className="pr-3 py-1 font-medium whitespace-nowrap sticky left-0 bg-card z-10">{lengthRangeLabel(r)}</td>
                   {DENT_SEVERITIES.map(s => <td key={s} className="px-2 py-1"><PriceCell label={`Crease ${lengthRangeLabel(r)} ${DENT_SEVERITY_LABELS[s]} price, ${c.label}`} disabled={!editable}
                     value={m.creasePrices.find(p => p.rangeId === r.id && p.severity === s && p.category === c.key)?.price ?? null}
                     onSave={price => save("PUT", "/api/pdr-pricing/crease", { rangeId: r.id, severity: s, category: c.key, price })} /></td>)}</tr>)}
