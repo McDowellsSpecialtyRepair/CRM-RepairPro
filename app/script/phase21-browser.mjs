@@ -190,6 +190,38 @@ try{
   check(`${label}: no CSP violations or page errors`,problems.length===0,problems.join(" | "));
   await ctx.close();
  }
+ // ---- Regression (Phase 2.2 Codespaces report): when something other than RepairPro answers, or the
+ // server is gone, screens must explain it instead of showing empty tables or unexplained errors. ----
+ {
+  const ctx=await browser.newContext({viewport:{width:1366,height:900}}),p=await ctx.newPage();
+  await p.goto(base+"/#/pricing-matrix");
+  await p.getByLabel("Work email").fill("owner@example.invalid");await p.getByLabel("Password",{exact:true}).fill(password);
+  // A proxy sign-in page (HTML, status 200) instead of price data:
+  await p.route("**/api/pricing-matrices",r=>r.fulfill({status:200,contentType:"text/html",body:"<html><body>Sign in to GitHub</body></html>"}));
+  await p.getByRole("button",{name:"Sign in",exact:true}).click();
+  await p.getByTestId("pricing-load-error").waitFor();
+  check("Pricing Matrix explains a non-RepairPro answer instead of showing 0 entries and $0.00 tables",
+   /could not be loaded/.test(await p.getByTestId("pricing-load-error").textContent())&&await p.getByText("0 stored entries").count()===0&&await p.getByText("$0.00").count()===0);
+  // An empty 404 from something in between (the "Catalog request failed (404)" report):
+  await p.unroute("**/api/pricing-matrices");
+  await p.route("**/print/pricing-matrices",r=>r.fulfill({status:404,body:""}));
+  await p.getByRole("button",{name:"Try again"}).click();
+  await p.getByTestId("pdr-pricing-editor").waitFor();
+  await p.getByRole("button",{name:/Print all pricing/}).click();
+  await p.getByText(/The pricing catalog could not be loaded \(error 404\)\. RepairPro could not reach its server/).waitFor();
+  check("Print all pricing explains an unexplained 404 in plain English",true);
+  await p.keyboard.press("Escape");
+  // The server stops (a stopped codespace): creating a customer must say why it failed.
+  await p.goto(base+"/#/estimates");
+  await p.getByTestId("button-new-estimate").click();
+  await p.getByTestId("button-create-customer-inline").click();
+  await p.getByLabel("First name").fill("Offline");await p.getByLabel("Last name").fill("Check");
+  server.kill("SIGTERM");await new Promise(r=>server.once("exit",r));
+  await p.getByTestId("button-save-quick-customer").click();
+  await p.getByText(/RepairPro could not reach its server, so this was not loaded or saved/).waitFor();
+  check("Creating a customer while the server is unreachable explains why and what to do",await p.getByText("Could not create the customer",{exact:true}).count()===0);
+  await ctx.close();
+ }
  console.log(JSON.stringify({passed:true,results},null,2));
 }catch(e){
  console.error(JSON.stringify({passed:false,error:e.message,results},null,2));process.exitCode=1;

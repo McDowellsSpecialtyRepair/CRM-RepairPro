@@ -42,6 +42,16 @@ These run in CI on every push (`.github/workflows/ci.yml`).
 - **Unchanged:** tax treatment.
 - **Upgrade:** Phase 2.1 dent records keep their billed prices; prices entered by hand become recorded overrides.
 
+`script/phase22-acceptance.mjs` runs the Phase 2.2 owner checklist through the real screens, signed in as the demo owner of a server started with `.devcontainer/demo.sh`:
+- standard and crease pricing: editing, saving, refreshing and reopening
+- dent prices used on an estimate
+- individual billing, panel packages and whole-vehicle packages
+- approval blocks, re-approval, saved prices and explicit repricing
+- printing with dent details off and on
+- section order, at desktop and phone widths
+
+It is local only, because it needs Playwright and Chromium.
+
 `script/phase21-browser.mjs` is a local-only browser check; it needs Playwright and Chromium, which CI does not install. It runs the New Estimate and dent workflow at desktop (1366 px) and phone (390 px) widths. It checks:
 - an inline customer and a VIN-only vehicle
 - the four page sections in order

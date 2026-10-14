@@ -8,6 +8,8 @@
   "hostRequirements": { "cpus": 2 },
   "postCreateCommand": "bash .devcontainer/demo.sh setup",
   "postStartCommand": "bash .devcontainer/demo.sh start",
+  // Shows the request log in a terminal: CRM use then counts as codespace activity (see demo.sh).
+  "postAttachCommand": "bash .devcontainer/demo.sh logs",
   "waitFor": "postCreateCommand",
   "forwardPorts": [5000],
   "portsAttributes": {

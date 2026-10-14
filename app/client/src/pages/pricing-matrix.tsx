@@ -34,7 +34,7 @@ function formatPanel(p: string) {
 }
 
 export default function PricingMatrix() {
-  const { data: matrices, isLoading } = useQuery({
+  const { data: matrices, isLoading, error, refetch } = useQuery({
     queryKey: ["/api/pricing-matrices"],
     queryFn: () => apiRequest("GET", "/api/pricing-matrices"),
   });
@@ -88,7 +88,7 @@ export default function PricingMatrix() {
             Pricing Matrices
           </h1>
           <p className="text-sm text-muted-foreground">
-            {(matrices || []).length} stored entries across {Object.keys(grouped).length} categories, plus {HAIL_REFERENCE_ROWS.length} carrier-source State Farm cells
+            {error ? "Prices not loaded" : `${(matrices || []).length} stored entries across ${Object.keys(grouped).length} categories, plus ${HAIL_REFERENCE_ROWS.length} carrier-source State Farm cells`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -96,7 +96,13 @@ export default function PricingMatrix() {
         </div>
       </div>
 
-      {isLoading ? (
+      {error ? (
+        <Card><CardContent className="p-4 space-y-3" role="alert" data-testid="pricing-load-error">
+          <p className="text-sm font-medium">Prices could not be loaded, so no tables are shown. Nothing has been changed.</p>
+          <p className="text-sm">{(error as Error).message}</p>
+          <Button variant="outline" onClick={() => void refetch()}>Try again</Button>
+        </CardContent></Card>
+      ) : isLoading ? (
         <div className="flex items-center justify-center py-12">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>

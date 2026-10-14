@@ -3,14 +3,36 @@ import { authState } from "./auth-state";
 
 export const API_BASE = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
 
+// Plain-English guidance when the CRM server cannot be reached or answers with something that is
+// not RepairPro data (for example a stopped Codespaces test copy or a GitHub sign-in page).
+export const SERVER_UNREACHABLE =
+  "RepairPro could not reach its server, so this was not loaded or saved. Check your internet connection and try again. " +
+  "In the Codespaces test copy, the codespace stops after about 30 minutes without activity in the codespace editor: " +
+  "open the codespace tab (restart it if asked), then reload this page and sign in again.";
+const notRepairProData = (status: number) =>
+  `The RepairPro server did not answer normally (error ${status}), so this was not loaded or saved. ` + SERVER_UNREACHABLE.slice(SERVER_UNREACHABLE.indexOf("Check"));
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     if (res.status === 401 && authState.get()) { authState.set(null); queryClient.clear(); }
-    const text = (await res.text()) || res.statusText;
-    let message = text;
-    try { const body = JSON.parse(text); message = body.message || body.error || text; } catch {}
+    const text = await res.text().catch(() => "");
+    const type = res.headers.get("content-type") || "";
+    let message = "";
+    try { const body = JSON.parse(text); message = body.message || body.error || ""; } catch {}
+    // An empty reply or a web page (not a RepairPro message) means something in between answered instead.
+    if (!message) message = text.trim() && !type.includes("text/html") ? text.trim() : notRepairProData(res.status);
     throw new Error(message);
   }
+}
+async function send(url: string, init?: RequestInit) {
+  try { return await fetch(`${API_BASE}${url}`, init); }
+  catch { throw new Error(SERVER_UNREACHABLE); }
+}
+// API answers are always JSON. Anything else (such as a sign-in page returned by a proxy) is not data.
+async function json(res: Response) {
+  if ((res.headers.get("content-type") || "").includes("application/json")) return await res.json();
+  if (res.status === 204 || res.headers.get("content-length") === "0") return null;
+  throw new Error(notRepairProData(res.status));
 }
 
 export async function apiRequest(
@@ -18,18 +40,14 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<any> {
-  const res = await fetch(`${API_BASE}${url}`, {
+  const res = await send(url, {
     method,
     headers: { ...(data ? { "Content-Type": "application/json" } : {}), ...(authState.get() ? { Authorization: `Bearer ${authState.get()!.token}` } : {}) },
     body: data ? JSON.stringify(data) : undefined,
   });
 
   await throwIfResNotOk(res);
-  const contentType = res.headers.get("content-type");
-  if (contentType && contentType.includes("application/json")) {
-    return await res.json();
-  }
-  return null;
+  return json(res);
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -38,14 +56,14 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(`${API_BASE}${queryKey.join("/")}`, { headers: authState.get() ? { Authorization: `Bearer ${authState.get()!.token}` } : {} });
+    const res = await send(queryKey.join("/"), { headers: authState.get() ? { Authorization: `Bearer ${authState.get()!.token}` } : {} });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    return json(res);
   };
 
 export const queryClient = new QueryClient({
@@ -68,7 +86,7 @@ export async function printDocument(path: string) {
   if (!popup) throw new Error("Allow the document window to open, then try printing again.");
   popup.document.body.textContent = "Loading authorized document…";
   try {
-    const res = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${authState.get()?.token || ""}` } });
+    const res = await send(path, { headers: { Authorization: `Bearer ${authState.get()?.token || ""}` } });
     await throwIfResNotOk(res);
     const html = await res.text();
     popup.opener = null;
