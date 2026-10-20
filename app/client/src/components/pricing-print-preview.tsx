@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { API_BASE } from "@/lib/queryClient";
+import { API_BASE, SERVER_UNREACHABLE } from "@/lib/queryClient";
 import { authState } from "@/lib/auth-state";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -79,8 +79,9 @@ export function PricingPrintPreview() {
     const id = ++request.current;
     setOpen(true); setBusy(true); setError(""); setHtml(""); setCatalog(null);
     try {
-      const response = await fetch(`${API_BASE}/print/pricing-matrices`, { headers: { Authorization: `Bearer ${authState.get()?.token || ""}` } });
-      if (!response.ok) throw new Error(response.status === 401 ? "Your session expired. Sign in again, then retry printing." : `Catalog request failed (${response.status}). Please retry.`);
+      const response = await fetch(`${API_BASE}/print/pricing-matrices`, { headers: { Authorization: `Bearer ${authState.get()?.token || ""}` } }).catch(() => { throw new Error(SERVER_UNREACHABLE); });
+      if (!response.ok) throw new Error(response.status === 401 ? "Your session expired. Sign in again, then retry printing."
+        : `The pricing catalog could not be loaded (error ${response.status}). ${SERVER_UNREACHABLE}`);
       if (!response.headers.get("content-type")?.includes("text/html")) throw new Error("The server did not return a printable catalog.");
       const text = await response.text(), parsed = parseCatalog(text);
       if (id !== request.current) return;

@@ -7,6 +7,8 @@ import { lineNetCents, requireAllocations, apportion } from "./labor";
 import { savedHailCarriers } from "../shared/hail-reference";
 import { categoryAllowed, categoryTaxable, nonLaborCategory, repairActionsFor, templateAllowed } from "../shared/estimate-rules";
 import { snapshotSales } from "./estimate-sales";
+import { assertPackagesApproved } from "./dent-approval";
+import { customerDentDetail } from "../shared/dents";
 
 export function fail(message: string, status = 400): never {
   throw Object.assign(new Error(message), { status });
@@ -80,6 +82,7 @@ export function updateEstimateSafe(id: number, body: any) {
     if(["vehicleId","assetId","validUntil"].some(k=>Object.hasOwn(body,k)))validateTarget({...est,...body});
     if(body.status==="approved"&&!storage.getEstimateLineItems(id).length)fail("Add line items before approving an estimate");
     if(body.status==="approved")validateEstimateServices(id);
+    if(body.status==="approved")assertPackagesApproved(id,"marked approved");
     if (body.discount !== undefined) data.discount = money(number(body.discount, "Discount"));
     if (body.taxRate !== undefined) number(body.taxRate, "Tax rate", 0, 100);
     if (["discount","taxRate","vehicleId","assetId","jobId"].some(k=>Object.hasOwn(body,k)) && est.status === "approved") {
@@ -138,8 +141,8 @@ export function updateEstimateLine(id:number,body:any){
     if(body.expectedVersion!==old.allocationVersion)fail("This line changed. Reload before editing.",409);
     const line=validatedLine({...old,...body},est.id);
     const dentCount=(sqlite.prepare("SELECT COUNT(*) n FROM estimate_dents WHERE line_item_id=?").get(id) as any).n;
-    if(dentCount&&(line.quantity!==old.quantity||line.panelLocation!==(old.panelLocation||"")||line.damageSize!==(old.damageSize||"")))
-      fail(`This line counts ${dentCount} saved dent record${dentCount===1?"":"s"}. To change the dents, remove this line, edit them in the damage map, then add them again.`,409);
+    if(dentCount&&(line.quantity!==old.quantity||line.unitPrice!==old.unitPrice||line.panelLocation!==(old.panelLocation||"")||line.damageSize!==(old.damageSize||"")))
+      fail(`This line is priced from ${dentCount} saved dent record${dentCount===1?"":"s"}. Change dent prices or the package price under Dent pricing and billing, or remove this line and bill the dents again.`,409);
     if(savedHailCarriers([...storage.getEstimateLineItems(est.id).filter(l=>l.id!==id),line]).length>1)fail("Do not mix carrier-tagged hail lines",409);
     sqlite.prepare("UPDATE estimate_line_items SET service_category=?,description=?,line_type=?,quantity=?,unit=?,unit_price=?,total=?,unit_cost=?,use_tax_rate=?,tax_note=?,repair_action=?,panel_location=?,damage_size=?,damage_severity=?,allocation_version=allocation_version+1 WHERE id=?")
       .run(line.serviceCategory,line.description,line.lineType,line.quantity,line.unit||"each",line.unitPrice,line.total,line.unitCost,line.useTaxRate,line.taxNote,line.repairAction,line.panelLocation||null,line.damageSize||null,line.damageSeverity||null,id);
@@ -167,8 +170,10 @@ export function deleteEstimateLine(id: number) {
     const item = sqlite.prepare("SELECT estimate_id FROM estimate_line_items WHERE id=?").get(id) as any;
     if (!item) fail("Line item not found", 404);
     const est = editableEstimate(item.estimate_id);
-    // Dent records stay; they become unbilled and can be added again from the damage map.
-    sqlite.prepare("UPDATE estimate_dents SET line_item_id=NULL,updated_at=? WHERE line_item_id=?").run(new Date().toISOString(), id);
+    // Dent records stay with their prices; they become unbilled. A package on this line is marked removed (history kept).
+    const stamp = new Date().toISOString();
+    sqlite.prepare("UPDATE estimate_dents SET line_item_id=NULL,group_id=NULL,updated_at=? WHERE line_item_id=?").run(stamp, id);
+    sqlite.prepare("UPDATE estimate_dent_groups SET status='removed',line_item_id=NULL,removed_at=?,updated_at=? WHERE line_item_id=? AND status='active'").run(stamp, stamp, id);
     storage.deleteEstimateLineItem(id);
     if (est.status === "approved") storage.updateEstimate(est.id, { status: "draft", approvedDate: null });
     recalculateEstimate(est.id);
@@ -187,6 +192,7 @@ export function convertEstimate(id: number) {
     const lines = storage.getEstimateLineItems(id);
     if (!lines.length) fail("An invoice must have line items");
     validateEstimateServices(id);
+    assertPackagesApproved(id, "converted to an invoice");
     if (lines.some(i => i.lineType === "legacy")) fail("Classify all lines as parts or labor before invoicing.",409);
     const splits = lines.map(requireAllocations);
     if (lines.some(i => i.quantity <= 0 || i.unitPrice < 0 || i.total < 0))
@@ -204,12 +210,17 @@ export function convertEstimate(id: number) {
       dueDate: addDays(issueDay, 30), notes: est.notes,
     });
     const net = lineNetCents(lines, calculated.discount);
+    const showDetails = !!(sqlite.prepare("SELECT show_dent_details s FROM estimate_pricing_options WHERE estimate_id=?").get(id) as any)?.s;
     for (let index=0;index<lines.length;index++) {
       const it = lines[index];
       const issued = storage.createInvoiceLineItem({
         invoiceId: inv.id, lineType: it.lineType, description: it.description, quantity: it.quantity, unit: it.unit, unitPrice: it.unitPrice, total: it.total,
         serviceCategory:it.serviceCategory,unitCost:it.unitCost,useTaxRate:it.useTaxRate,taxNote:it.taxNote,repairAction:it.repairAction,
       });
+      // Customer-facing dent details, copied only when the estimate is set to show them.
+      if (showDetails) (sqlite.prepare("SELECT panel_name,size,length_in,severity FROM estimate_dents WHERE line_item_id=? ORDER BY id").all(it.id) as any[])
+        .forEach((d, position) => sqlite.prepare("INSERT INTO invoice_line_dent_details(invoice_line_id,position,detail) VALUES(?,?,?)")
+          .run(issued.id, position, customerDentDetail({ panelName: d.panel_name, size: d.size, lengthIn: d.length_in, severity: d.severity })));
       const credits = apportion(net[index],splits[index].map(a => a.share_bps));
       splits[index].forEach((a,i) => sqlite.prepare("INSERT INTO invoice_labor_credits(line_id,technician_id,technician_name,share_bps,net_labor_cents) VALUES(?,?,?,?,?)").run(issued.id,a.technician_id,a.name,a.share_bps,credits[i]));
     }

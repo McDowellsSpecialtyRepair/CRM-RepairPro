@@ -107,14 +107,62 @@ try{
   check(`${label}: dent details persist after reopening and signing in again`,
    await reopened.getByLabel("Severity").textContent()==="Deep"&&await reopened.getByLabel("Location difficulty").textContent()==="Difficult"&&
    await reopened.getByLabel("Paint damage correctable?").textContent()==="No"&&await reopened.getByLabel(/Estimator notes/).inputValue()==="Browser note: behind the brace");
-  // Add to the estimate: the crease needs an entered price first.
-  const toAdd=p.getByTestId("dents-to-add");
-  check(`${label}: Add to estimate waits for the crease price`,await toAdd.getByTestId("button-add-dents").isDisabled());
-  await toAdd.getByLabel("Unit price for Hood: crease").fill("125");
-  await toAdd.getByTestId("button-add-dents").click();
-  await p.getByTestId("estimate-section-3").getByRole("cell",{name:"Hood: crease"}).waitFor();
-  check(`${label}: dents become estimate lines in section 3`,await p.getByTestId("estimate-section-3").getByRole("cell",{name:/^Hood: \w+ dent$/}).count()===1);
-  check(`${label}: dent records remain after adding`,await p.getByTestId("text-dent-summary").getByText("2 on estimate lines").isVisible());
+  // Section 3 billing (Phase 2.2): the crease has no crease matrix price, so it is "pricing incomplete" until entered.
+  const billing=p.getByTestId("card-dent-billing");
+  await billing.waitFor();
+  check(`${label}: unpriced crease shows Pricing incomplete, not $0`,await billing.getByText("Pricing incomplete").first().isVisible());
+  await billing.getByRole("button",{name:"Select all not billed"}).click();
+  check(`${label}: individual billing waits for every selected price`,await billing.getByTestId("button-bill-individually").isDisabled());
+  await billing.getByRole("button",{name:"Enter price"}).click();
+  await billing.getByLabel("Price",{exact:true}).fill("125");
+  await billing.getByRole("button",{name:"Save price"}).click();
+  await billing.getByText(/Entered price by .*No matrix price available/).waitFor();
+  await billing.getByRole("button",{name:"Select all not billed"}).click();
+  await billing.getByTestId("button-bill-individually").click();
+  await p.getByTestId("estimate-section-3").getByRole("cell",{name:/^Hood: crease #\d$/}).waitFor();
+  check(`${label}: individual billing adds one line per dent in section 3`,await p.getByTestId("estimate-section-3").getByRole("cell",{name:/^Hood: (Dime dent|crease) #\d$/}).count()===2);
+  check(`${label}: dent records remain after billing`,await p.getByTestId("text-dent-summary").getByText("2 billed").isVisible());
+  if(label==="desktop"){
+   // Panel package below the calculated total needs management approval.
+   const map=p.getByTestId("card-dent-map");
+   await map.getByTestId("vpanel-option-roof").click();
+   await map.getByTestId("button-add-dent").click();
+   await p.waitForFunction(()=>document.querySelectorAll('[data-testid="card-dent-billing"] [data-testid^="dent-price-"]').length===2);
+   await billing.getByRole("button",{name:"Select all not billed"}).click();
+   await billing.getByTestId("button-panel-package").click();
+   const form=billing.getByTestId("form-package");
+   await form.getByLabel("Package price (you enter it)").fill("100");
+   check(`${label}: package form shows calculated total, price, difference and percent`,await form.getByTestId("package-comparison").getByText("Calculated total").isVisible()&&await form.getByText(/will need approval/).isVisible());
+   await form.getByTestId("button-create-package").click();
+   await billing.getByText("Roof: dent repair package (2 dents)").waitFor();
+   check(`${label}: an unapproved package is flagged and blocks sending`,await billing.getByTestId("text-package-needs-approval").isVisible());
+   await billing.getByRole("button",{name:"Approve package price"}).click();
+   await billing.getByText(/Approved by Owner/).waitFor();
+   check(`${label}: an owner can approve the package price, recording who`,await billing.getByText(/Approved by Owner/).isVisible());
+   await billing.getByTestId("switch-show-dent-details").click();
+   await billing.getByText("Dent details will show on the customer estimate and invoice.").waitFor();
+   check(`${label}: Show dent details to customer can be switched on`,await billing.getByTestId("switch-show-dent-details").isChecked());
+   if(shots)await p.screenshot({path:join(shots,`${label}-billing.png`),fullPage:true});
+   // Management pricing editor.
+   await p.goto(base+"/#/pricing-matrix");
+   const editor=p.getByTestId("pdr-pricing-editor");
+   await editor.waitFor();
+   await editor.getByLabel("New range from inches").fill("1");await editor.getByLabel("New range to inches").fill("6");
+   await editor.getByRole("button",{name:"Add range"}).click();
+   const cell=editor.getByLabel('Crease 1"–6" Deep price, Sedan');
+   await cell.waitFor();
+   await cell.fill("210");await cell.blur();
+   await editor.getByTestId("pricing-save-status").getByText("Saved").waitFor();
+   check(`${label}: management can add a length range and a crease price`,await cell.inputValue()==="210.00");
+   const adj=editor.getByLabel("Crease adjustment, Difficult amount");
+   await editor.getByLabel("Crease adjustment, Difficult type").selectOption("percent");
+   await adj.fill("10");
+   await editor.getByRole("button",{name:"Save"}).first().click();
+   await editor.getByTestId("pricing-save-status").getByText("Saved").waitFor();
+   check(`${label}: management can set a percentage adjustment`,await adj.inputValue()==="10");
+   if(shots)await p.screenshot({path:join(shots,`${label}-pricing-editor.png`),fullPage:true});
+   await p.goto(estimateUrl);await p.getByTestId("card-dent-billing").waitFor();
+  }
   const overflow=await p.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
   check(`${label}: no horizontal page scrolling`,overflow<=1,`overflow ${overflow}px`);
   if(shots)await p.screenshot({path:join(shots,`${label}-estimate.png`),fullPage:true});
@@ -140,6 +188,38 @@ try{
    }
   }
   check(`${label}: no CSP violations or page errors`,problems.length===0,problems.join(" | "));
+  await ctx.close();
+ }
+ // ---- Regression (Phase 2.2 Codespaces report): when something other than RepairPro answers, or the
+ // server is gone, screens must explain it instead of showing empty tables or unexplained errors. ----
+ {
+  const ctx=await browser.newContext({viewport:{width:1366,height:900}}),p=await ctx.newPage();
+  await p.goto(base+"/#/pricing-matrix");
+  await p.getByLabel("Work email").fill("owner@example.invalid");await p.getByLabel("Password",{exact:true}).fill(password);
+  // A proxy sign-in page (HTML, status 200) instead of price data:
+  await p.route("**/api/pricing-matrices",r=>r.fulfill({status:200,contentType:"text/html",body:"<html><body>Sign in to GitHub</body></html>"}));
+  await p.getByRole("button",{name:"Sign in",exact:true}).click();
+  await p.getByTestId("pricing-load-error").waitFor();
+  check("Pricing Matrix explains a non-RepairPro answer instead of showing 0 entries and $0.00 tables",
+   /could not be loaded/.test(await p.getByTestId("pricing-load-error").textContent())&&await p.getByText("0 stored entries").count()===0&&await p.getByText("$0.00").count()===0);
+  // An empty 404 from something in between (the "Catalog request failed (404)" report):
+  await p.unroute("**/api/pricing-matrices");
+  await p.route("**/print/pricing-matrices",r=>r.fulfill({status:404,body:""}));
+  await p.getByRole("button",{name:"Try again"}).click();
+  await p.getByTestId("pdr-pricing-editor").waitFor();
+  await p.getByRole("button",{name:/Print all pricing/}).click();
+  await p.getByText(/The pricing catalog could not be loaded \(error 404\)\. RepairPro could not reach its server/).waitFor();
+  check("Print all pricing explains an unexplained 404 in plain English",true);
+  await p.keyboard.press("Escape");
+  // The server stops (a stopped codespace): creating a customer must say why it failed.
+  await p.goto(base+"/#/estimates");
+  await p.getByTestId("button-new-estimate").click();
+  await p.getByTestId("button-create-customer-inline").click();
+  await p.getByLabel("First name").fill("Offline");await p.getByLabel("Last name").fill("Check");
+  server.kill("SIGTERM");await new Promise(r=>server.once("exit",r));
+  await p.getByTestId("button-save-quick-customer").click();
+  await p.getByText(/RepairPro could not reach its server, so this was not loaded or saved/).waitFor();
+  check("Creating a customer while the server is unreachable explains why and what to do",await p.getByText("Could not create the customer",{exact:true}).count()===0);
   await ctx.close();
  }
  console.log(JSON.stringify({passed:true,results},null,2));

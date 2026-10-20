@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { assertPackagesApproved } from "./dent-approval";
 import { inheritEstimatePlanning } from "./work-orders";
 import { sqlite } from "./storage-db";
 import { storage } from "./storage";
@@ -544,6 +545,7 @@ export function registerOperations(app: Express) {
         if (!e) fail("Estimate not found.", 404);
         const prior = one("SELECT id FROM ops_cases WHERE estimate_id=?", e.id);
         if (prior) return detail(prior.id);
+        assertPackagesApproved(e.id, "moved into production");
         if (e.status !== "approved" || e.invoiceId)
           fail(
             "Start with an approved, uninvoiced estimate. Historical invoices require separate review.",
