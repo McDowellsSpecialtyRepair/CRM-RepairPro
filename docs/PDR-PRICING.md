@@ -19,13 +19,13 @@ Go to **Pricing Matrix → PDR Dent & Crease**. The page has seven numbered sect
 
 1. **Vehicle categories:** Sedan and SUV/Truck to start. Each estimate diagram body style (Sedan, SUV, Pickup) is priced by exactly one category. You can rename a category, add a new one (for example "Full-size truck"), and choose which body styles it prices. Assigning a body style to a category moves it from its old one.
 2. **Standard dent prices:** the price of one dent, by size and vehicle category. These are the prices the CRM already had.
-3. **Length ranges:** for example 1"–6", 7"–12". Whole inches from 1 to 36. Ranges cannot overlap. They are used for crease prices and for optional length adjustments on standard dents.
+3. **Length ranges:** for example 1"–6", 7"–12". Whole inches from 1 to 36. Ranges cannot overlap, so each inch belongs to one range: after 1"–6", the next range starts at 7" (not 6"). "New range from" is filled in with the next free inch, and if a range would overlap, the reason appears right under the Add range button. They are used for crease prices and for optional length adjustments on standard dents.
 4. **Crease prices:** length range × severity (Shallow, Medium, Deep), for each vehicle category. **These start empty. No amounts are filled in for you.**
 5. **Crease adjustments (optional):** by location difficulty and by panel.
 6. **Standard dent adjustments (optional):** by severity, location difficulty, length range and panel. All blank to start, so standard prices are unchanged.
 7. **Package price approval:** the threshold described below.
 
-Type a price in a cell and press Enter, or click elsewhere, to save it. **Clearing a cell means "not priced".**
+Type a price in a cell and press Enter, or click elsewhere, to save it. **Clearing a cell means "not priced".** A "Saved" notice appears at the bottom of the screen. If something can't be saved, the reason stays there until you dismiss it.
 
 ## How a dent's suggested price is calculated
 

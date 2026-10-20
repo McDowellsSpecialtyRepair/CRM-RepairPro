@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/components/auth-provider";
@@ -38,8 +38,10 @@ export function PdrPricingEditor() {
       queryClient.invalidateQueries({ queryKey: ["/api/pricing-matrices"] });
       setMessage("Saved");
       return true;
-    } catch (e: any) { setMessage(e.message || "Not saved"); return false; }
+    } catch (e: any) { setMessage(e.message || "Please try again."); return false; }
   };
+  // "Saved" clears itself so it never covers the page; an error stays until dismissed or the next save.
+  useEffect(() => { if (message !== "Saved") return; const t = setTimeout(() => setMessage(""), 4000); return () => clearTimeout(t); }, [message]);
   if (isLoading || !m) return <p className="text-sm">{error ? (error as any).message : "Loading PDR pricing…"}</p>;
   const adj = (appliesTo: string, dimension: string, value: string) => m.adjustments.find(a => a.appliesTo === appliesTo && a.dimension === dimension && a.value === value);
   const putAdj = (appliesTo: string, dimension: string, value: string, kind: string, amount: number | null) =>
@@ -47,13 +49,16 @@ export function PdrPricingEditor() {
 
   return (
     <div className="space-y-4" data-testid="pdr-pricing-editor">
+      {message && <p role="status" data-testid="pricing-save-status"
+        className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-max max-w-[92vw] rounded-md border bg-card px-4 py-2 text-sm shadow-lg ${message === "Saved" ? "text-muted-foreground" : "text-destructive border-destructive"}`}>
+        {message === "Saved" ? "Saved" : <>Not saved: {message}</>}
+        {message !== "Saved" && <button type="button" className="ml-3 underline" onClick={() => setMessage("")}>Dismiss</button>}</p>}
       <Card>
         <CardContent className="p-4 space-y-2 text-sm">
           <p><strong>How a dent's suggested price is calculated:</strong> the base price from the tables below, plus any adjustments that apply to that dent. A percentage adjustment is a percent of the base price.</p>
           <p>A <strong>blank cell means "not priced"</strong>: the estimator must enter that dent's price, and package comparisons show "Pricing incomplete". Blank adjustments mean no adjustment.</p>
           <p>Changing prices here <strong>does not change any estimate already priced</strong>. On an estimate, staff can choose "Reprice from current matrix", which is recorded in the audit history.</p>
           {!editable && <p className="text-amber-700">You can view these prices. Changing them requires the "Manage pricing" permission (owner, administrator or manager).</p>}
-          {message && <p role="status" className={message === "Saved" ? "text-muted-foreground" : "text-destructive"} data-testid="pricing-save-status">{message}</p>}
         </CardContent>
       </Card>
 
@@ -87,7 +92,7 @@ export function PdrPricingEditor() {
         <CardContent className="space-y-2">
           {!m.ranges.length && <p className="text-sm text-muted-foreground">No length ranges yet. Add one to start entering crease prices.</p>}
           {m.ranges.map(r => <RangeRow key={r.id} r={r} editable={editable} save={save} />)}
-          {editable && <AddRange save={save} />}
+          {editable && <AddRange save={save} ranges={m.ranges} />}
         </CardContent>
       </Card>
 
@@ -203,13 +208,26 @@ function RangeRow({ r, editable, save }: { r: Master["ranges"][number]; editable
       onClick={() => { if (window.confirm(`Remove the ${lengthRangeLabel(r)} range? Its crease prices and length adjustments are removed too. Estimates already priced keep their prices.`)) save("DELETE", `/api/pdr-pricing/ranges/${r.id}`); }}><Trash2 className="h-4 w-4" /></Button>}
   </div>;
 }
-function AddRange({ save }: { save: (m: string, u: string, b?: any) => Promise<boolean> }) {
-  const [from, setFrom] = useState(""), [to, setTo] = useState("");
-  return <div className="flex flex-wrap items-center gap-2 text-sm pt-1">
-    <span>New range from</span><Input aria-label="New range from inches" className="h-9 w-16" inputMode="numeric" value={from} onChange={e => setFrom(e.target.value)} />
-    <span>to</span><Input aria-label="New range to inches" className="h-9 w-16" inputMode="numeric" value={to} onChange={e => setTo(e.target.value)} /><span>inches</span>
-    <Button size="sm" variant="outline" disabled={!from || !to} onClick={async () => { if (await save("POST", "/api/pdr-pricing/ranges", { minIn: Number(from), maxIn: Number(to) })) { setFrom(""); setTo(""); } }}>
-      <Plus className="h-4 w-4 mr-1" /> Add range</Button>
+function AddRange({ save, ranges }: { save: (m: string, u: string, b?: any) => Promise<boolean>; ranges: Master["ranges"] }) {
+  // Ranges are whole inches and may not share an inch, so the next range starts one inch after the highest one.
+  const next = ranges.length ? Math.max(...ranges.map(r => r.maxIn)) + 1 : 1;
+  const [from, setFrom] = useState(""), [to, setTo] = useState(""), [error, setError] = useState("");
+  useEffect(() => { setFrom(next <= 36 ? String(next) : ""); setError(""); }, [next]);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: "nearest" }); }, [error]);
+  return <div className="space-y-1 pt-1" data-testid="add-range">
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <span>New range from</span><Input aria-label="New range from inches" className="h-9 w-16" inputMode="numeric" value={from} onChange={e => { setFrom(e.target.value); setError(""); }} />
+      <span>to</span><Input aria-label="New range to inches" className="h-9 w-16" inputMode="numeric" value={to} onChange={e => { setTo(e.target.value); setError(""); }} /><span>inches</span>
+      <Button size="sm" variant="outline" disabled={!from || !to} onClick={async () => {
+        const f = Number(from), t = Number(to), clash = ranges.find(r => f <= r.maxIn && t >= r.minIn);
+        if (clash) { setError(`${lengthRangeLabel({ minIn: f, maxIn: t })} overlaps the existing ${lengthRangeLabel(clash)} range. Ranges cannot overlap: each inch belongs to one range. Start the new range at ${clash.maxIn + 1}" or change the existing range.`); return; }
+        if (await save("POST", "/api/pdr-pricing/ranges", { minIn: f, maxIn: t })) { setTo(""); setError(""); }
+      }}><Plus className="h-4 w-4 mr-1" /> Add range</Button>
+    </div>
+    {next > 1 && next <= 36 && <p className="text-xs text-muted-foreground">The next range starts at {next}" because {next - 1}" is already in a range.</p>}
+    {next > 36 && <p className="text-xs text-muted-foreground">Every inch from 1" to 36" is already in a range. To change one, edit it above.</p>}
+    {error && <p ref={errorRef} role="alert" className="text-sm text-destructive" data-testid="range-error">{error}</p>}
   </div>;
 }
 

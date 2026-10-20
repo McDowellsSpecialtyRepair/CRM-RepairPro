@@ -150,7 +150,7 @@ const checkCategory = (key: any) => { if (!categories().some(c => c.key === key)
 const checkRanges = (list: { id?: number; minIn: number; maxIn: number }[]) => {
   const sorted = [...list].sort((a, b) => a.minIn - b.minIn);
   for (let i = 1; i < sorted.length; i++) if (sorted[i].minIn <= sorted[i - 1].maxIn)
-    fail(`Length ranges cannot overlap: ${lengthRangeLabel(sorted[i - 1])} and ${lengthRangeLabel(sorted[i])}`);
+    fail(`Length ranges cannot overlap: ${lengthRangeLabel(sorted[i - 1])} and ${lengthRangeLabel(sorted[i])} share inches. Each inch belongs to one range, so start the later range at ${sorted[i - 1].maxIn + 1}".`);
 };
 const rangeBounds = (b: any) => {
   const minIn = b?.minIn, maxIn = b?.maxIn;

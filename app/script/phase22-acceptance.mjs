@@ -32,6 +32,8 @@ async function session(viewport,label){
  const reload=async()=>{await p.reload();await signIn();};
  return {ctx,p,problems,signIn,nav,reload};
 }
+// True when the element is inside the visible window, so the owner can actually see it without scrolling.
+const inView=loc=>loc.evaluate(e=>{const r=e.getBoundingClientRect();return r.height>0&&r.top>=0&&r.bottom<=innerHeight;});
 const shot=async(p,name)=>{if(shots)await p.screenshot({path:join(shots,name+".png"),fullPage:true});};
 
 try{
@@ -55,13 +57,26 @@ try{
   check("A standard dent price change is still there after refreshing and signing in again",await p.getByTestId("pdr-pricing-editor").getByLabel("Standard Dime dent price, Sedan").inputValue()==="130.00");
   // 2. Configure crease pricing.
   const ed=p.getByTestId("pdr-pricing-editor");
-  for(const [a,b] of [["1","6"],["7","12"]]){await ed.getByLabel("New range from inches").fill(a);await ed.getByLabel("New range to inches").fill(b);await ed.getByRole("button",{name:"Add range"}).click();await ed.getByTestId("pricing-save-status").getByText("Saved").waitFor();}
+  const addRange=async(a,b)=>{if(a!==null)await ed.getByLabel("New range from inches").fill(a);await ed.getByLabel("New range to inches").fill(b);await ed.getByRole("button",{name:"Add range"}).click();};
+  await addRange("1","6");await ed.getByTestId("pricing-save-status").getByText("Saved").waitFor();
+  // Owner retest 2026-10-20: a second range that shares the first range's last inch looked like "Add" did nothing,
+  // because the explanation appeared at the top of the page, out of view.
+  await addRange("6","12");
+  const rangeErr=ed.getByTestId("range-error");await rangeErr.waitFor();
+  check("A second range sharing an inch (1\"–6\" then 6\"–12\") explains why, next to the Add range button",
+    /overlaps the existing 1"–6" range/.test(await rangeErr.innerText())&&/Start the new range at 7"/.test(await rangeErr.innerText())&&await inView(rangeErr),await rangeErr.innerText());
+  await ed.getByLabel("New range from inches").fill("");await ed.getByLabel("New range to inches").fill("");
+  await reload();await nav("Pricing Matrix");await p.getByRole("tab",{name:"PDR Dent & Crease"}).click();
+  check("After the first range, \"New range from\" starts at the next free inch (7)",await ed.getByLabel("New range from inches").inputValue()==="7",await ed.getByLabel("New range from inches").inputValue());
+  await addRange(null,"12");const saved=ed.getByTestId("pricing-save-status");await saved.getByText("Saved").waitFor();
+  check("The second range 7\"–12\" is added, and the Saved notice is on screen",await ed.getByTestId("range-error").count()===0&&await inView(saved)&&await ed.getByLabel('Range 7"–12" from inches').count()===1);
   const c1=ed.getByLabel('Crease 1"–6" Deep price, Sedan');await c1.fill("200");await c1.press("Enter");await ed.getByTestId("pricing-save-status").getByText("Saved").waitFor();
   const c2=ed.getByLabel('Crease 7"–12" Medium price, Sedan');await c2.fill("260");await c2.press("Enter");await ed.getByTestId("pricing-save-status").getByText("Saved").waitFor();
   await ed.getByLabel("Crease adjustment, Difficult type").selectOption("percent");
   await ed.getByLabel("Crease adjustment, Difficult amount").fill("10");
   await ed.getByRole("button",{name:"Save"}).first().click();await ed.getByTestId("pricing-save-status").getByText("Saved").waitFor();
-  check("Overlapping range is refused with an explanation",await (async()=>{await ed.getByLabel("New range from inches").fill("5");await ed.getByLabel("New range to inches").fill("8");await ed.getByRole("button",{name:"Add range"}).click();await ed.getByTestId("pricing-save-status").getByText(/cannot overlap/).waitFor();return true;})());
+  check("Overlapping range is refused with an explanation",await (async()=>{await addRange("5","8");await ed.getByTestId("range-error").getByText(/cannot overlap/).waitFor();return true;})());
+  await ed.getByLabel("New range to inches").fill("");
   await shot(p,"desktop-1-pricing-editor");
   await reload();await nav("Pricing Matrix");await p.getByRole("tab",{name:"PDR Dent & Crease"}).click();
   const ed2=p.getByTestId("pdr-pricing-editor");await ed2.waitFor();
@@ -180,6 +195,12 @@ try{
   check("Desktop: no horizontal scrolling",await p.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth)<=1);
   check("Desktop: no CSP violations or page errors",problems.length===0,problems.join(" | "));
   await shot(p,"desktop-4-estimate");
+  check("A PDR estimate's section 2 is titled \"Damage map and dent details\"",(await p.getByTestId("estimate-section-2").locator("h2,h3").first().innerText()).includes("dent details"));
+  // Owner retest 2026-10-20: furniture and other non-dent estimates must not talk about dents.
+  await nav("Estimates");await p.getByText("EST-2026-005",{exact:true}).first().click();
+  const s2=p.getByTestId("estimate-section-2");await s2.waitFor();
+  const s2Title=await s2.locator("h2,h3").first().innerText();
+  check("A furniture estimate's section 2 is titled \"Damage map and damage details\", not dent details",s2Title.includes("damage details")&&!/dent/i.test(s2Title),s2Title);
   // Advisor: can view prices and create packages but cannot change pricing or approve.
   await p.getByRole("button",{name:"Sign out",exact:true}).click();
   results.push({name:"Desktop checklist complete",passed:true});

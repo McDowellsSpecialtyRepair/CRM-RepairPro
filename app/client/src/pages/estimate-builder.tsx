@@ -520,7 +520,7 @@ export default function EstimateBuilder() {
 
       {/* 2. Vehicle damage mapping and individual dent details */}
       <section aria-labelledby="estimate-section-2" className="space-y-2" data-testid="estimate-section-2">
-        <SectionHeading id="estimate-section-2" n={2}>Damage map and dent details</SectionHeading>
+        <SectionHeading id="estimate-section-2" n={2}>{["pdr","hail"].includes(estimate.serviceType) ? "Damage map and dent details" : "Damage map and damage details"}</SectionHeading>
           {estimate.serviceType === "pdr" && pricingMatrices && linkedVehicle?.vehicleType !== "motorcycle" ? (
             (!estimate.vehicleId || linkedVehicleData)
               ? <PdrDentMap key={`${estimate.id}-${estimate.vehicleId}`} estimate={estimate} vehicle={linkedVehicle} readOnly={!can("estimates.write") || estimate.status === "invoiced"} />
