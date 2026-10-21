@@ -18,6 +18,24 @@ Management chose **Option B: estimating first, across every department** (2026-1
 5. **Insurance hail pricing is carrier-specific.** No generalized adjustment (for example "25% aluminum") is treated as a universal rule. Each carrier's prices and rules are entered from that carrier's authorized matrix, with its effective date. They are verified against that document separately, and used only for that carrier's claims.
 6. **Launch-essential vs optional.** Each item is marked as needed for the production launch or optional for later (§9).
 
+## Decision status: final corrections (2026-10-21)
+
+**This section is authoritative.** Where an earlier answer later in this document conflicts with it, this section wins. Earlier rounds are kept below for history.
+
+| Area | Status | Decision |
+|---|---|---|
+| **Customer authorization** | **Approved** | (1) Changes to McDowells' internal costs need no customer re-authorization if the approved scope and price are unchanged. (2) **Any increase in the customer price needs new approval.** (3) Any material addition or change to the work scope needs new approval. (4) Price decreases normally need no new approval, but every revision is documented. (5) Commercial and dealer accounts may have their own approval and PO requirements. (6) Approved prices or work are never changed silently. *(Replaces the conflicting 2026-10-21 wording "no re-authorization is needed for price increases".)* |
+| **Tax** | **Subject to accountant review. No change to any current tax calculation.** | The owner's summary is **not** to be implemented as written. A service-specific tax decision table based on the Idaho State Tax Commission's repair-shop guidance is proposed in §7, "Tax decision table", for the accountant to approve. Until then, RepairPro keeps calculating tax exactly as it does today. |
+| **QuickBooks** | **Business information, subject to bookkeeper validation** | McDowells uses **QuickBooks Desktop Enterprise 24.0 on an office computer**. The current bookkeeping practice: each technician is a Class, each work order is a Job, and Sales Reps are used for commissions. This is recorded as **current practice to validate with the bookkeeper before any integration**, not as a permanent rule of RepairPro's design. RepairPro's own records stay independent of how QuickBooks is organized. |
+| **Line classifications** | **Approved (field set)**; value lists subject to management review | Each estimate line separately records: **service or skill type**, **item or industry type**, **operating department**, **delivery method**, and **responsible team and technicians** (§7, "Classifications"). |
+| **Split technician / salesperson credit in QuickBooks** | **Deferred to a separate export design, for review with the bookkeeper** | RepairPro records the correct shares internally (people and percentages). How they are exported to QuickBooks is **not decided**. The earlier "one QuickBooks line per share" idea is withdrawn as a decision and kept only as one option. |
+| **Launch scope** | **Proposed; management to decide** | A proposed **minimum launch scope** is in §9. Not every listed feature must be finished before RepairPro can be used. |
+| Estimate-first strategy, order A1 → A2 → B0, mobile in every PR, multi-item before multi-item workflows, line attribution data, carrier-specific hail | **Approved** | See Guiding principles above. |
+| D-1 customer records (separate account, contact, location, served party, item; duplicates merged only after approval; payers see their own jobs; VIN history) | **Approved** (provisional on the U0 design) | — |
+| D-4 work orders and invoices (separate or combined, account defaults, linked to the estimate; scheduled per task) | **Approved** | Invoice grouping and progress billing: subject to bookkeeper review |
+| D-6 technicians (planned on the estimate; actual technicians and % shares on the work order; bonuses follow actuals) | **Approved**; bonus and commission calculation rules subject to management approval later | — |
+| Commission and bonus calculation rules | **Subject to management (and accountant) approval** | Data is recorded from the start; no calculation until approved |
+
 ---
 
 ## 1. Recommended estimating architecture (plain English)
@@ -69,7 +87,7 @@ Today a "customer" is both the payer and the person served, with one address. Th
 - its own lines and an item subtotal
 
 **Lines:** every service module writes the same standard line. It records the following, so commissions, bonuses, production hours, costs and department reports can be calculated later without re-entering anything:
-- **Item and service:** which item, service category, **operating department**, and **service-delivery method** (for example mobile on-site, in-shop, dealer route) (D-3)
+- **Classification (five separate fields, see §7 "Classifications"):** service or skill type; item or industry type; operating department; delivery method; responsible team and technicians. Plus which item the line belongs to, and the price list or estimating screen used.
 - **Estimated production:** labor hours, and the labor standard and version used
 - **Estimated costs:** parts and materials cost, and expected sublet cost
 - **Sales attribution:** salesperson (defaults from the header; can differ per line) and the sales-credit share
@@ -371,60 +389,52 @@ Each PR follows the approved process: branch from `main` → build → automated
 - **(b) Visibility:** a paying account (landlord, warranty company) may see the served party's details and photos for its own jobs.
 - **(c) History:** a vehicle's or item's service history stays in the customer database. Entering the VIN again brings up all previous service records, so staff can tell whether new damage is a warranty issue on McDowells' work. *(Design: VIN search shows prior jobs with dates, technicians and photos, and links to the workmanship warranty claim records that already exist.)*
 
-**D-2 (QuickBooks): QuickBooks Desktop Enterprise 24.0, installed on an office PC.** The bookkeeper's practice:
-- each **technician is a QuickBooks Class**
-- each **work order is a QuickBooks Job** (Customer:Job)
-- **Sales Reps** are used to calculate commissions
-- **materials and shipping are taxed at Idaho's 6%** when itemized on a customer invoice
+**D-2 (QuickBooks): business information to validate with the bookkeeper.**
+- McDowells uses **QuickBooks Desktop Enterprise 24.0 on an office computer**.
+- **Current bookkeeping practice** (to validate, not a design rule): each technician is a QuickBooks Class, each work order is a Job (Customer:Job), and Sales Reps are used to calculate commissions.
+- RepairPro's records (accounts, items, lines, people and shares) are designed independently of QuickBooks. A separate, reviewable **export mapping** decides how they are sent. That keeps the bookkeeper free to change Class, Job or Sales Rep practice later without changing RepairPro's design.
+- **Split credit:** when two technicians or salespeople share a line, RepairPro stores each person's share. How to export a split line (for example one line per share, lead person only, or a summary journal) is decided in the export design with the bookkeeper.
+- **No integration is built** until that design is approved.
 
-What this means for the design:
-- The account becomes the QuickBooks **Customer**, and each work order becomes a **Job** under it. A service location is shown on the job, not as a separate QuickBooks record.
-- **Technician as Class:**
-  - A line split between two technicians can carry only one Class in QuickBooks. The design will transfer one line per technician share (for example 60% / 40%), with amounts that add up exactly to the original line.
-  - *Needs confirmation:* is that how the bookkeeper wants it, or should the Class be the lead technician only?
-- Salesperson and sales-credit share are kept per line, mapped to QuickBooks **Sales Rep**. A line split between salespeople raises the same one-rep-per-line question.
-- **Tax:**
-  - "Materials and shipping taxed at 6% when itemized" matches today for materials and freight-in.
-  - Today, separately stated **delivery** (freight-out) is *not* taxed, and **new fabrication labor** on upholstery *is* taxed. Both stay unchanged until the accountant's written answers (G1).
-- **No integration is built yet.** U0 records this mapping as the target design only.
+**Classifications (corrected 2026-10-21): five separate fields on each line.** Each field has its own list. The fields are combined in reports, so you don't need a separate department for every combination (for example "upholstery for marine customers").
 
-**D-3 (classification): four fields on every line.** Each field has a management-editable list:
-
-| Field | Values |
+| Field | Proposed list (management to confirm or edit) |
 |---|---|
-| **Operating department** | 1. Furniture Repair · 2. Upholstery · 3. Auto Exterior · 4. Auto Interior · 5. Auto Cosmetic Shop |
-| **Service-delivery method** | Dealer Route · Mobile (customer location other than a dealer) · In-Shop |
-| **Responsible team** | Team 1: Dealer Route & Mobile · Team 2: In-Shop (it can default from the delivery method) |
-| **Skill type** | Tinting · Paintless Dent Repair · Detailing · Upholstery Furniture · Upholstery Auto · Upholstery Commercial (hotels, restaurants, medical, fashion designers) · Upholstery Airplane · Upholstery Marine · Upholstery RV |
+| **1. Service or skill type** (what kind of work) | Paintless Dent Repair (including hail) · Window Tinting · Detailing · Paint Correction & Protection (polish, ceramic, PPF) · Headlight & Paint Touch-up · Interior Repair (vinyl, leather, plastic, fabric) · Upholstery · Furniture Repair (wood, finish, structure) · R&I · Handyman |
+| **2. Item or industry type** (what it was done on, or for whom) | Automobile · RV · Marine · Aircraft · Restaurant · Hotel · Medical / Dental · Home · Office / Commercial · Fashion / Designer · Other |
+| **3. Operating department** | Furniture Repair · Upholstery · Auto Exterior · Auto Interior · Auto Cosmetic Shop |
+| **4. Delivery method** | Dealer Route · Mobile (customer location other than a dealer) · In-Shop |
+| **5. Responsible team and technicians** | Team 1: Dealer Route & Mobile · Team 2: In-Shop, plus the planned technicians (actual technicians on the work order) |
 
-Plus the **service category** (the price list and estimating screen used).
+**How this matches management's skill list:**
+- Your list included "Upholstery Furniture / Auto / Commercial / Airplane / Marine / RV". Those become skill type **Upholstery** plus the item or industry type (Home, Automobile, Restaurant/Hotel/Medical/Fashion, Aircraft, Marine, RV).
+- Reports still show "Upholstery: Marine" and so on, with fewer duplicate list entries.
+- *Subject to management review.*
 
-**QuickBooks summarization:** a management-editable mapping decides how lines are grouped when sent to QuickBooks. Lines can go individually by skill type, or combined into groups you define (for example all upholstery skill types as one QuickBooks item), without changing the lines in RepairPro.
+**Defaults:**
+- The estimating screen and the item pre-fill the fields. For example, a PDR line on a car defaults to Paintless Dent Repair · Automobile · Auto Exterior.
+- The account's usual delivery method pre-fills the delivery method, and the team follows from it.
+- Staff can change any of them.
 
-*Needs confirmation (gaps in the skill list):* which skill types cover
-- auto interior repair (vinyl, leather, plastic)
-- hail (under PDR?)
-- headlight restoration, paint scratches and touch-up, polishing and paint correction, PPF, ceramic coatings (under Detailing, or new skill types?)
-- furniture wood repair (Furniture Repair has no skill type yet)
-- handyman work
-
-Also, which department each service belongs to: for example, is window tint Auto Exterior or Auto Cosmetic Shop? A proposed mapping table will be in U0 for approval.
+**QuickBooks grouping:** any combination of these fields can be grouped or kept separate in the export mapping (above). Subject to bookkeeper review.
 
 **D-4 (work orders and invoices):**
 - Work orders can be **separate or combined**, and invoices can be **combined or separate**, chosen per estimate. A **default preference is stored per account**, because some auto and RV dealers want separate invoices sent in the same email and others want one combined invoice.
 - An email can carry several separate invoices.
 - Each invoice stays linked to its work orders, items and the original estimate.
 
-**D-5 (authorization):**
-- **Price decreases and removed repairs:** no re-authorization needed. *(Recorded as "removed repairs and price decreases" — see the confirmation below.)*
-- **(b) Cost changes:** changes to internal costs never need the customer.
-- **(c) PO:** a **"PO required" switch** on each estimate and each work order, defaulting from the account's setting. Some customers need a PO before paying the invoice. When it is on, the invoice can't be marked ready to send until the PO number is recorded.
-- **Phone approvals:** recorded with who approved, when, how (phone), and which staff member took the approval.
-- **Recon manager portal:** dealer recon managers will approve work there, and every approval is tracked to the person (part of the dealer portal, DP1).
-
-> **Needs confirmation (conflict):** the answer says *"no re-authorization is needed for price increases or removed repairs."* The earlier decision (same day) said renewed authorization **is** required for **price increases**, material scope changes and new repairs. The question asked was about price **decreases**.
-> - **Recommended reading:** price **increases** still need re-authorization; price **decreases** and removed repairs do not.
-> - Please confirm, or tell us that increases really need no re-authorization (and whether that applies to every customer or only some).
+**D-5 (authorization): approved policy.** See "Decision status" at the top, which replaces the earlier conflicting wording.
+- New approval is needed for **any increase in the customer price**, and for any material addition or change to the scope.
+- Price decreases normally need no new approval. Internal cost changes need none if the approved scope and price are unchanged.
+- **Every revision is documented:** who changed what, and who approved it (customer person, method, and the staff member who recorded it).
+- **Approved prices or work are never changed silently.**
+- **PO switch** on each estimate and each work order, defaulting from the account. When it is on, the invoice can't be marked ready to send until the PO number is recorded.
+- **Phone approvals:** recorded with who approved, when, and the staff member who took the approval.
+- **Recon managers** approve through the dealer portal later (DP1). Every approval is tracked to the person.
+- **Account-level policy for commercial and dealer accounts:**
+  - who may approve, with optional dollar limits per person
+  - PO required or not
+  - allowed approval methods (in person, phone, PO, portal)
 
 **D-6 (technicians):**
 - The planned technician(s) on the estimate can be changed at any time before the work.
@@ -432,37 +442,57 @@ Also, which department each service belongs to: for example, is window tint Auto
 - **Bonuses are based on who actually did the work and their percentage.** The estimate's planned technicians are kept for comparison only.
 - *(Existing technician labor-credit shares on invoices already work by percentage. The design extends this to work orders.)*
 
-### Tax rules stated by the owner (2026-10-21)
+### Tax decision table (proposed for accountant approval; nothing changes until approved)
 
-**The rule as stated:**
-- Idaho 6% sales tax applies to **materials charged separately** on a customer invoice.
-- It also applies to **shipping charged separately** on a customer invoice.
-- McDowells **pays Idaho use tax on all material purchases not invoiced to the customer**.
+**Status:** the owner's earlier summary ("materials and shipping taxed when separately charged; use tax on materials not invoiced") is **not** being implemented. RepairPro keeps calculating tax exactly as it does today until the accountant approves this table, or a corrected version, in writing.
 
-**Compared with the CRM today:**
+**Source:**
+- the Idaho State Tax Commission's "Repair Shops" guidance
+- IDAPA 35.01.02 (the sales and use tax rules), including Rule 062 (repairs: sale of parts and material)
 
-| Charge | Stated rule | CRM today | Change needed (in G1) |
-|---|---|---|---|
-| Repair labor (all services) | Not taxed (implied) | Not taxed | None |
-| New fabrication labor (upholstery) | Not taxed (implied) | **Taxed** | Make untaxed, **once confirmed** |
-| Materials / parts charged to the customer | Taxed 6% | Taxed | None |
-| Freight-in passed to the customer | Taxed 6% | Taxed | None |
-| Delivery / shipping charged separately to the customer | Taxed 6% | **Not taxed** | Make taxable |
-| Tax-exempt customers | (unchanged) | Not taxed | None |
-| Materials bought and used but **not invoiced** (shop supplies, or materials covered by a labor or package price) | McDowells pays use tax | Use tax recorded only on "shop-consumed supplies" lines, at estimate level | Record use tax on **every** purchased material not billed to the customer, from its purchase cost, and add a use-tax report for filing |
-| "Use tax paid, don't charge sales tax" option on invoiced lines (TAX-004) | Not part of the stated rule | Not built | **Drop** this option, if confirmed |
+The official pages couldn't be opened from our environment, so the points below come from search summaries of those pages:
+- [Repair Shops guidance](https://tax.idaho.gov/taxes/sales-use/guides-for-certain-groups/repair-shops/)
+- [IDAPA 35.01.02.062](https://www.law.cornell.edu/regulations/idaho/IDAPA-35.01.02.062)
+- [current IDAPA 35.01.02 rules (PDF)](https://adminrules.idaho.gov/rules/current/35/350102.pdf)
+- [Sales and use tax examples EPB00778, 07-18-2025](https://tax.idaho.gov/wp-content/uploads/pubs/EPB00778/EPB00778_07-18-2025.pdf)
 
-**Safeguards:**
-- Invoices already issued keep their recorded tax.
-- New rules apply only to new or re-priced estimates.
-- Tax is figured per line, so mixed multi-item estimates come out right.
+The current rule text carries a 7-1-26 amendment date. **The accountant should check the current text.** This is not tax advice.
 
-**To confirm before G1 is built:**
-1. Is this the treatment your accountant has approved? (The earlier plan required the accountant's confirmation before any tax change.)
-2. Is new fabrication labor on upholstery also untaxed?
-3. Should TAX-004 be dropped?
-4. Does the shop pay use tax on any purchases besides materials, such as equipment?
-5. Still open from before (TAX-005): may tax treatment be changed on a work order after the customer approves?
+**What the guidance says (per those summaries):**
+- **Repairs:** separately stated repair labor is not taxable. Parts and materials must be separately stated and are taxable. If parts and labor are combined on one line, the whole amount is taxable.
+- **Fabrication** (making new tangible property) is taxable on the **entire price**, labor included, whether or not the materials are listed separately. Labor to fabricate a part that is then used in a repair is taxable. Pure repair, reconditioning, refitting or refurbishing labor is not fabrication.
+- **Coatings:** the materials portion of a coating is taxable. Labor to apply a coating can be non-taxable in some cases, for example when a previous coating is removed and replaced. **Applying a coating to new property, or to property that was never coated, is treated as fabrication**, so the whole charge is taxable.
+- **Shop supplies consumed in a repair** (rags, towels, masking tape, solvents, sandpaper, buffer pads): the shop pays tax when it **buys** them, and **does not charge** sales tax on them to the customer, even if they are listed on the invoice.
+- **Freight / delivery:** an older (2001) version of the rules said freight-in is part of the taxable sales price and freight-out is not. **The current rule wasn't confirmed.**
+- **Use tax:** owed on taxable items the shop buys without paying Idaho sales tax and then consumes itself. The exact application to McDowells' purchases is for the accountant to confirm.
+
+**Proposed service-specific table**
+
+| # | Situation | Proposed treatment (per guidance) | CRM today | Accountant decision |
+|---|---|---|---|---|
+| T1 | Repair labor, separately stated (PDR, hail, interior repair, furniture repair, upholstery *repair*) | Not taxable | Not taxed | ☐ Approve ☐ Change |
+| T2 | Parts and materials sold to the customer in a repair, separately stated | Taxable | Taxed | ☐ Approve ☐ Change |
+| T3 | Parts and labor **not** separately stated (one combined price, packages) | Whole amount taxable | **Not handled** (package lines are labor today) | ☐ Decide |
+| T4 | **Reupholstery:** replacing the covering on existing furniture or seats | **Unclear:** repair (labor not taxable) or fabrication (all taxable)? | Labor not taxed | ☐ Decide (may need a Tax Commission ruling) |
+| T5 | **New fabrication:** making new cushions, covers or new items | Whole price taxable, including labor | "New fabrication labor" is taxed | ☐ Approve ☐ Change |
+| T6 | **Ceramic coating / paint sealant** on a vehicle | Materials taxable; labor possibly taxable as fabrication if the surface was never coated | No ceramic service yet | ☐ Decide |
+| T7 | **Paint protection film (PPF) and window tint film** installed | **Unclear:** film is taxable material; installation labor may be fabrication or installation | Tint is labor only today | ☐ Decide |
+| T8 | **Polishing / paint correction / detailing / cleaning** (no parts) | **Not confirmed in guidance:** service labor; supplies consumed by the shop | Not offered yet | ☐ Decide |
+| T9 | Headlight restoration (sanding, polish, UV coating) | **Unclear:** repair or coating application | Not offered yet | ☐ Decide |
+| T10 | Shop supplies consumed during the work | Shop pays tax when buying; **don't** charge customer sales tax even if listed | "Shop-consumed supplies" not taxed to customer; optional internal use-tax entry | ☐ Approve ☐ Change |
+| T11 | Freight-in passed through to the customer | Taxable as part of the sales price (older rule) | Taxed | ☐ Confirm with current rule |
+| T12 | Delivery / shipping to the customer, separately stated | **Unconfirmed:** older rule said not taxable; owner believes taxable | Not taxed | ☐ Decide with the current rule |
+| T13 | Materials bought tax-free and used in the shop's own work (not resold) | Use tax owed by the shop | Use tax recorded only on "shop-consumed supplies" lines | ☐ Decide which purchases and how to report |
+| T14 | Tax-exempt customers (exemption or resale certificate on file) | Not taxed; certificate kept | Customer flag (management/accounting only) | ☐ Approve |
+| T15 | Dealer reconditioning for resale | **Unclear:** depends on the dealer's exemption and the item | Per customer flag | ☐ Decide |
+| T16 | Work on boats and aircraft; work for out-of-state customers | **Not researched in detail** (the Tax Commission has a boat-repair page) | Same rules as other work | ☐ Decide |
+| T17 | Warranty-company jobs (billed to a third party) | **Not confirmed** | Per customer flag | ☐ Decide |
+| T18 | Handyman work on real property (homes) | May fall under **contractor** rules (Rule 012), not repair rules | Not offered yet | ☐ Decide |
+
+**When approved, the tax PR (G1) will:**
+- apply the approved table per line, using the line's service type and charge type
+- keep every issued invoice's recorded tax unchanged
+- use the accountant's example cases as automated tests
 
 ### D-4 follow-up: separate or combined work orders, and technician scheduling
 
@@ -539,25 +569,33 @@ Already open and still needed: the logo (M-37); segments and lead sources (M-22)
 
 ---
 
-## 9. Launch-essential vs optional future features
+## 9. Proposed minimum launch scope (management to decide)
 
-"Production launch" means RepairPro becomes McDowells' real system of record for customers, estimates, work orders, invoices and payments.
+"Launch" means RepairPro becomes McDowells' **day-to-day system** for customers, estimates, work orders and invoices.
 
-| Needed for production launch | Optional / later |
-|---|---|
-| Phase 2.2 (PR #5) accepted | Offline drafts and upload queue (M2) |
-| A1, A2, B0, A5 | Customer signature on screen (M3); approval by PO, phone or in person is enough at launch |
-| Universal foundation U0–U4 (customer database, multi-item estimates, photos, price lists for the services offered at launch) | Dealer portal (DP1) |
-| The specialized workflows for the services McDowells sells on day one (**management to choose** which of S1–S11) | Dealer route mode (DR1), unless dealer work is a launch priority |
-| Authorization history and the configurable authorization policy (D-5) | Hail scanner imports, AI photo suggestions |
-| Tax rules approved by the accountant (G1) | Good/better/best presentation polish |
-| Credits, refunds and voids (BILL-01) | Dashboard tabs beyond the essentials (E3), alerts |
-| QuickBooks Desktop transfer, or an approved manual bookkeeping procedure (INT-01) | Marketing campaigns and email sending (F2) |
-| Work orders and a usable schedule (D1 basics) | Technician time clock (D2), if payroll stays manual at launch |
-| Encrypted backups with a tested restore; independent security review; hosting with HTTPS; 40-user load test (SEC-02, HOST-01, OPS-01) | Customer and dealer self-service portals |
-| Staff logins and permissions reviewed; staff training and a short user guide | Upholstery yardage nesting (S8), until the guide is finished |
+**This is a proposal, not a requirement that every feature is finished first.** McDowells can start using RepairPro once the minimum scope works, and keep using its current tools (QuickBooks entry, phone approvals, manual commissions) for everything else.
 
-Commission and bonus **calculations** are not needed at launch if they stay manual, because the attribution data is recorded from A1 and U2 onward. They become essential when management wants RepairPro to calculate them.
+**Proposed minimum launch scope**
+1. Phase 2.2 (PR #5) accepted; A1, A2 and B0 done.
+2. The universal foundation needed for daily estimating: the customer database (U1), multi-item estimates (U2), photos (U3), and price lists for the services sold at launch (U4).
+3. The specialized workflows for the **services McDowells chooses for day one**. Proposal: PDR, R&I, interior repair and upholstery. Management to choose.
+4. Authorization history and the approval/PO policy (D-5).
+5. **Tax exactly as the accountant approves (G1).** If that isn't approved yet, launch with today's calculation only if the accountant agrees.
+6. Work orders and a basic usable schedule.
+7. A way to get invoices into QuickBooks. **Manual entry by the bookkeeper is acceptable at launch.** Automatic transfer can follow.
+8. Essential operations safety: encrypted backups with a tested restore, an independent security review, secure hosting with HTTPS, a load test sized to McDowells' real number of users, reviewed staff permissions, and a short staff guide.
+
+**Can follow after launch (optional or phased)**
+- Offline drafts and upload queue (M2); on-screen customer signature (M3)
+- Dealer route mode (DR1) and the dealer / recon manager portal (DP1)
+- The remaining specialized services (tint, PPF, ceramic, detailing, hail carrier lists, aircraft, handyman, etc.)
+- Upholstery yardage calculator (S8, after the guide)
+- Automatic QuickBooks transfer
+- Credits, refunds and voids. **Recommend an approved manual procedure at launch** if it isn't built yet.
+- Dispatcher board, technician time clock, automatic commission and bonus calculations
+- Dashboards and marketing campaigns
+
+Commission and bonus data is recorded from the start (A1, U2), so calculations can be added later without re-entering history.
 
 ---
 
