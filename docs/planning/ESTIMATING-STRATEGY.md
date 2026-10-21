@@ -432,6 +432,38 @@ Also, which department each service belongs to: for example, is window tint Auto
 - **Bonuses are based on who actually did the work and their percentage.** The estimate's planned technicians are kept for comparison only.
 - *(Existing technician labor-credit shares on invoices already work by percentage. The design extends this to work orders.)*
 
+### Tax rules stated by the owner (2026-10-21)
+
+**The rule as stated:**
+- Idaho 6% sales tax applies to **materials charged separately** on a customer invoice.
+- It also applies to **shipping charged separately** on a customer invoice.
+- McDowells **pays Idaho use tax on all material purchases not invoiced to the customer**.
+
+**Compared with the CRM today:**
+
+| Charge | Stated rule | CRM today | Change needed (in G1) |
+|---|---|---|---|
+| Repair labor (all services) | Not taxed (implied) | Not taxed | None |
+| New fabrication labor (upholstery) | Not taxed (implied) | **Taxed** | Make untaxed, **once confirmed** |
+| Materials / parts charged to the customer | Taxed 6% | Taxed | None |
+| Freight-in passed to the customer | Taxed 6% | Taxed | None |
+| Delivery / shipping charged separately to the customer | Taxed 6% | **Not taxed** | Make taxable |
+| Tax-exempt customers | (unchanged) | Not taxed | None |
+| Materials bought and used but **not invoiced** (shop supplies, or materials covered by a labor or package price) | McDowells pays use tax | Use tax recorded only on "shop-consumed supplies" lines, at estimate level | Record use tax on **every** purchased material not billed to the customer, from its purchase cost, and add a use-tax report for filing |
+| "Use tax paid, don't charge sales tax" option on invoiced lines (TAX-004) | Not part of the stated rule | Not built | **Drop** this option, if confirmed |
+
+**Safeguards:**
+- Invoices already issued keep their recorded tax.
+- New rules apply only to new or re-priced estimates.
+- Tax is figured per line, so mixed multi-item estimates come out right.
+
+**To confirm before G1 is built:**
+1. Is this the treatment your accountant has approved? (The earlier plan required the accountant's confirmation before any tax change.)
+2. Is new fabrication labor on upholstery also untaxed?
+3. Should TAX-004 be dropped?
+4. Does the shop pay use tax on any purchases besides materials, such as equipment?
+5. Still open from before (TAX-005): may tax treatment be changed on a work order after the customer approves?
+
 ### D-4 follow-up: separate or combined work orders, and technician scheduling
 
 Management asked (2026-10-21) to keep **both** separate work orders per item and combined work orders, and to consider how they appear on technician scheduling. Proposed design, to be detailed and mocked up in U0:

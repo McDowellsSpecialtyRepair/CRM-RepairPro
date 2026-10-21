@@ -960,6 +960,7 @@ The document's own build plan (DOC p.26, §13) is followed: audit → metric dic
 
 | Date | Change |
 |---|---|
+| 2026-10-21 | Owner stated the tax rules (materials and shipping charged separately taxed 6%; use tax on materials not invoiced). TAX entries are decided in principle, pending the confirmations in ESTIMATING-STRATEGY §7. |
 | 2026-10-21 | Added requirement types; linked the estimate-first proposal (`ESTIMATING-STRATEGY.md`, awaiting approval). |
 | 2026-10-20 | Added the owner retest list and ideas from public MobileTechRX and VehicleHub materials. Crease range and section 2 heading fixed on PR #5 (b73d9d5). |
 | 2026-10-16 | First draft. Every request in the Word document and the owner's planning message is entered. Code audit statuses are as of PR #5 head 259c20d (main at e94e05f). |
