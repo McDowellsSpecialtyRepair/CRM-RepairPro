@@ -9,6 +9,7 @@
 | 2026-10-20 | M-01 / M-02 Salesperson and service writer | Service writers and service advisors are the same people, so **no new role** is needed. Each estimate shows three people, all editable: **Salesperson**, **Estimator** (when the estimator is a different person) and **Follow-up salesperson** (when the estimate wasn't closed and someone must follow up). |
 | 2026-10-20 | M-35 Several items on one estimate | **Yes.** One estimate for a customer can include several items and services. For example: one car's dents and its seats; a restaurant's several booths and chairs; a hospital's exam tables and waiting room chairs. |
 | 2026-10-20 | M-15b R&I list | The R&I name and price list is **editable by management**. Estimators can add or remove R&I items on an estimate. Each item is tied to the **vehicle type and body panel** it applies to. |
+| 2026-10-21 | **Development direction** | **Option B: estimating first, across all departments.** The estimate is the original business record. It records planned values; work orders, time tracking and accounting record actual outcomes. The customer database must hold every service done for a customer, on any item, at any property, including properties the customer owns but doesn't live at (for example a landlord's tenant's home) and work for third parties (warranty companies' customers). Sales and production data must mirror QuickBooks Desktop Enterprise (A/R, payroll calculations, bookkeeping KPIs). The proposal is in `ESTIMATING-STRATEGY.md`, awaiting approval. |
 | 2026-10-21 | Demo email / M-36 (replaces the 2026-10-20 answer) | The mailbox is hosted by **Google**. **Real outgoing email stays disabled in the Codespaces demo.** No email password is requested, stored in chat, or put in GitHub code. A safe test-only email workflow is designed first (see "Safe test email design" below), then approved separately before any sending is turned on. Demo customers keep reserved, undeliverable sample addresses. |
 | 2026-10-21 | M-04 Customer contact fields (replaces the 2026-10-20 answer) | Every customer record has fields for name, email, phone and a complete address (street, town, state, ZIP). A normal customer record needs **at least one contact method: phone OR email** (not both). A walk-in who can give neither can be saved as a clearly labeled **temporary** customer with incomplete contact information. Missing information is flagged on the customer and the estimate. An estimate **cannot be sent electronically without a valid destination email address**. The duplicate-customer check still runs on every record, including temporary ones. |
 | 2026-10-21 | Salesperson credit | The Salesperson, Estimator and Follow-up salesperson fields must not create a second, duplicate sales-credit field. Existing sales-credit history on estimates and invoices is preserved unchanged. |
@@ -24,6 +25,9 @@ Decision numbers (M-xx) match the references in `REQUIREMENTS-REGISTER.md`. Gaps
 ---
 
 ## Needed now
+
+### Estimate-first design decisions D-1 to D-13
+See `ESTIMATING-STRATEGY.md` §7. D-1 to D-6 are needed before the universal design PR (U0).
 
 ### M-16: Approve and merge PR #5 (Phase 2.2)
 - **Why it matters:** every later pricing PR (B1, B3, B4, C2) builds on Phase 2.2.

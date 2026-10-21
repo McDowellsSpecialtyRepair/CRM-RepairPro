@@ -14,6 +14,7 @@ It goes with three other files:
 | `REQUIREMENTS-REGISTER.md` | Every request, with an ID and status |
 | `MANAGEMENT-DECISIONS.md` | Questions for you, in the order they are needed |
 | This file | Summary, roadmap, pull request plan, data audit, testing strategy, missing references |
+> **2026-10-21: estimate-first direction chosen (Option B).** The proposed revised architecture, roadmap and pull request sequence are in `ESTIMATING-STRATEGY.md`, **awaiting management approval**. Until it is approved, §3 and §4 below remain the last approved plan. Once it is approved, they are rewritten to follow the new sequence. No requirement is removed; marketing, scheduling, dashboard and accounting work keep their requirements and move to Stage 5 or earlier.
 
 ---
 
@@ -107,7 +108,7 @@ The document has 43 pages as laid out by Word (the file properties say 40). It c
 
 ---
 
-## 3. Development roadmap (Deliverable 3)
+## 3. Development roadmap (Deliverable 3), superseded once ESTIMATING-STRATEGY.md is approved
 
 Each step is one pull request, tested by you in Codespaces and merged only with your approval. Each new branch starts from the latest approved `main`.
 

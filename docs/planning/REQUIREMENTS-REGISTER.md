@@ -35,6 +35,18 @@ This register lists every requested change, so nothing is lost between work sess
 | **P2** | An important workflow improvement. |
 | **P3** | Valuable, but it can wait. |
 
+## Requirement types (added 2026-10-21)
+
+| Type | Meaning |
+|---|---|
+| **Approved** | Requested by management (Word document or owner message) or explicitly approved. The *solution* described may still be a proposal. |
+| **Proposed** | An idea from Claude or from industry research, awaiting management approval. |
+| **Verify** | Functionality exists and must be verified before it is relied on. |
+| **Missing info** | Cannot proceed until information or a decision is provided. |
+| **Future dependency** | Required later (for example before launch), or depends on outside material not yet provided. |
+
+The estimate-first proposal (`ESTIMATING-STRATEGY.md`) would change several planned PR codes. The current codes below stay until it is approved.
+
 ## Planned pull requests
 
 The planned pull request (PR) codes are explained in `MASTER-PLAN.md` §4.
@@ -63,122 +75,122 @@ The planned pull request (PR) codes are explained in `MASTER-PLAN.md` §4.
 
 ## Summary table
 
-| ID | Requirement (short) | Source | Status | PR | Priority |
-|---|---|---|---|---|---|
+| ID | Requirement (short) | Source | Status | PR | Priority | Type |
+|---|---|---|---|---|---|---|
 | **Section A: Core CRM** | | | | | |
-| CRM-001 | Price, cost and quantity boxes show an unwanted leading zero | DOC p.1 | Not Started | A1 | P1 |
-| CRM-002 | Service writer not offered as a salesperson | DOC p.1 | Decided 2026-10-20: service writers are service advisors; see CRM-019 | A1 | P1 |
-| CRM-003 | "Could not create the customer" with no reason | DOC p.2–3 | Ready for Testing (PR #5) | PR #5 + A1 | P1 |
-| CRM-004 | Every form explains what went wrong and what to do | DOC p.2 | Partly done; Not Started for a full sweep | A1 | P1 |
-| CRM-005 | Suggestions after 3 characters in every search | DOC p.18 | Already Implemented — Needs Verification (partial) | A2 | P2 |
-| CRM-006 | Search by every useful field | DOC p.18; OWNER §4A | Partial | A2 | P2 |
-| CRM-007 | Choosing a result brings up the whole file | DOC p.18 | Already Implemented — Needs Verification (partial) | A2 | P2 |
-| CRM-008 | Customer creation and editing | OWNER §4A | Already Implemented — Needs Verification | A1 (verify) | P2 |
-| CRM-009 | Vehicle creation and linking | OWNER §4A | Approved and Merged (PR #4) | — (verify in A1) | P2 |
-| CRM-010 | Employee roles and permissions review | OWNER §4A | Partial | A1 (salesperson); E2 (dashboard access) | P2 |
-| CRM-011 | Server connection and Codespaces reliability | OWNER §4A, §7 | Ready for Testing (PR #5) | PR #5 | P1 |
-| CRM-012 | General usability and navigation problems | OWNER §4A | Blocked / Awaiting Decision (needs a list, M-03) | A1 / later | P2 |
-| QA-001 | Automatic "every screen loads" regression check | OWNER §7 | Not Started | A1 | P1 |
-| QA-002 | Guard the demo against production data | OWNER §8 | Partial | A1 | P1 |
-| QA-003 | A demo login for every role | OWNER §7; AUDIT | Not Started | A1 | P2 |
+| CRM-001 | Price, cost and quantity boxes show an unwanted leading zero | DOC p.1 | Not Started | A1 | P1 | Approved |
+| CRM-002 | Service writer not offered as a salesperson | DOC p.1 | Decided 2026-10-20: service writers are service advisors; see CRM-019 | A1 | P1 | Approved |
+| CRM-003 | "Could not create the customer" with no reason | DOC p.2–3 | Ready for Testing (PR #5) | PR #5 + A1 | P1 | Approved |
+| CRM-004 | Every form explains what went wrong and what to do | DOC p.2 | Partly done; Not Started for a full sweep | A1 | P1 | Approved |
+| CRM-005 | Suggestions after 3 characters in every search | DOC p.18 | Already Implemented — Needs Verification (partial) | A2 | P2 | Verify |
+| CRM-006 | Search by every useful field | DOC p.18; OWNER §4A | Partial | A2 | P2 | Approved |
+| CRM-007 | Choosing a result brings up the whole file | DOC p.18 | Already Implemented — Needs Verification (partial) | A2 | P2 | Verify |
+| CRM-008 | Customer creation and editing | OWNER §4A | Already Implemented — Needs Verification | A1 (verify) | P2 | Verify |
+| CRM-009 | Vehicle creation and linking | OWNER §4A | Approved and Merged (PR #4) | — (verify in A1) | P2 | Approved |
+| CRM-010 | Employee roles and permissions review | OWNER §4A | Partial | A1 (salesperson); E2 (dashboard access) | P2 | Approved |
+| CRM-011 | Server connection and Codespaces reliability | OWNER §4A, §7 | Ready for Testing (PR #5) | PR #5 | P1 | Approved |
+| CRM-012 | General usability and navigation problems | OWNER §4A | Blocked / Awaiting Decision (needs a list, M-03) | A1 / later | P2 | Missing info |
+| QA-001 | Automatic "every screen loads" regression check | OWNER §7 | Not Started | A1 | P1 | Approved |
+| QA-002 | Guard the demo against production data | OWNER §8 | Partial | A1 | P1 | Approved |
+| QA-003 | A demo login for every role | OWNER §7; AUDIT | Not Started | A1 | P2 | Approved |
 | **Section B: PDR, hail and R&I** | | | | | |
-| PDR-001 | Individual dent records and damage map | OWNER §4B | Approved and Merged (PR #4) | — | P1 |
-| PDR-002 | Editable standard PDR matrix | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 |
-| PDR-003 | Editable crease matrix | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 |
-| PDR-004 | Dent size, length, severity, location difficulty, notes | OWNER §4B | Merged (records) / Ready for Testing (pricing) | PR #5 | P1 |
-| PDR-005 | Per-dent pricing and recorded overrides | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 |
-| PDR-006 | Panel package at a manual price | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 |
-| PDR-007 | Whole-vehicle package at a manual price | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 |
-| PDR-008 | Pricing permissions and manager approval | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 |
-| PDR-009 | Estimate and invoice presentation | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 |
-| PDR-010 | No duplicate charges; accounting unchanged | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 |
-| PRC-001 | Printing the pricing catalog gives a 404 | DOC p.42 | Ready for Testing (PR #5) | PR #5 | P1 |
-| PRC-002 | Pricing matrices look empty / show $0.00 | DOC p.42 | Part Ready for Testing (PR #5); part Not Started | PR #5 + A1 | P1 |
-| PRC-003 | No way to edit amounts in the non-PDR matrices | DOC p.42 | Not Started | B1 | P1 |
-| HAIL-001 | Audit and test the existing hail estimator | OWNER §4B | Not Started | B2 | P1 |
-| HAIL-002 | Verify source, accuracy and currency of insurance hail matrices | OWNER §4B | Blocked / Awaiting Decision (M-10, M-11) | B2 | P1 |
-| HAIL-003 | Hail source test cannot run (missing reference file) | AUDIT | Not Started | B2 | P2 |
-| RNI-001 | Expandable catalog of vehicle components | OWNER §4B | Not Started | B3 | P1 |
-| RNI-002 | Suggested labor times, only when properly sourced | OWNER §4B | Blocked / Awaiting Decision (M-13) | B3 | P2 |
-| RNI-003 | Editable labor rates and manual price overrides | OWNER §4B | Not Started | B3 | P1 |
-| RNI-004 | One R&I linked to several dents or panels | OWNER §4B | Not Started | B4 | P1 |
-| RNI-005 | R&I in both PDR and hail estimates | OWNER §4B | Not Started (hail has a manual R&I line) | B4 | P1 |
-| RNI-006 | Safety-sensitive manufacturer procedure checks | OWNER §4B | Not Started | B3 | P1 |
-| RNI-007 | Prevent duplicate R&I labor charges | OWNER §4B | Not Started | B4 | P1 |
+| PDR-001 | Individual dent records and damage map | OWNER §4B | Approved and Merged (PR #4) | — | P1 | Approved |
+| PDR-002 | Editable standard PDR matrix | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 | Approved |
+| PDR-003 | Editable crease matrix | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 | Approved |
+| PDR-004 | Dent size, length, severity, location difficulty, notes | OWNER §4B | Merged (records) / Ready for Testing (pricing) | PR #5 | P1 | Approved |
+| PDR-005 | Per-dent pricing and recorded overrides | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 | Approved |
+| PDR-006 | Panel package at a manual price | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 | Approved |
+| PDR-007 | Whole-vehicle package at a manual price | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 | Approved |
+| PDR-008 | Pricing permissions and manager approval | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 | Approved |
+| PDR-009 | Estimate and invoice presentation | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 | Approved |
+| PDR-010 | No duplicate charges; accounting unchanged | OWNER §4B | Ready for Testing (PR #5) | PR #5 | P1 | Approved |
+| PRC-001 | Printing the pricing catalog gives a 404 | DOC p.42 | Ready for Testing (PR #5) | PR #5 | P1 | Approved |
+| PRC-002 | Pricing matrices look empty / show $0.00 | DOC p.42 | Part Ready for Testing (PR #5); part Not Started | PR #5 + A1 | P1 | Approved |
+| PRC-003 | No way to edit amounts in the non-PDR matrices | DOC p.42 | Not Started | B1 | P1 | Approved |
+| HAIL-001 | Audit and test the existing hail estimator | OWNER §4B | Not Started | B2 | P1 | Approved |
+| HAIL-002 | Verify source, accuracy and currency of insurance hail matrices | OWNER §4B | Blocked / Awaiting Decision (M-10, M-11) | B2 | P1 | Missing info |
+| HAIL-003 | Hail source test cannot run (missing reference file) | AUDIT | Not Started | B2 | P2 | Approved |
+| RNI-001 | Expandable catalog of vehicle components | OWNER §4B | Not Started | B3 | P1 | Approved |
+| RNI-002 | Suggested labor times, only when properly sourced | OWNER §4B | Blocked / Awaiting Decision (M-13) | B3 | P2 | Missing info |
+| RNI-003 | Editable labor rates and manual price overrides | OWNER §4B | Not Started | B3 | P1 | Approved |
+| RNI-004 | One R&I linked to several dents or panels | OWNER §4B | Not Started | B4 | P1 | Approved |
+| RNI-005 | R&I in both PDR and hail estimates | OWNER §4B | Not Started (hail has a manual R&I line) | B4 | P1 | Approved |
+| RNI-006 | Safety-sensitive manufacturer procedure checks | OWNER §4B | Not Started | B3 | P1 | Approved |
+| RNI-007 | Prevent duplicate R&I labor charges | OWNER §4B | Not Started | B4 | P1 | Approved |
 | **Section C: Upholstery and furniture** | | | | | |
-| UPH-001 | Upholstery material calculator inside the estimate | DOC p.4–6 | Not Started | C3 | P2 |
-| UPH-002 | Individual components (default) or complete reupholstery | DOC p.5–6 | Not Started | C2/C3 | P2 |
-| UPH-003 | Component measurements; 54-inch roll by default, adjustable | DOC p.6–7, 10 | Not Started | C3 | P2 |
-| UPH-004 | Cutting layout and nesting, grain direction, pattern repeat | DOC p.6–7, 10 | Not Started | C3 | P2 |
-| UPH-005 | Calculated vs ordering yardage; rounding; waste allowance | DOC p.7, 10 | Not Started | C3 | P2 |
-| UPH-006 | Recommended labor hours with an override and a reason | DOC p.7–8 | Not Started | C2 | P2 |
-| UPH-007 | Management-only labor rate matrix by equipment category | DOC p.8–9 | Not Started | C2 | P2 |
-| UPH-008 | Old estimates keep the rates they used | DOC p.9–10 | Not Started (the pattern exists from PDR) | C2/C3 | P1 within module |
-| UPH-009 | Management → Upholstery Pricing screen, expandable | DOC p.9 | Not Started | C2 | P2 |
-| UPH-010 | Quick estimate by category → style → quantity (low/mid/high) | DOC p.10 | Blocked (needs finished guide, M-30) | C3 | P3 |
-| UPH-011 | Safeguards: no double waste; medical/dental material questions | DOC p.10 | Not Started | C3 | P2 |
-| UPH-012 | The document's six calculator acceptance tests | DOC p.10 | Not Started | C3 | P2 |
-| UPH-013 | Import reference yardage data | DOC p.10–17 | Blocked / Awaiting Decision (M-30) | C3 | P3 |
-| UPH-014 | Clickable component diagrams for the 5 categories | DOC p.28–41 | Not Started | C1 | P2 |
-| UPH-015 | Optional foam, padding and other materials | DOC p.6, 10 | Partial (foam replacement action exists) | C2/C3 | P2 |
-| FURN-001 | Many more furniture and booth splat options | DOC p.43 | Blocked / Awaiting Decision (list cut off, M-28) | C1 | P2 |
-| FURN-002 | Booth styles (single, double, channel-tufted, high-back, curved, banquette) | DOC p.11–12 | Not Started | C1 | P2 |
+| UPH-001 | Upholstery material calculator inside the estimate | DOC p.4–6 | Not Started | C3 | P2 | Approved |
+| UPH-002 | Individual components (default) or complete reupholstery | DOC p.5–6 | Not Started | C2/C3 | P2 | Approved |
+| UPH-003 | Component measurements; 54-inch roll by default, adjustable | DOC p.6–7, 10 | Not Started | C3 | P2 | Approved |
+| UPH-004 | Cutting layout and nesting, grain direction, pattern repeat | DOC p.6–7, 10 | Not Started | C3 | P2 | Approved |
+| UPH-005 | Calculated vs ordering yardage; rounding; waste allowance | DOC p.7, 10 | Not Started | C3 | P2 | Approved |
+| UPH-006 | Recommended labor hours with an override and a reason | DOC p.7–8 | Not Started | C2 | P2 | Approved |
+| UPH-007 | Management-only labor rate matrix by equipment category | DOC p.8–9 | Not Started | C2 | P2 | Approved |
+| UPH-008 | Old estimates keep the rates they used | DOC p.9–10 | Not Started (the pattern exists from PDR) | C2/C3 | P1 within module | Approved |
+| UPH-009 | Management → Upholstery Pricing screen, expandable | DOC p.9 | Not Started | C2 | P2 | Approved |
+| UPH-010 | Quick estimate by category → style → quantity (low/mid/high) | DOC p.10 | Blocked (needs finished guide, M-30) | C3 | P3 | Future dependency |
+| UPH-011 | Safeguards: no double waste; medical/dental material questions | DOC p.10 | Not Started | C3 | P2 | Approved |
+| UPH-012 | The document's six calculator acceptance tests | DOC p.10 | Not Started | C3 | P2 | Approved |
+| UPH-013 | Import reference yardage data | DOC p.10–17 | Blocked / Awaiting Decision (M-30) | C3 | P3 | Future dependency |
+| UPH-014 | Clickable component diagrams for the 5 categories | DOC p.28–41 | Not Started | C1 | P2 | Approved |
+| UPH-015 | Optional foam, padding and other materials | DOC p.6, 10 | Partial (foam replacement action exists) | C2/C3 | P2 | Approved |
+| FURN-001 | Many more furniture and booth splat options | DOC p.43 | Blocked / Awaiting Decision (list cut off, M-28) | C1 | P2 | Missing info |
+| FURN-002 | Booth styles (single, double, channel-tufted, high-back, curved, banquette) | DOC p.11–12 | Not Started | C1 | P2 | Approved |
 | **Section D: Scheduling and operations** | | | | | |
-| SCHED-001 | Capacity calendar showed "Failed to fetch" | DOC p.19 | Ready for Testing (PR #5) | PR #5 | P1 |
-| SCHED-002 | Scheduling technicians: availability and assignments | OWNER §4D | Already Implemented — Needs Verification / redesign | D1 | P2 |
-| SCHED-003 | Labor hours sold vs actually worked | OWNER §4D | Partial | D2 | P2 |
-| SCHED-004 | Scheduling gaps and department capacity | OWNER §4D | Partial | D1 | P2 |
-| SCHED-005 | Open and unscheduled work orders | OWNER §4D | Partial | D1 | P2 |
-| SCHED-006 | Job status and completion tracking | OWNER §4D | Already Implemented — Needs Verification | D1 | P2 |
-| SCHED-007 | Technician productivity | OWNER §4D | Partial | D2 | P2 |
-| SCHED-008 | Scheduling stays at the bottom of the estimate page | OWNER §4D | Approved and Merged (PR #4); standing rule | — | P1 |
-| SCHED-009 | Technician time clock (billable, non-billable, travel, rework) | OWNER §4D; DOC p.23 | Partial | D2 | P2 |
-| RNI-008 | R&I tasks carried from estimates into work orders | OWNER §4D | Not Started | D1 | P2 |
+| SCHED-001 | Capacity calendar showed "Failed to fetch" | DOC p.19 | Ready for Testing (PR #5) | PR #5 | P1 | Approved |
+| SCHED-002 | Scheduling technicians: availability and assignments | OWNER §4D | Already Implemented — Needs Verification / redesign | D1 | P2 | Verify |
+| SCHED-003 | Labor hours sold vs actually worked | OWNER §4D | Partial | D2 | P2 | Approved |
+| SCHED-004 | Scheduling gaps and department capacity | OWNER §4D | Partial | D1 | P2 | Approved |
+| SCHED-005 | Open and unscheduled work orders | OWNER §4D | Partial | D1 | P2 | Approved |
+| SCHED-006 | Job status and completion tracking | OWNER §4D | Already Implemented — Needs Verification | D1 | P2 | Verify |
+| SCHED-007 | Technician productivity | OWNER §4D | Partial | D2 | P2 | Approved |
+| SCHED-008 | Scheduling stays at the bottom of the estimate page | OWNER §4D | Approved and Merged (PR #4); standing rule | — | P1 | Approved |
+| SCHED-009 | Technician time clock (billable, non-billable, travel, rework) | OWNER §4D; DOC p.23 | Partial | D2 | P2 | Approved |
+| RNI-008 | R&I tasks carried from estimates into work orders | OWNER §4D | Not Started | D1 | P2 | Approved |
 | **Section E: Dashboard and reporting** | | | | | |
-| DASH-001 | Dashboard "void of useful information" | DOC p.19 | Partial | E2 | P2 |
-| DASH-002 | Executive overview: filters, KPI cards, charts | DOC p.21–22 (§1) | Not Started | E2 | P2 |
-| DASH-003 | Department reporting that reconciles to company totals | DOC p.22 (§2) | Blocked / Awaiting Decision (M-20) | E1/E3 | P2 |
-| DASH-004 | Customer segments and parent accounts | DOC p.22–23 (§3) | Partial | E1/E3 | P2 |
-| DASH-005 | Labor utilization and technician scorecards | DOC p.23 (§4) | Partial | D2/E3 | P2 |
-| DASH-006 | Scheduling capacity and trouble signs | DOC p.23–24 (§5) | Partial | D1/E3 | P2 |
-| DASH-007 | Front lobby sales and closing performance | DOC p.24 (§6) | Partial | E1/E3 | P2 |
-| DASH-008 | Outside sales and dealer visits | DOC p.24 (§7) | Not Started | E1/E3 | P2 |
-| DASH-009 | Financial health and receivables | DOC p.24–25 (§8) | Partial | E2/E3 | P2 |
-| DASH-010 | Layout, tabs, drill-downs, export, printing | DOC p.25 (§9) | Not Started | E2/E3 | P2 |
-| DASH-011 | Data requirements and metric dictionary | DOC p.25 (§10) | Not Started | E1/E2 | P1 within module |
-| DASH-012 | Dashboard permissions enforced on the server | DOC p.25 (§11) | Not Started (the server-side pattern exists) | E2 | P1 within module |
-| DASH-013 | Configurable alerts and goals | DOC p.26 (§12) | Not Started | E3 | P3 |
-| DASH-014 | Follow the document's build plan (audit → dictionary → mockup → code) | DOC p.26 (§13) | In Progress (audit in this plan) | E1–E3 | P1 within module |
+| DASH-001 | Dashboard "void of useful information" | DOC p.19 | Partial | E2 | P2 | Approved |
+| DASH-002 | Executive overview: filters, KPI cards, charts | DOC p.21–22 (§1) | Not Started | E2 | P2 | Approved |
+| DASH-003 | Department reporting that reconciles to company totals | DOC p.22 (§2) | Blocked / Awaiting Decision (M-20) | E1/E3 | P2 | Missing info |
+| DASH-004 | Customer segments and parent accounts | DOC p.22–23 (§3) | Partial | E1/E3 | P2 | Approved |
+| DASH-005 | Labor utilization and technician scorecards | DOC p.23 (§4) | Partial | D2/E3 | P2 | Approved |
+| DASH-006 | Scheduling capacity and trouble signs | DOC p.23–24 (§5) | Partial | D1/E3 | P2 | Approved |
+| DASH-007 | Front lobby sales and closing performance | DOC p.24 (§6) | Partial | E1/E3 | P2 | Approved |
+| DASH-008 | Outside sales and dealer visits | DOC p.24 (§7) | Not Started | E1/E3 | P2 | Approved |
+| DASH-009 | Financial health and receivables | DOC p.24–25 (§8) | Partial | E2/E3 | P2 | Approved |
+| DASH-010 | Layout, tabs, drill-downs, export, printing | DOC p.25 (§9) | Not Started | E2/E3 | P2 | Approved |
+| DASH-011 | Data requirements and metric dictionary | DOC p.25 (§10) | Not Started | E1/E2 | P1 within module | Approved |
+| DASH-012 | Dashboard permissions enforced on the server | DOC p.25 (§11) | Not Started (the server-side pattern exists) | E2 | P1 within module | Approved |
+| DASH-013 | Configurable alerts and goals | DOC p.26 (§12) | Not Started | E3 | P3 | Approved |
+| DASH-014 | Follow the document's build plan (audit → dictionary → mockup → code) | DOC p.26 (§13) | In Progress (audit in this plan) | E1–E3 | P1 within module | Approved |
 | **Section F: Marketing** | | | | | |
-| MKT-001 | Audit existing marketing features | OWNER §4F | Done in this plan (see entry) | — | P2 |
-| MKT-002 | Customer communications (estimate and invoice email) | OWNER §4F | Already Implemented — Needs Verification (not connected) | F2 | P2 |
-| MKT-003 | Email campaigns and follow-ups | OWNER §4F | Not Started (screen disabled) | F2 | P3 |
-| MKT-004 | Referral tracking | OWNER §4F | Partial (free text) | E1/F1 | P2 |
-| MKT-005 | Customer history | OWNER §4F | Already Implemented — Needs Verification | A2 (verify) | P2 |
-| MKT-006 | Leads and opportunities | OWNER §4F | Not Started | E1/F1 | P2 |
-| MKT-007 | Marketing reporting | OWNER §4F | Partial (typed-in counters) | F1/F2 | P3 |
-| MKT-008 | Sales follow-up reminders | OWNER §4F | Partial (manual queue) | F1 | P2 |
-| MKT-009 | Dealer and business account outreach | OWNER §4F | Not Started | E1/F1 | P2 |
-| MKT-010 | Customer segmentation | OWNER §4F | Partial (free text) | E1 | P2 |
+| MKT-001 | Audit existing marketing features | OWNER §4F | Done in this plan (see entry) | — | P2 | Approved |
+| MKT-002 | Customer communications (estimate and invoice email) | OWNER §4F | Already Implemented — Needs Verification (not connected) | F2 | P2 | Verify |
+| MKT-003 | Email campaigns and follow-ups | OWNER §4F | Not Started (screen disabled) | F2 | P3 | Approved |
+| MKT-004 | Referral tracking | OWNER §4F | Partial (free text) | E1/F1 | P2 | Approved |
+| MKT-005 | Customer history | OWNER §4F | Already Implemented — Needs Verification | A2 (verify) | P2 | Verify |
+| MKT-006 | Leads and opportunities | OWNER §4F | Not Started | E1/F1 | P2 | Approved |
+| MKT-007 | Marketing reporting | OWNER §4F | Partial (typed-in counters) | F1/F2 | P3 | Approved |
+| MKT-008 | Sales follow-up reminders | OWNER §4F | Partial (manual queue) | F1 | P2 | Approved |
+| MKT-009 | Dealer and business account outreach | OWNER §4F | Not Started | E1/F1 | P2 | Approved |
+| MKT-010 | Customer segmentation | OWNER §4F | Partial (free text) | E1 | P2 | Approved |
 | **Section G: Accounting and tax** | | | | | |
-| TAX-001 | No sales tax on labor | DOC p.1 | Partial; Blocked / Awaiting Decision (M-05) | G1 | P1 |
-| TAX-002 | Tax parts at 6% by default on estimates and work orders | DOC p.1 | Already Implemented — Needs Verification | G1 (verify) | P1 |
-| TAX-003 | Tax shipping at 6% | DOC p.1 | Partial; Blocked / Awaiting Decision (M-06) | G1 | P1 |
-| TAX-004 | Option not to tax parts or shipping when the shop pays use tax | DOC p.1 | Not Started; Blocked / Awaiting Decision (M-07) | G1 | P1 |
-| TAX-005 | Change tax treatment on the work order after the customer approves | DOC p.1 | Blocked / Awaiting Decision (M-08) | G1 | P1 |
-| TAX-006 | Settings "Sales Tax Rate" box is not connected | AUDIT | Not Started | G1 | P2 |
-| FIN-001 | Preserve invoicing, payments, balances, tax, locks and audit | OWNER §4G | Standing rule | All | P1 |
-| FIN-002 | List financial changes needing accounting approval | OWNER §4G | Done in this plan (MANAGEMENT-DECISIONS.md) | — | P1 |
+| TAX-001 | No sales tax on labor | DOC p.1 | Partial; Blocked / Awaiting Decision (M-05) | G1 | P1 | Missing info |
+| TAX-002 | Tax parts at 6% by default on estimates and work orders | DOC p.1 | Already Implemented — Needs Verification | G1 (verify) | P1 | Verify |
+| TAX-003 | Tax shipping at 6% | DOC p.1 | Partial; Blocked / Awaiting Decision (M-06) | G1 | P1 | Missing info |
+| TAX-004 | Option not to tax parts or shipping when the shop pays use tax | DOC p.1 | Not Started; Blocked / Awaiting Decision (M-07) | G1 | P1 | Missing info |
+| TAX-005 | Change tax treatment on the work order after the customer approves | DOC p.1 | Blocked / Awaiting Decision (M-08) | G1 | P1 | Missing info |
+| TAX-006 | Settings "Sales Tax Rate" box is not connected | AUDIT | Not Started | G1 | P2 | Approved |
+| FIN-001 | Preserve invoicing, payments, balances, tax, locks and audit | OWNER §4G | Standing rule | All | P1 | Approved |
+| FIN-002 | List financial changes needing accounting approval | OWNER §4G | Done in this plan (MANAGEMENT-DECISIONS.md) | — | P1 | Approved |
 | **Existing backlog** | | | | | |
-| BL-EST-01 | Legacy invoice lines with no labor/parts split | BACKLOG | Blocked (accountant) | G1 or later | P1 |
-| BL-BILL-01 | Credit notes, refunds and reversals | BACKLOG | Not Started | later G2 | P1 before launch |
-| BL-INT-01 | QuickBooks Desktop Enterprise transfer | BACKLOG | Not Started | later | P2 |
-| BL-INT-02 | Customer payment portal (Mcdowellsrepair.com) | BACKLOG | Not Started | later | P2 |
-| BL-INT-03 | Dealer approval portal | BACKLOG | Not Started | later | P3 |
-| BL-INT-05 | Public website booking intake | BACKLOG | Not Started | later | P3 |
-| BL-OPS-01 | Proven capacity for about 40 simultaneous users | BACKLOG | Not Started | before launch | P1 before launch |
-| BL-SEC-02 | Independent human security review | BACKLOG | Not Started | before launch | P1 before launch |
-| BL-HOST-01 | Hosting, HTTPS and backups for production | BACKLOG | Deferred to launch | before launch | P1 before launch |
+| BL-EST-01 | Legacy invoice lines with no labor/parts split | BACKLOG | Blocked (accountant) | G1 or later | P1 | Future dependency |
+| BL-BILL-01 | Credit notes, refunds and reversals | BACKLOG | Not Started | later G2 | P1 before launch | Future dependency |
+| BL-INT-01 | QuickBooks Desktop Enterprise transfer | BACKLOG | Not Started | later | P2 | Future dependency |
+| BL-INT-02 | Customer payment portal (Mcdowellsrepair.com) | BACKLOG | Not Started | later | P2 | Future dependency |
+| BL-INT-03 | Dealer approval portal | BACKLOG | Not Started | later | P3 | Future dependency |
+| BL-INT-05 | Public website booking intake | BACKLOG | Not Started | later | P3 | Future dependency |
+| BL-OPS-01 | Proven capacity for about 40 simultaneous users | BACKLOG | Not Started | before launch | P1 before launch | Future dependency |
+| BL-SEC-02 | Independent human security review | BACKLOG | Not Started | before launch | P1 before launch | Future dependency |
+| BL-HOST-01 | Hosting, HTTPS and backups for production | BACKLOG | Deferred to launch | before launch | P1 before launch | Future dependency |
 
 ---
 
@@ -901,41 +913,41 @@ The document's own build plan (DOC p.26, §13) is followed: audit → metric dic
 
 ## Owner retest list, 2026-10-20 (source: OWNER-1020)
 
-| ID | Requirement | Current CRM | Status | PR | Priority |
-|---|---|---|---|---|---|
-| PDR-011 | A second crease length range could not be added | A range sharing an inch with the first (1"–6" then 6"–12") is refused, but the reason showed at the top of the page, out of view. | **Fixed on PR #5 (b73d9d5)**, Ready for Testing | PR #5 | P1 |
-| CRM-013 | Section 2 says "dent details" on furniture and other non-dent estimates | Heading is now "Damage map and damage details" except on PDR and hail | **Fixed on PR #5 (b73d9d5)**, Ready for Testing | PR #5 | P2 |
-| PDR-012 | Left and right roof rails on every body style's diagram and in the price list (glue-pull only, high difficulty) | Not on any diagram | Not Started | B0 | P1 |
-| PDR-013 | "Original factory paint or repainted?" per damaged panel; repainted panels cannot be glue pulled | Not asked | Not Started | B0 | P1 |
-| PDR-014 | "Aluminum or steel?" per panel; aluminum is harder (a price adjustment) | Not asked | Not Started | B0 | P1 |
-| PDR-015 | Expected result: "% of original factory condition", printed on the estimate to set customer expectations | Not available | Not Started | B0 | P1 |
-| SPL-001 | Non-PDR diagrams: each panel is Repair or Replace/Reupholster, each with its own customer price | Today a severity choice (minor = repair 60%, moderate = reupholster, severe = reupholster + foam) | Not Started | B1 | P1 |
-| SPL-002 | Exterior non-PDR services per panel: paint touch-up, paint correction, clear-coat scratch wet sand and buff, polish, ceramic coating | Not available as services or prices | Not Started | B1 | P2 |
-| CRM-014 | Edit customer information from inside the estimate and return: emails, phones, SMS number, address, sales team, how they heard about us | Must leave the estimate | Not Started | A2 | P1 |
-| CRM-015 | Estimate header shows full customer contact: company and individual name, type, address, town, ZIP, phone, email | Shows name, type and vehicle only | Not Started | A2 | P1 |
-| CRM-016 | Line items: separate "what we charge the customer" from job costs (materials purchased, labor hours invested, freight, supplies, taxes) | One combined form, hard to understand | Not Started | A3 | P1 |
-| CRM-017 | One estimate can hold several items and services (for example a car's dents and seats; a restaurant's booths and chairs; a hospital's exam tables and waiting room chairs) | One service and one item per estimate | Not Started; decided 2026-10-20 | A4 | P1 |
-| CRM-018 | Demo invoice shows "QB Synced: QB-INV-1001", but no QuickBooks connection exists | Sample data label (backlog INT-01) | Not Started | A1 | P1 |
-| FIN-003 | Correct unclassified legacy invoice lines and missing technician credits | Shown as "Needs classification"; deliberately not guessed | Blocked / Awaiting Decision (accountant, backlog EST-01) | G1 | P1 |
-| TEAM-001 | Salespeople list and profiles: what they sell, commission rates, which jobs they are on | Salespeople are staff logins with certain roles; no profile page | Not Started | D0 | P1 |
-| TEAM-002 | Technician profiles: skill levels and types, work orders, several technicians per job, remove a technician | Technician list, labor split per line; no skills or profile page | Not Started | D0 | P1 |
-| SCHED-010 | A booking conflict opens the calendar, shows the conflict, and offers to move the date or add a technician | Text message only: "cancel and rebook in Scheduling" | Not Started | D1 | P1 |
-| SCHED-011 | Work order list shows the job address (especially for third-party pay), salesperson and technicians | Shows number, title, customer, service, status and urgency | Not Started | A2 | P2 |
-| SCHED-012 | Dispatcher board for 30+ technicians and up to 60 jobs a day: drag and drop between technicians and days, workload view, sort by technician, area and skill | Two separate basic schedulers | Not Started | D1 | P1 |
-| MKT-011 | Safe test-only email: inspect outgoing estimate and invoice emails without any risk of reaching customers | No email server is connected; copies are saved as files only (verified: every email is addressed to the test mailbox). Real sending stays **disabled** (decision 2026-10-21). | Not Started: a "Test outbox" screen and a single recipient allowlist check, proposed for A1. Real delivery testing is a separate approval later. | A1 | P2 |
-| CRM-020 | Every customer has name, email, phone and complete address fields. Phone OR email is required for a normal record. A labeled temporary record is allowed for walk-ins. Missing information is flagged. Electronic sending needs a valid email. Duplicate checks apply to all records. | Only a name or company is required. No temporary status. Sending is not tied to the customer's email. | Not Started (decided 2026-10-21) | A1 | P1 |
-| CRM-019 | Each estimate shows editable **Salesperson**, **Estimator** and **Follow-up salesperson**, using the existing Service advisor role. No duplicate sales-credit fields; existing sales-credit history preserved. | Sales team split, plus a separate planning salesperson | Not Started; decided 2026-10-20 and 2026-10-21 (replaces the checkbox idea in CRM-002) | A1 | P1 |
-| RNI-009 | R&I name and price list, editable by management; add or remove R&I items on estimates; each item tied to vehicle type and body panel | Hail has one manual R&I line | Not Started; decided 2026-10-20 | B3/B4 | P1 |
-| DOCS-001 | McDowells logo on every printed and emailed estimate, work order, invoice and statement | Printed documents show the business name as plain text, with no logo. There is no work order print or statement yet. | Not Started; needs the logo file (M-37) | A1 (estimates, invoices); D1 (work orders); statements PR | P2 |
-| IDEA-001 | Phone camera VIN scan | VIN typed in, then decoded | Not Started | A2 | P2 |
-| IDEA-002 | Damage photos on estimates and invoices (before/after) | Not available | Not Started | later | P2 |
-| IDEA-003 | Customer price groups (for example dealer vs retail prices) | One price list | Not Started | B1 | P2 |
-| IDEA-004 | Technician pay types: hourly, commission %, flat fee, per client | Labor credit shares only | Not Started | D0 (record only) | P2 |
-| IDEA-005 | Customer signature to approve estimates and work orders | Approval is recorded by staff | Not Started | later | P2 |
-| IDEA-006 | Dealer and customer status portal (live vehicle status) | Not available (backlog INT-03) | Not Started | later | P3 |
-| IDEA-007 | Pre-job and post-job checklists on work orders | QC fields exist | Not Started | D1 | P3 |
-| IDEA-008 | Subcontractor (1099) technicians | Not distinguished | Not Started | D0 | P3 |
-| IDEA-009 | Monthly statements for dealer and fleet accounts | Not available | Not Started | later G | P2 |
+| ID | Requirement | Current CRM | Status | PR | Priority | Type |
+|---|---|---|---|---|---|---|
+| PDR-011 | A second crease length range could not be added | A range sharing an inch with the first (1"–6" then 6"–12") is refused, but the reason showed at the top of the page, out of view. | **Fixed on PR #5 (b73d9d5)**, Ready for Testing | PR #5 | P1 | Approved |
+| CRM-013 | Section 2 says "dent details" on furniture and other non-dent estimates | Heading is now "Damage map and damage details" except on PDR and hail | **Fixed on PR #5 (b73d9d5)**, Ready for Testing | PR #5 | P2 | Approved |
+| PDR-012 | Left and right roof rails on every body style's diagram and in the price list (glue-pull only, high difficulty) | Not on any diagram | Not Started | B0 | P1 | Approved |
+| PDR-013 | "Original factory paint or repainted?" per damaged panel; repainted panels cannot be glue pulled | Not asked | Not Started | B0 | P1 | Approved |
+| PDR-014 | "Aluminum or steel?" per panel; aluminum is harder (a price adjustment) | Not asked | Not Started | B0 | P1 | Approved |
+| PDR-015 | Expected result: "% of original factory condition", printed on the estimate to set customer expectations | Not available | Not Started | B0 | P1 | Approved |
+| SPL-001 | Non-PDR diagrams: each panel is Repair or Replace/Reupholster, each with its own customer price | Today a severity choice (minor = repair 60%, moderate = reupholster, severe = reupholster + foam) | Not Started | B1 | P1 | Approved |
+| SPL-002 | Exterior non-PDR services per panel: paint touch-up, paint correction, clear-coat scratch wet sand and buff, polish, ceramic coating | Not available as services or prices | Not Started | B1 | P2 | Approved |
+| CRM-014 | Edit customer information from inside the estimate and return: emails, phones, SMS number, address, sales team, how they heard about us | Must leave the estimate | Not Started | A2 | P1 | Approved |
+| CRM-015 | Estimate header shows full customer contact: company and individual name, type, address, town, ZIP, phone, email | Shows name, type and vehicle only | Not Started | A2 | P1 | Approved |
+| CRM-016 | Line items: separate "what we charge the customer" from job costs (materials purchased, labor hours invested, freight, supplies, taxes) | One combined form, hard to understand | Not Started | A3 | P1 | Approved |
+| CRM-017 | One estimate can hold several items and services (for example a car's dents and seats; a restaurant's booths and chairs; a hospital's exam tables and waiting room chairs) | One service and one item per estimate | Not Started; decided 2026-10-20 | A4 | P1 | Approved |
+| CRM-018 | Demo invoice shows "QB Synced: QB-INV-1001", but no QuickBooks connection exists | Sample data label (backlog INT-01) | Not Started | A1 | P1 | Approved |
+| FIN-003 | Correct unclassified legacy invoice lines and missing technician credits | Shown as "Needs classification"; deliberately not guessed | Blocked / Awaiting Decision (accountant, backlog EST-01) | G1 | P1 | Missing info |
+| TEAM-001 | Salespeople list and profiles: what they sell, commission rates, which jobs they are on | Salespeople are staff logins with certain roles; no profile page | Not Started | D0 | P1 | Approved |
+| TEAM-002 | Technician profiles: skill levels and types, work orders, several technicians per job, remove a technician | Technician list, labor split per line; no skills or profile page | Not Started | D0 | P1 | Approved |
+| SCHED-010 | A booking conflict opens the calendar, shows the conflict, and offers to move the date or add a technician | Text message only: "cancel and rebook in Scheduling" | Not Started | D1 | P1 | Approved |
+| SCHED-011 | Work order list shows the job address (especially for third-party pay), salesperson and technicians | Shows number, title, customer, service, status and urgency | Not Started | A2 | P2 | Approved |
+| SCHED-012 | Dispatcher board for 30+ technicians and up to 60 jobs a day: drag and drop between technicians and days, workload view, sort by technician, area and skill | Two separate basic schedulers | Not Started | D1 | P1 | Approved |
+| MKT-011 | Safe test-only email: inspect outgoing estimate and invoice emails without any risk of reaching customers | No email server is connected; copies are saved as files only (verified: every email is addressed to the test mailbox). Real sending stays **disabled** (decision 2026-10-21). | Not Started: a "Test outbox" screen and a single recipient allowlist check, proposed for A1. Real delivery testing is a separate approval later. | A1 | P2 | Approved |
+| CRM-020 | Every customer has name, email, phone and complete address fields. Phone OR email is required for a normal record. A labeled temporary record is allowed for walk-ins. Missing information is flagged. Electronic sending needs a valid email. Duplicate checks apply to all records. | Only a name or company is required. No temporary status. Sending is not tied to the customer's email. | Not Started (decided 2026-10-21) | A1 | P1 | Approved |
+| CRM-019 | Each estimate shows editable **Salesperson**, **Estimator** and **Follow-up salesperson**, using the existing Service advisor role. No duplicate sales-credit fields; existing sales-credit history preserved. | Sales team split, plus a separate planning salesperson | Not Started; decided 2026-10-20 and 2026-10-21 (replaces the checkbox idea in CRM-002) | A1 | P1 | Approved |
+| RNI-009 | R&I name and price list, editable by management; add or remove R&I items on estimates; each item tied to vehicle type and body panel | Hail has one manual R&I line | Not Started; decided 2026-10-20 | B3/B4 | P1 | Approved |
+| DOCS-001 | McDowells logo on every printed and emailed estimate, work order, invoice and statement | Printed documents show the business name as plain text, with no logo. There is no work order print or statement yet. | Not Started; needs the logo file (M-37) | A1 (estimates, invoices); D1 (work orders); statements PR | P2 | Approved |
+| IDEA-001 | Phone camera VIN scan | VIN typed in, then decoded | Not Started | A2 | P2 | Proposed |
+| IDEA-002 | Damage photos on estimates and invoices (before/after) | Not available | Not Started | later | P2 | Proposed |
+| IDEA-003 | Customer price groups (for example dealer vs retail prices) | One price list | Not Started | B1 | P2 | Proposed |
+| IDEA-004 | Technician pay types: hourly, commission %, flat fee, per client | Labor credit shares only | Not Started | D0 (record only) | P2 | Proposed |
+| IDEA-005 | Customer signature to approve estimates and work orders | Approval is recorded by staff | Not Started | later | P2 | Proposed |
+| IDEA-006 | Dealer and customer status portal (live vehicle status) | Not available (backlog INT-03) | Not Started | later | P3 | Proposed |
+| IDEA-007 | Pre-job and post-job checklists on work orders | QC fields exist | Not Started | D1 | P3 | Proposed |
+| IDEA-008 | Subcontractor (1099) technicians | Not distinguished | Not Started | D0 | P3 | Proposed |
+| IDEA-009 | Monthly statements for dealer and fleet accounts | Not available | Not Started | later G | P2 | Proposed |
 
 ---
 
@@ -943,5 +955,6 @@ The document's own build plan (DOC p.26, §13) is followed: audit → metric dic
 
 | Date | Change |
 |---|---|
+| 2026-10-21 | Added requirement types; linked the estimate-first proposal (`ESTIMATING-STRATEGY.md`, awaiting approval). |
 | 2026-10-20 | Added the owner retest list and ideas from public MobileTechRX and VehicleHub materials. Crease range and section 2 heading fixed on PR #5 (b73d9d5). |
 | 2026-10-16 | First draft. Every request in the Word document and the owner's planning message is entered. Code audit statuses are as of PR #5 head 259c20d (main at e94e05f). |
