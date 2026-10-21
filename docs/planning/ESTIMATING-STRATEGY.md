@@ -1,6 +1,6 @@
 # CRM-RepairPro: Estimate-First Strategy (PROPOSAL)
 
-**Status: PROPOSED 2026-10-21. Awaiting management approval.**
+**Status: PROPOSED 2026-10-21, revised the same day with management's refinements and answers to D-1 to D-6. Awaiting management approval.**
 - Nothing in this document is built.
 - Nothing here changes application code, the database, prices or permissions.
 - Once it is approved, `MASTER-PLAN.md` §3 and §4 are rewritten to follow it.
@@ -8,6 +8,15 @@
 Management chose **Option B: estimating first, across every department** (2026-10-21). Their reason:
 
 > "The estimate is the foundation of RepairPro." It is the original business record of customer, marketing, sales, production, pricing, cost and approval information. The estimate records **planned** values; work orders, time tracking and accounting record **actual** outcomes.
+
+## Guiding principles (management refinements, 2026-10-21)
+
+1. **Agreed order is kept:** A1 everyday fixes → A2 customer search and customer records → B0 PDR panel details. Then the universal foundation.
+2. **Mobile-friendly from the start.** Every new or changed estimating screen must be usable on phones and tablets in the PR that introduces it, and is tested at phone and tablet sizes before it is offered for approval. Advanced offline work (saving drafts without signal, upload queues) comes later, in M2.
+3. **The universal multi-item estimate comes first.** Upholstery, dealer, hotel, booth, warranty-company and other multi-item workflows are built only on top of it, never on today's one-item estimate.
+4. **Every estimate line carries the attribution data** needed later for sales commissions, technician bonuses, production hours, estimated costs and department reporting (§1, Layer 2). The final calculation rules are approved separately later.
+5. **Insurance hail pricing is carrier-specific.** No generalized adjustment (for example "25% aluminum") is treated as a universal rule. Each carrier's prices and rules are entered from that carrier's authorized matrix, with its effective date. They are verified against that document separately, and used only for that carrier's claims.
+6. **Launch-essential vs optional.** Each item is marked as needed for the production launch or optional for later (§9).
 
 ---
 
@@ -59,7 +68,16 @@ Today a "customer" is both the payer and the person served, with one address. Th
 - its service(s), department, diagram marks, photos, measurements and notes
 - its own lines and an item subtotal
 
-**Lines:** every service module writes the same standard line, which records:
+**Lines:** every service module writes the same standard line. It records the following, so commissions, bonuses, production hours, costs and department reports can be calculated later without re-entering anything:
+- **Item and service:** which item, service category, **operating department**, and **service-delivery method** (for example mobile on-site, in-shop, dealer route) (D-3)
+- **Estimated production:** labor hours, and the labor standard and version used
+- **Estimated costs:** parts and materials cost, and expected sublet cost
+- **Sales attribution:** salesperson (defaults from the header; can differ per line) and the sales-credit share
+- **Production attribution:** planned technician(s) with planned shares. These are plans; the work order records who actually did the work.
+- **Eligibility flags:** commission-eligible, bonus-eligible, and production-credit-eligible, with defaults by line type that management can change
+- **Rule version placeholders:** for the commission and bonus rules once they are approved. Until then the lines are recorded with no calculation.
+
+In addition, each line records:
 - **Type:** labor, part, material, freight, supply, sublet, fee or discount
 - **Classification:** department and service category
 - **Quantity and unit**
@@ -128,7 +146,7 @@ A new service plugs in without changing totals, tax, approvals or invoices.
 
 **Customer price groups:** for example dealer, retail, fleet and warranty company. The fleet discount fields that exist today move here.
 
-**Carrier rules** such as "one upcharge per panel", "oversize $ per dent", "25% aluminum" and "conventional repair when over the grid" are configurable rules, not hard-coded numbers.
+**Carrier price lists are carrier-specific.** Each insurance carrier's grid and its rules (for example how upcharges combine, oversize dents, conventional-repair limits, R&I vs access markup) are entered as that carrier's own price list. Each records the carrier, document title, revision, **effective date**, who verified it against the authorized document, and when. Nothing from one carrier is reused for another, and there are no built-in "industry" adjustments. A claim is priced only from a verified, current matrix for its carrier; otherwise the amounts are entered by hand with a remark.
 
 ### Layer 5: Mobile capture, approval and hand-off (see §6)
 
@@ -139,7 +157,7 @@ A new service plugs in without changing totals, tax, approvals or invoices.
 | Stage | Goal | Why this position |
 |---|---|---|
 | **0** | Finish Phase 2.2 (PR #5) | Already built; waiting for your test. |
-| **1. Stabilize and share** | Everyday fixes, people on estimates, customer contact rules, search, customer file, phone usability of the existing estimate screens | Small, low risk. Every later stage relies on finding customers quickly and naming the right people. |
+| **1. Stabilize and share** | In this order: **A1** everyday fixes and people on estimates → **A2** customer search and customer records → **B0** PDR panel details → **A5** phone usability of the remaining existing screens | The agreed order. Small and low risk. Every later stage relies on finding customers quickly and naming the right people. |
 | **2. Universal foundation** | A **design PR first** (documents and mockups, no code). Then: customer database (accounts, locations, served parties, items), multi-item estimate core, photos, the standard line and price-source framework, editable price lists for every service | Doing this **before** the specialized services avoids building each service on today's one-item estimate and rebuilding it later. |
 | **3. Specialized workflows** | One PR per service family (§3) | Each family can be tested on its own. Upholstery yardage waits only for the guide. |
 | **4. Mobile and dealer** | Offline-capable phone estimating, customer presentation and signature, dealer route mode, dealer portal (separate security design) | Needs the item, photo and approval foundation from Stage 2. |
@@ -147,7 +165,9 @@ A new service plugs in without changing totals, tax, approvals or invoices.
 
 ### A better technical order for some items
 
-- **PDR panel details (roof rails, factory paint, aluminum, expected % of factory condition) stays early (Stage 1).** It adds fields to dent records that already exist, and carries forward into the multi-item design unchanged.
+- **PDR panel details (B0) stays in Stage 1, right after A2, as agreed.** It adds fields to dent records that already exist, and carries forward into the multi-item design unchanged.
+- **Every multi-item workflow waits for U2 (the multi-item core).** That covers upholstery sets (S6–S8), hotel and booth quantities (S6), warranty-company jobs (S9) and dealer route work (DR1). They are never built on today's one-item estimate.
+- **Mobile is part of every PR,** not a stage at the end. Stage 4 only adds offline drafts, customer signature and the dealer screens.
 - **R&I and hail move after the multi-item core.** R&I links to panels on a specific item. Building it before items exist would mean re-linking every R&I record later.
 - **Marketing data capture (lead source, referral, customer segment) moves into Stage 1 and 2, as part of the estimate.** It is no longer a later dashboard PR. This is the estimate-first principle applied: capture it when the estimate is written.
 - **Tax rules (G1) stay independent.** They move as soon as the accountant answers. The per-line tax design in Stage 2 makes that change smaller.
@@ -156,34 +176,34 @@ A new service plugs in without changing totals, tax, approvals or invoices.
 
 ## 3. Proposed pull request sequence
 
-Each PR follows the approved process: branch from `main` → build → automated and browser tests → PR → Codespaces steps → owner test → fixes → merge only with approval.
+Each PR follows the approved process: branch from `main` → build → automated and browser tests (**including phone and tablet sizes for every estimating screen it touches**) → PR → Codespaces steps → owner test → fixes → merge only with approval.
 
 | # | PR | Size | Includes | Needs before starting |
 |---|---|---|---|---|
 | 0 | PR #5: Phase 2.2 PDR pricing | — | Open | Owner test |
 | 1 | **A1: Core fixes and people on estimates** | M | Leading zeros; Salesperson / Estimator / Follow-up (one credit structure, history kept); contact rules (phone OR email, temporary walk-ins, email needed to send); "Not priced"; clear errors; logo; Test outbox; remove fake "QB Synced"; demo guard and role logins; screen-health check | Logo file |
-| 2 | **B0: PDR panel details** | M | Roof rails L/R on every body style and price list; factory or repainted paint (blocks glue pull); aluminum or steel (adjustment); expected % of factory condition printed | — |
-| 3 | **A2: Search, customer file and marketing capture** | M–L | 3-character search everywhere; full contact details in the estimate header; edit the customer from inside the estimate; lead source / referral / segment lists on the estimate; work order list shows address, salesperson and technicians | Segment and lead-source lists (M-22) |
-| 4 | **A5: Phone usability pass on existing estimate screens** | M | Phone-first layout, large touch targets, sticky totals, no sideways scrolling, tested on Android and iPhone sizes | — |
+| 2 | **A2: Search, customer file and marketing capture** | M–L | 3-character search everywhere; full contact details in the estimate header; edit the customer from inside the estimate; lead source / referral / segment lists on the estimate; work order list shows address, salesperson and technicians | Segment and lead-source lists (M-22) |
+| 3 | **B0: PDR panel details** | M | Roof rails L/R on every body style and price list; factory or repainted paint (blocks glue pull); aluminum or steel (adjustment); expected % of factory condition printed | — |
+| 4 | **A5: Phone usability pass on the remaining existing estimate screens** | M | Phone-first layout, large touch targets, sticky totals, no sideways scrolling, tested on Android and iPhone sizes. (Screens changed in A1, A2 and B0 are already made phone-friendly in those PRs.) | — |
 | 5 | **U0: Universal estimate design (documents and mockups only)** | S | Data model, migration plan, QuickBooks mapping, accounting risk list, screen mockups | Decisions D-1 to D-6 (§7) |
 | 6 | **U1: Customer database foundation** | L | Accounts, contacts with approval limits, service locations, served parties, items, claim/authorization; migration of existing customers, payers and fleets; duplicate checks | U0 approved |
 | 7 | **U2: Multi-item estimate core** | L | Items on estimates; per-item lines; per-line tax and department; revisions and supplements; approval history; existing estimates migrated as one-item estimates with identical totals | U1 |
 | 8 | **U3: Photos and attachments** | M | Photos per item and line; phone camera capture; compression; storage limits; included in encrypted backups; customer-visible vs internal | Photo decision (D-7) |
 | 9 | **U4: Price lists and rules framework** | L | Versioned price lists of every type (§1, Layer 4); price groups; option groups (good/better/best, optional); management editing with audit (this replaces "B1") | U2 |
 | 10 | **S1: R&I** | L | Catalog by vehicle type and panel; editable names and prices; suggestions; once-only charging; safety procedure checks | U2, U4 |
-| 11 | **S2: Hail** | M–L | Audit; carrier price lists entered by management with source, version and permission; carrier rule options; supplements; insurer-style printout | Carrier agreements (M-10, M-11) |
+| 11 | **S2: Hail** | M–L | Audit; **carrier-specific** price lists entered by management, each with carrier, revision, effective date, permission and a recorded verification against the authorized document; that carrier's own rules only; supplements; insurer-style printout | Carrier agreements and current documents (M-10, M-11) |
 | 12 | **S3: Auto interior repair** | M | Repair vs replace / reupholster per panel; damage type × material × severity | U4 |
 | 13 | **S4: Appearance services, part 1** | M | Window tint, headlight restoration, exterior scratch / touch-up, polishing / paint correction / wax | U4 |
 | 14 | **S5: Appearance services, part 2** | M | PPF, ceramic coating, interior and exterior detailing; film brand and line; warranty registration ID; deposits | U4 |
-| 15 | **S6: Furniture, booth, hotel and medical diagrams and quantities** | M–L | Diagram library; many identical pieces (hotel quantities); per linear foot or per seat (booths); fabric grade or customer's own material; flammability spec field | Style list (M-28) |
+| 15 | **S6: Furniture, booth, hotel and medical diagrams and quantities** (needs U2) | M–L | Diagram library; many identical pieces (hotel quantities); per linear foot or per seat (booths); fabric grade or customer's own material; flammability spec field | Style list (M-28) |
 | 16 | **S7: Upholstery labor matrix** | M | Management-only rates by category and component; recommended hours with override reason | Rates (M-32); **reminder to send the finished yardage guide** |
 | 17 | **S8: Upholstery yardage calculator** | L | Measurements, nesting on the roll, ordering yardage | **The finished yardage guide (M-30)** |
-| 18 | **S9: Warranty-company and third-party work** | M | Claim and authorization fields; required photo set; "recommend replacement" outcome; bill-to separate from the served party | U1, U3 |
+| 18 | **S9: Warranty-company and third-party work** | M | Claim and authorization fields; required photo set; "recommend replacement" outcome; bill-to separate from the served party | U1, U2, U3 |
 | 19 | **S10: RV, marine, aircraft and medical/dental specifics** | M | Identifiers (HIN, N-number); materials specs; aircraft compliance checklist and document gates; medical disinfectant and cleanability fields | Aircraft scope decision (D-10) |
 | 20 | **S11: Small handyman projects** | S–M | Scope, time and materials, photos | Licensing check (D-11) |
 | 21 | **M2: Offline-capable phone estimating** | L | Install to home screen; drafts saved on the device; photo upload queue; resume; "unsynced" indicator | Offline price policy (D-8); session design security review |
 | 22 | **M3: Customer presentation and signature** | M | Clean customer view; good/better/best choices; e-signature on a revision; deposit request (no payment processing) | U2 |
-| 23 | **DR1: Dealer route mode** | L | Many vehicles in one walk-around; stock number, last 8 of VIN, RO/PO; **VIN history and duplicate-work warning**; per-line approve or decline; batch invoices per dealer | U1–U3 |
+| 23 | **DR1: Dealer route mode** | L | Many vehicles in one walk-around; stock number, last 8 of VIN, RO/PO; **VIN history and duplicate-work warning**; per-line approve or decline under the account's authorization policy; batch invoices per dealer | U1–U3 |
 | 24 | **DP1: Dealer portal (separate security design first)** | L | Dealer logins see only their vehicles and estimates; photos; approve or decline; progress; history where permitted | Independent security review |
 | 25+ | **Stage 5:** team profiles, dispatcher board, time tracking, commission and bonus rules (design and accountant approval), tax (G1), QuickBooks Desktop integration (design), credits and refunds, dashboard, marketing | — | — | Each has its own design and approval |
 
@@ -234,7 +254,7 @@ Each PR follows the approved process: branch from `main` → build → automated
 | Sullivan PDR Estimator | US | Multi-carrier hail matrices; **duplicate VIN and stock-number checks**; technicians see only their own estimates ([4](https://apps.apple.com/app/id849892620)) | — | Duplicate-work warning for dealer routes |
 | Web-Est / PDR-Software | US, Canada, Europe | Several rate profiles; Canadian (toonie) and European matrices ([5](https://www.web-est.com/2013/5/1/web-est-announces-european--canadian-formatted-rate-matrices-added-to-paintless-dent-repair-estimating-software.html)) | Older sources | Size options in coins or millimeters |
 | CCC ONE PDR matrix | US | Count band × size grid of hours or dollars; aluminum and headliner R&I on separate lines ([6](https://help.cccis.com/webhelp/insurance_company/estimating/web/Content/PDR/Adding%20or%20Editing%20a%20PDR%20Line%20Item.htm)) | Licensed software | Same grid structure for carrier price lists |
-| State Farm / USAA / Liberty / Kemper matrices | US | Majority-size pricing, +25% aluminum, $40 per oversize dent, one upcharge per panel, CR over the grid, R&I **or** access markup ([7](https://role-based-content-app-ui.digital.statefarm.com/b2b/pdr/docs/ss_paintless-dent-repair-matrix.pdf), [8](https://core.sca.claims/clientForms/USAA%20HAIL%20Matrix%20for%202025.pdf), [9](https://core.sca.claims/clientForms/Liberty%20Mutual%20HAIL%20Matrix%20for%202025.pdf)) | Carrier documents; no license terms found. Use only with permission. | Configurable carrier rules (S2) |
+| State Farm / USAA / Liberty / Kemper matrices | US | Majority-size pricing, +25% aluminum, $40 per oversize dent, one upcharge per panel, CR over the grid, R&I **or** access markup ([7](https://role-based-content-app-ui.digital.statefarm.com/b2b/pdr/docs/ss_paintless-dent-repair-matrix.pdf), [8](https://core.sca.claims/clientForms/USAA%20HAIL%20Matrix%20for%202025.pdf), [9](https://core.sca.claims/clientForms/Liberty%20Mutual%20HAIL%20Matrix%20for%202025.pdf)) | Carrier documents; no license terms found. Use only with permission. **These rules come from specific carriers' documents on specific dates. They are examples, not industry rules.** | Each carrier entered and verified separately (S2) |
 | DeKoLaKa / AZT tables | Germany | Published time-based dent-repair calculation aid (2020) and hail table; cover push and glue-pull ([10](https://www.azt-automotive.com/_Resources/Persistent/67944739809c2fb3892246bcde1ae08e9a446ed9/DeKoLaKa_Kalkulationshilfe%20Ausbeularbeiten_2020-03-03.pdf)) | Recommendations, not binding | Time-based option (hours per dent) alongside dollars |
 | DAT (SilverDAT, myClaim, FastTrackAI) | Germany / Europe | Hail calculation for refurbishers; photo AI calculation ([11](https://www.autohaus.de/nachrichten/autohandel/dat-verstaerkte-kooperation-mit-aufbereitern-2727494)) | Licensed data | — |
 | France Débosselage / Grele.net | France | Own hail software, insurer exchange (Darva), 3D laser scanning ([12](https://j2rauto.com/carrosserie/milan-le-nouvel-atout-de-france-debosselage-face-a-la-grele)) | — | Later: import dent counts from scanners |
@@ -252,6 +272,8 @@ Each PR follows the approved process: branch from `main` → build → automated
 | Japan, Jiken Center 指数 / Cognivision | Japan | Labor-time index; missed-operation lists; insurer photo sharing ([22](https://www.cognivision.jp/contents/kikancogni/assets/img/cogni19.pdf)) | Licensed |
 | Cilia | Brazil | Photo AI suggests times per operation; >50% claimed share ([23](https://revistaapolice.com.br/2025/05/cilia-protagonista-do-ecossistema-de-sinistros-automotivos)) | — |
 | SCRS Guide to Complete Repair Planning | US | 1,000+ commonly missed operations ([24](https://www.repairerdrivennews.com/?p=16546)) | Guide is free; software tool paid |
+
+**Note on hail:** the carrier rules in table A are summaries of individual carriers' documents, some of them years old. They show what to *model*. They are not prices or rules RepairPro will apply.
 
 **Finding:** collision labor times are licensed databases. **Recommendation:** RepairPro uses only the shop's own measured times and price lists, plus manual entry per estimate, unless a license (for example MOTOR's API) is bought. This is not legal advice; have the subscription terms read.
 
@@ -331,6 +353,43 @@ Each PR follows the approved process: branch from `main` → build → automated
 
 ## 7. Design decisions management must make (before Stage 2)
 
+### Answers received 2026-10-21 and points that still need clarifying
+
+| # | Management answer | Needs clarifying before U0 is final? |
+|---|---|---|
+| D-1 | **Provisionally approved:** separate account, contact, service location, served party and repaired item. Preserve existing customer history; avoid duplicates. | **Yes, three points:**<br>(a) Which matches count as a likely duplicate when existing customers are converted (same phone? same email? same address and name?). Proposal: flag for review and never merge automatically.<br>(b) Privacy: may a paying account (for example a landlord or warranty company) see the served party's contact details and photos? Proposal: yes for their own jobs only.<br>(c) When a vehicle is sold, is the old owner's history visible to the new owner or dealer? Proposal: the history stays with the VIN for internal use; outside users only see their own jobs. |
+| D-2 | **Pending:** QuickBooks edition, installation and bookkeeping practices to be confirmed. No integration is implemented. | **Not blocking U0.** U0 will only reserve neutral places for QuickBooks references, mapping nothing. Needed before any QuickBooks design PR: edition and year, where it runs (office PC or hosted), one company file or several, whether the bookkeeper uses Customer:Job, Classes and Sales Reps, and how sales tax items are set up. |
+| D-3 | **Track both** the repair/service category and the operating department or service-delivery method. | **Yes, one point:** is "operating department" the same thing as "service-delivery method", or are they two separate fields? Proposal: three fields per line: **service category** (PDR, tint, upholstery…), **operating department** (the team responsible: PDR/Hail, Window Tint, Interior Repair, Upholstery, Furniture/Commercial, or your list) and **delivery method** (mobile on-site, in-shop, dealer route). Please confirm the department list (M-20). |
+| D-4 | **Support either** one combined work order or separate work orders per item, keeping the link to the original estimate. | **Yes, two points:**<br>(a) Invoicing: one invoice per estimate, or may separate work orders be invoiced separately, with partial or progress billing? This affects A/R and QuickBooks.<br>(b) Who decides the split, and when (at approval, or later by the scheduler)? Proposal: the scheduler, until work starts.<br>(c) **Scheduling impact** (raised 2026-10-21): see "D-4 follow-up" below. Tasks, not whole work orders, are scheduled, so the board behaves the same either way. |
+| D-5 | **Re-authorization required** for price increases, material scope changes and newly added repairs. Authorization history kept, with who approved each revision. A **configurable authorization policy** for dealer and commercial accounts. | **Yes, three points:**<br>(a) Do price **decreases** or removed repairs need re-authorization? Proposal: no; notify the customer and record the change.<br>(b) Internal-only changes (cost, technician, schedule) need no customer re-authorization. Please confirm.<br>(c) For the configurable policy: is it per-person approval limits (dollar amount per contact), a PO requirement, approval by phone recorded by staff, and/or the portal? Proposal: all four, chosen per account. |
+| D-6 | **Capture by line:** estimated labor hours, salesperson, technician assignment and commission/bonus eligibility. Final calculations need separate approval. | **Minor, one point:** the planned technician at estimate time can change when the work is scheduled. The estimate keeps the planned technician; the work order and time entries record the actual technicians, and the bonus calculation will use actuals. Please confirm. |
+
+### D-4 follow-up: separate or combined work orders, and technician scheduling
+
+Management asked (2026-10-21) to keep **both** separate work orders per item and combined work orders, and to consider how they appear on technician scheduling. Proposed design, to be detailed and mocked up in U0:
+
+1. **The thing that is scheduled is a work-order task, not the whole work order.** Each task covers one item (or part of one), and carries:
+   - its department, skill type and estimated hours
+   - its service location
+   - its technician(s)
+
+   A combined work order is one work order with several tasks. Separate work orders are several work orders, each with its own tasks. **The dispatcher board works the same way in both cases.**
+2. **What the dispatcher sees:** each task shows as its own block on the technician's day. Every block shows:
+   - the work-order number
+   - the estimate number
+   - "item 2 of 3"
+   - the customer, address and estimated hours
+
+   Blocks from the same estimate share a color or tag, so the dispatcher can see they belong together.
+3. **The same site, the same trip:** tasks at the same service location are flagged, so the dispatcher can put them on the same day or the same technician and avoid a second trip. For example: the restaurant's booths and chairs, or the hotel's furniture on one floor.
+4. **Different skills on one job:** for example a car's dents (PDR) and its seats (upholstery). The tasks go to different technicians, and possibly different days, without splitting the paperwork unless you want separate work orders.
+5. **Capacity counts each task's hours once,** whether the tasks sit on one work order or several. Combining or splitting work orders never double-counts or loses scheduled hours.
+6. **Splitting and combining after scheduling:** allowed until work starts on the affected tasks. Appointments move with their tasks, and the board shows the change. Once a task has started (or time is recorded on it), it can't move to another work order without a manager.
+7. **What the technician sees:** on their phone, their own tasks for the day, each with the site address, item, photos and notes. They also see the other items on the same estimate, read-only, so they know the whole job.
+8. **Invoicing follows D-4a,** to be decided: one invoice per estimate, or per work order. Scheduling doesn't depend on that choice.
+
+### Original decision list
+
 | # | Decision | Recommendation | Needed before |
 |---|---|---|---|
 | D-1 | **Customer database roles:** confirm Account (bill-to) vs Service location vs Served party vs Item | Approve as described in §1 | U0 |
@@ -377,3 +436,52 @@ Already open and still needed: the logo (M-37); segments and lead sources (M-22)
     - Marketing capture moves into A2
 
     The register keeps every requirement ID; only the planned PR changes once this is approved.
+
+---
+
+## 9. Launch-essential vs optional future features
+
+"Production launch" means RepairPro becomes McDowells' real system of record for customers, estimates, work orders, invoices and payments.
+
+| Needed for production launch | Optional / later |
+|---|---|
+| Phase 2.2 (PR #5) accepted | Offline drafts and upload queue (M2) |
+| A1, A2, B0, A5 | Customer signature on screen (M3); approval by PO, phone or in person is enough at launch |
+| Universal foundation U0–U4 (customer database, multi-item estimates, photos, price lists for the services offered at launch) | Dealer portal (DP1) |
+| The specialized workflows for the services McDowells sells on day one (**management to choose** which of S1–S11) | Dealer route mode (DR1), unless dealer work is a launch priority |
+| Authorization history and the configurable authorization policy (D-5) | Hail scanner imports, AI photo suggestions |
+| Tax rules approved by the accountant (G1) | Good/better/best presentation polish |
+| Credits, refunds and voids (BILL-01) | Dashboard tabs beyond the essentials (E3), alerts |
+| QuickBooks Desktop transfer, or an approved manual bookkeeping procedure (INT-01) | Marketing campaigns and email sending (F2) |
+| Work orders and a usable schedule (D1 basics) | Technician time clock (D2), if payroll stays manual at launch |
+| Encrypted backups with a tested restore; independent security review; hosting with HTTPS; 40-user load test (SEC-02, HOST-01, OPS-01) | Customer and dealer self-service portals |
+| Staff logins and permissions reviewed; staff training and a short user guide | Upholstery yardage nesting (S8), until the guide is finished |
+
+Commission and bonus **calculations** are not needed at launch if they stay manual, because the attribution data is recorded from A1 and U2 onward. They become essential when management wants RepairPro to calculate them.
+
+---
+
+## 10. The first design PR: U0 "Universal estimate design" (documents and mockups only)
+
+**What U0 is:** a documentation-only pull request, like PR #6. It changes no code, database, prices or permissions. It turns this strategy into a precise blueprint that management approves before any foundation code (U1–U4) is written.
+
+**What U0 will contain:**
+1. **Data model in plain English, with a technical appendix:**
+   - account, contact, service location, served party, item
+   - claim / authorization
+   - estimate, item on an estimate, revision, line
+   - authorization record, work-order link
+   - Every field is listed with who may see and change it.
+2. **The estimate line specification:** every field from Layer 2, including the attribution fields (D-6) and the three classification fields (D-3).
+3. **Migration plan:** how today's customers, contacts, vehicles, assets, third-party payers, fleet accounts, estimates, PDR dents, packages and invoices move to the new structure. Includes the **before-and-after checks** that prove every total, tax amount, payment and history entry is unchanged, and the duplicate-review process (D-1a).
+4. **Authorization policy design (D-5):** which changes need re-authorization, the per-account policy options, and how each revision's approver is recorded.
+5. **Work-order linkage and how it shows on technician scheduling (D-4):** one combined or several work orders, each linked back to its estimate, items and lines. Includes the invoicing options for you to choose (D-4a), and the scheduling design below.
+6. **Phone and tablet mockups** of the new estimate: the item list, adding an item, an item's diagram and lines, the totals, and the customer view. These are reviewed at phone size first.
+7. **Accounting safeguards:** per-line tax kept identical to today's results until G1; no double counting of tax, revenue or credit across items; money stored in whole cents in new tables.
+8. **Placeholders only:** neutral fields reserved for QuickBooks references and commission/bonus rule versions. No mapping and no calculations.
+9. **Test plan** for U1 and U2: automated checks, browser checks at phone, tablet and desktop sizes, and the owner's Codespaces checklist.
+10. **Open questions list:** anything still unanswered, with a recommendation for each.
+
+**What U0 needs before it can be finished:** your answers to the clarifying points above (D-1 a–c, D-3, D-4 a–b, D-5 a–c, D-6). It can be started while PR #5 and PR #6 are being reviewed, but only with your approval.
+
+**What you will be able to do after U0 is approved:** review the exact design of the foundation on paper and on phone mockups. U1 (the customer database) can then be built to that design.
