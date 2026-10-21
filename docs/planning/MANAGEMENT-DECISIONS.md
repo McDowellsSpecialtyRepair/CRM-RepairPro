@@ -324,7 +324,7 @@ The accountant's answers can take time, so we recommend asking **now**. Nothing 
 
 **Why demo customers keep sample addresses:** since every message goes only to the test mailbox anyway, the customer's address on the record doesn't affect where mail goes. Keeping undeliverable sample addresses (ending in `.invalid` or `example.com`) means a mistake could never reach a real person.
 
-### M-37: Logo file
+### M-37: Logo file (RECEIVED 2026-10-21: `docs/brand/mcdowells-logo.png`, navy, transparent background)
 - **Request:** the McDowells logo as a high-resolution PNG (transparent background), or SVG if you have it.
 - **Also tell us:** whether it should be printed in color or black and white.
 - **Needed for:** the logo on estimates, invoices, work orders and statements (DOCS-001), starting in A1.
