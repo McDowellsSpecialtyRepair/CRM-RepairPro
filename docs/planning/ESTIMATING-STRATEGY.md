@@ -364,6 +364,74 @@ Each PR follows the approved process: branch from `main` → build → automated
 | D-5 | **Re-authorization required** for price increases, material scope changes and newly added repairs. Authorization history kept, with who approved each revision. A **configurable authorization policy** for dealer and commercial accounts. | **Yes, three points:**<br>(a) Do price **decreases** or removed repairs need re-authorization? Proposal: no; notify the customer and record the change.<br>(b) Internal-only changes (cost, technician, schedule) need no customer re-authorization. Please confirm.<br>(c) For the configurable policy: is it per-person approval limits (dollar amount per contact), a PO requirement, approval by phone recorded by staff, and/or the portal? Proposal: all four, chosen per account. |
 | D-6 | **Capture by line:** estimated labor hours, salesperson, technician assignment and commission/bonus eligibility. Final calculations need separate approval. | **Minor, one point:** the planned technician at estimate time can change when the work is scheduled. The estimate keeps the planned technician; the work order and time entries record the actual technicians, and the bonus calculation will use actuals. Please confirm. |
 
+### Second round of answers (2026-10-21) and what they mean for the design
+
+**D-1 (customer records)**
+- **(a) Duplicates:** possible duplicates are flagged for review and only merged after approval. Nothing is merged automatically.
+- **(b) Visibility:** a paying account (landlord, warranty company) may see the served party's details and photos for its own jobs.
+- **(c) History:** a vehicle's or item's service history stays in the customer database. Entering the VIN again brings up all previous service records, so staff can tell whether new damage is a warranty issue on McDowells' work. *(Design: VIN search shows prior jobs with dates, technicians and photos, and links to the workmanship warranty claim records that already exist.)*
+
+**D-2 (QuickBooks): QuickBooks Desktop Enterprise 24.0, installed on an office PC.** The bookkeeper's practice:
+- each **technician is a QuickBooks Class**
+- each **work order is a QuickBooks Job** (Customer:Job)
+- **Sales Reps** are used to calculate commissions
+- **materials and shipping are taxed at Idaho's 6%** when itemized on a customer invoice
+
+What this means for the design:
+- The account becomes the QuickBooks **Customer**, and each work order becomes a **Job** under it. A service location is shown on the job, not as a separate QuickBooks record.
+- **Technician as Class:**
+  - A line split between two technicians can carry only one Class in QuickBooks. The design will transfer one line per technician share (for example 60% / 40%), with amounts that add up exactly to the original line.
+  - *Needs confirmation:* is that how the bookkeeper wants it, or should the Class be the lead technician only?
+- Salesperson and sales-credit share are kept per line, mapped to QuickBooks **Sales Rep**. A line split between salespeople raises the same one-rep-per-line question.
+- **Tax:**
+  - "Materials and shipping taxed at 6% when itemized" matches today for materials and freight-in.
+  - Today, separately stated **delivery** (freight-out) is *not* taxed, and **new fabrication labor** on upholstery *is* taxed. Both stay unchanged until the accountant's written answers (G1).
+- **No integration is built yet.** U0 records this mapping as the target design only.
+
+**D-3 (classification): four fields on every line.** Each field has a management-editable list:
+
+| Field | Values |
+|---|---|
+| **Operating department** | 1. Furniture Repair · 2. Upholstery · 3. Auto Exterior · 4. Auto Interior · 5. Auto Cosmetic Shop |
+| **Service-delivery method** | Dealer Route · Mobile (customer location other than a dealer) · In-Shop |
+| **Responsible team** | Team 1: Dealer Route & Mobile · Team 2: In-Shop (it can default from the delivery method) |
+| **Skill type** | Tinting · Paintless Dent Repair · Detailing · Upholstery Furniture · Upholstery Auto · Upholstery Commercial (hotels, restaurants, medical, fashion designers) · Upholstery Airplane · Upholstery Marine · Upholstery RV |
+
+Plus the **service category** (the price list and estimating screen used).
+
+**QuickBooks summarization:** a management-editable mapping decides how lines are grouped when sent to QuickBooks. Lines can go individually by skill type, or combined into groups you define (for example all upholstery skill types as one QuickBooks item), without changing the lines in RepairPro.
+
+*Needs confirmation (gaps in the skill list):* which skill types cover
+- auto interior repair (vinyl, leather, plastic)
+- hail (under PDR?)
+- headlight restoration, paint scratches and touch-up, polishing and paint correction, PPF, ceramic coatings (under Detailing, or new skill types?)
+- furniture wood repair (Furniture Repair has no skill type yet)
+- handyman work
+
+Also, which department each service belongs to: for example, is window tint Auto Exterior or Auto Cosmetic Shop? A proposed mapping table will be in U0 for approval.
+
+**D-4 (work orders and invoices):**
+- Work orders can be **separate or combined**, and invoices can be **combined or separate**, chosen per estimate. A **default preference is stored per account**, because some auto and RV dealers want separate invoices sent in the same email and others want one combined invoice.
+- An email can carry several separate invoices.
+- Each invoice stays linked to its work orders, items and the original estimate.
+
+**D-5 (authorization):**
+- **Price decreases and removed repairs:** no re-authorization needed. *(Recorded as "removed repairs and price decreases" — see the confirmation below.)*
+- **(b) Cost changes:** changes to internal costs never need the customer.
+- **(c) PO:** a **"PO required" switch** on each estimate and each work order, defaulting from the account's setting. Some customers need a PO before paying the invoice. When it is on, the invoice can't be marked ready to send until the PO number is recorded.
+- **Phone approvals:** recorded with who approved, when, how (phone), and which staff member took the approval.
+- **Recon manager portal:** dealer recon managers will approve work there, and every approval is tracked to the person (part of the dealer portal, DP1).
+
+> **Needs confirmation (conflict):** the answer says *"no re-authorization is needed for price increases or removed repairs."* The earlier decision (same day) said renewed authorization **is** required for **price increases**, material scope changes and new repairs. The question asked was about price **decreases**.
+> - **Recommended reading:** price **increases** still need re-authorization; price **decreases** and removed repairs do not.
+> - Please confirm, or tell us that increases really need no re-authorization (and whether that applies to every customer or only some).
+
+**D-6 (technicians):**
+- The planned technician(s) on the estimate can be changed at any time before the work.
+- On the work order, the people who **actually** did the work are recorded. Technicians can be added or removed, and each one's share of the work is set as a **percentage** (shares must total 100%).
+- **Bonuses are based on who actually did the work and their percentage.** The estimate's planned technicians are kept for comparison only.
+- *(Existing technician labor-credit shares on invoices already work by percentage. The design extends this to work orders.)*
+
 ### D-4 follow-up: separate or combined work orders, and technician scheduling
 
 Management asked (2026-10-21) to keep **both** separate work orders per item and combined work orders, and to consider how they appear on technician scheduling. Proposed design, to be detailed and mocked up in U0:
