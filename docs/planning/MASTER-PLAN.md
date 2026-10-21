@@ -383,6 +383,23 @@ Every acceptance checklist below **also** includes the standard checks in §7.
   4. As an advisor without tax permission: the option is refused.
   5. Work order before invoicing: a tax-only change is allowed with a reason and recorded in the audit history. Prices cannot be changed this way.
 
+### PR A4: Several items on one estimate (approved direction 2026-10-21; standalone major phase)
+- **What it does:**
+  - One customer estimate holds several items: vehicles, furniture pieces, booths, exam tables and others.
+  - Each item has its own service, diagram and lines.
+  - The items share one total, one approval and one invoice.
+- **Accounting and data-model risks to resolve before coding:**
+  1. **Tax per line.** Different services have different taxable categories (fabrication labor, freight, parts). Tax must be calculated per line with the rules of that line's service, never one rule for the whole estimate. The G1 answers apply.
+  2. **Department per line.** Dashboard totals by department need each line's department. A mixed estimate must never be credited entirely to one department (DOC §2: "Do not double count mixed-category invoices").
+  3. **Existing estimates.** Every current estimate becomes a one-item estimate with identical lines, totals, tax and invoice links. A test compares every total before and after the migration.
+  4. **Locks and approvals.** Invoice locks, production-start locks and the PR #5 package approval gate must apply to the whole estimate, so editing one item can't change an approved total unnoticed.
+  5. **Dents and packages.** PDR dent records, packages and R&I links are tied to a vehicle. They must stay with their own item.
+  6. **Work orders and scheduling.** One estimate may produce work for several departments and technicians. Decide whether it becomes one work order with several items, or one work order per item (decision needed before coding).
+  7. **Sales and technician credit.** Credit is still split once per invoice, and never multiplied by the number of items.
+  8. **Printing.** Lines are grouped by item, with item subtotals, one tax and one total.
+- **Depends on:** B1, E1 (department decision M-20), and G1 if tax rules change.
+- **Complexity:** Large. A design note and mockup are approved before coding.
+
 ### PR D1: Scheduling and work-order planning
 - **Features:**
   - SCHED-002: one scheduling screen (replacing the legacy board)
@@ -664,6 +681,22 @@ These are referenced in the Word document but were **not** provided, or are inco
 | **R&I part list, labor times and rates** | OWNER §4B | **None provided.** | B3 (M-13, M-15a, M-15b) |
 | **Accountant's tax guidance** | OWNER §4G | **Not yet requested.** | G1 (M-05 to M-08a) |
 | **Usability complaint list** | OWNER §4A | **Not provided.** | A1 (M-03) |
+
+### Important requirements the Word document does not mention
+
+These are needed for a dependable CRM but aren't in the document. Most are already in the backlog (`KNOWN-ISSUES.md`):
+- **Refunds, credit notes and voids** with an audit trail (BILL-01)
+- **QuickBooks** transfer and reconciliation (INT-01)
+- **Online customer payments** through Mcdowellsrepair.com (INT-02)
+- **Backups and a tested restore** before real data is entered (BACKUP-AND-RECOVERY.md)
+- **Independent security review, hosting and HTTPS** before going live (SEC-02, HOST-01)
+- **Capacity for about 40 simultaneous users** (OPS-01)
+- **Importing existing customers and history** from current records, if any (M-27)
+- **Damage photos and customer signatures** on estimates (IDEA-002, IDEA-005)
+- **Comebacks and warranty rework tracking** (the dashboard asks for rework counts)
+- **Parts and materials ordering / inventory**, not yet requested
+- **Texting consent and message records**, before any SMS is enabled
+- **Employee training and a short user guide** before go-live
 
 ### Documents not counted as "reviewed"
 

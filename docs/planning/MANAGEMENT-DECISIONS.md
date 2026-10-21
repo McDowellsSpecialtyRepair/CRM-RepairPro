@@ -9,8 +9,11 @@
 | 2026-10-20 | M-01 / M-02 Salesperson and service writer | Service writers and service advisors are the same people, so **no new role** is needed. Each estimate shows three people, all editable: **Salesperson**, **Estimator** (when the estimator is a different person) and **Follow-up salesperson** (when the estimate wasn't closed and someone must follow up). |
 | 2026-10-20 | M-35 Several items on one estimate | **Yes.** One estimate for a customer can include several items and services. For example: one car's dents and its seats; a restaurant's several booths and chairs; a hospital's exam tables and waiting room chairs. |
 | 2026-10-20 | M-15b R&I list | The R&I name and price list is **editable by management**. Estimators can add or remove R&I items on an estimate. Each item is tied to the **vehicle type and body panel** it applies to. |
-| 2026-10-20 | Demo email / M-36 | All demo (test) customers use **service@mcdowellsrepair.com**, so test estimates arrive there. The mailbox is **Google** (Google Workspace / Gmail). The demo connects through Google's mail server using an app password stored as a private GitHub Codespaces secret. |
-| 2026-10-20 | M-04 Customer contact fields | Every customer record must be able to hold email, phone and a complete address (street, town, state, ZIP). They must be editable from inside the estimate too (CRM-014). No field was made mandatory. |
+| 2026-10-21 | Demo email / M-36 (replaces the 2026-10-20 answer) | The mailbox is hosted by **Google**. **Real outgoing email stays disabled in the Codespaces demo.** No email password is requested, stored in chat, or put in GitHub code. A safe test-only email workflow is designed first (see "Safe test email design" below), then approved separately before any sending is turned on. Demo customers keep reserved, undeliverable sample addresses. |
+| 2026-10-21 | M-04 Customer contact fields (replaces the 2026-10-20 answer) | Every customer record has fields for name, email, phone and a complete address (street, town, state, ZIP). A normal customer record needs **at least one contact method: phone OR email** (not both). A walk-in who can give neither can be saved as a clearly labeled **temporary** customer with incomplete contact information. Missing information is flagged on the customer and the estimate. An estimate **cannot be sent electronically without a valid destination email address**. The duplicate-customer check still runs on every record, including temporary ones. |
+| 2026-10-21 | Salesperson credit | The Salesperson, Estimator and Follow-up salesperson fields must not create a second, duplicate sales-credit field. Existing sales-credit history on estimates and invoices is preserved unchanged. |
+| 2026-10-21 | A4 several items on one estimate | Approved as a major standalone phase. The accounting and data-model risks are identified and approved before coding (see MASTER-PLAN, A4). |
+| 2026-10-21 | R&I | Shared PDR and hail R&I with editable catalogs, panel-based suggestions and manually entered prices. **No labor times or prices are invented.** |
 | 2026-10-20 | M-17 Planning documents | Approved: committed to `docs/planning/` in a separate documentation-only pull request. |
 
 
@@ -277,11 +280,30 @@ The accountant's answers can take time, so we recommend asking **now**. Nothing 
 
 ---
 
-## Needed to send demo emails
+## Safe test email design (proposal; to be approved before any sending is enabled)
 
-### M-36: Email provider for service@mcdowellsrepair.com
-- **Why it matters:** the demo can only send to that mailbox once it's connected to an email account that is allowed to send. The sign-in details are stored as a private GitHub Codespaces secret, never in chat or in the code.
-- **Request:** the provider (Google Workspace, Microsoft 365, GoDaddy, or another).
+**What is verified in the code today (2026-10-21):**
+- Every estimate and invoice email the server prepares is addressed to `service@mcdowellsrepair.com`, whatever the customer's own email is.
+- That address is fixed in `server/delivery-config.ts` (`TEST_EMAIL`), and the three send routes in `server/routes.ts` use it.
+- With no email credentials set (the demo today), nothing is sent. A copy of each prepared email is saved as a file.
+
+**Proposed design:**
+1. **Test outbox, no sending (first step, recommended for A1).**
+   - Every prepared email appears in a "Test outbox" screen inside the demo, showing the recipient, subject, the message exactly as the customer would see it, and attachments.
+   - You can inspect the customer email workflow completely without any email leaving the codespace.
+2. **One enforcement point.**
+   - A single check, run by every email path, refuses any recipient that is not on the test allowlist while the server runs in demo or test mode.
+   - The server refuses to start in demo mode with the allowlist turned off.
+   - Automated tests try to send to a customer address and must be refused.
+3. **Later, optional real delivery test (separate approval).**
+   - Use a **dedicated test account or test sending service**, not the shop's main mailbox.
+   - Credentials go only into GitHub Codespaces secrets (never chat, code or files).
+   - Tests confirm the credentials never appear in logs, screens, saved files or error messages.
+   - A daily message limit stops a test from flooding a mailbox.
+   - Demo credentials are never used in production configuration.
+4. **Customer delivery for production** is a separate review before launch (deliverability, consent, unsubscribe, retention).
+
+**Why demo customers keep sample addresses:** since every message goes only to the test mailbox anyway, the customer's address on the record doesn't affect where mail goes. Keeping undeliverable sample addresses (ending in `.invalid` or `example.com`) means a mistake could never reach a real person.
 
 ### M-37: Logo file
 - **Request:** the McDowells logo as a high-resolution PNG (transparent background), or SVG if you have it.
