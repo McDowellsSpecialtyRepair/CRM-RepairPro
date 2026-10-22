@@ -9,8 +9,11 @@ export const SERVER_UNREACHABLE =
   "RepairPro could not reach its server, so this was not loaded or saved. Check your internet connection and try again. " +
   "In the Codespaces test copy, the codespace stops after about 30 minutes without activity in the codespace editor: " +
   "open the codespace tab (restart it if asked), then reload this page and sign in again.";
-const notRepairProData = (status: number) =>
-  `The RepairPro server did not answer normally (error ${status}), so this was not loaded or saved. ` + SERVER_UNREACHABLE.slice(SERVER_UNREACHABLE.indexOf("Check"));
+const notRepairProData = (status: number) => status === 401 || status === 403
+  // RepairPro's own refusals always carry a message; a bare 401/403 comes from GitHub's Codespaces connection.
+  ? `GitHub refused to connect this page to the CRM (error ${status}). This browser tab probably belongs to a codespace that was stopped or deleted. ` +
+    "Close this tab, open your codespace from github.com/codespaces, and use the CRM tab it opens (or the globe icon next to port 5000 in the Ports tab)."
+  : `The RepairPro server did not answer normally (error ${status}), so this was not loaded or saved. ` + SERVER_UNREACHABLE.slice(SERVER_UNREACHABLE.indexOf("Check"));
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
