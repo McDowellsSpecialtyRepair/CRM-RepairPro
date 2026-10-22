@@ -121,6 +121,7 @@ export default function Invoices() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium">{inv.invoiceNumber}</span>
+                      {inv.estimateNumber && <span className="text-xs text-muted-foreground">Estimate {inv.estimateNumber}</span>}
                       <Badge variant="secondary" className={`text-[10px] ${statusColors[inv.status] || ""}`}>
                         {inv.status === "sent" ? "issued" : inv.status}
                       </Badge>

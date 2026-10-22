@@ -236,7 +236,7 @@ export function convertEstimate(id: number) {
     const issueDay = localToday();
     const inv = storage.createInvoice({
       invoiceNumber: `INV-${issueDay.slice(0,4)}-${String(next).padStart(6, "0")}`,
-      customerId: est.customerId, jobId: est.jobId, estimateId: id, status: "sent",
+      customerId: est.customerId, jobId: est.jobId, estimateId: id, estimateNumber: est.estimateNumber, status: "sent",
       subtotal: calculated.subtotal, taxRate: calculated.taxRate, taxAmount: calculated.taxAmount,
       discount: calculated.discount, discountNote: calculated.discount ? [(calculated as any).discountCode, (calculated as any).discountNote].filter(Boolean).join(" · ") + ((calculated as any).discountBasis === "labor" ? " (labor discount)" : "") || null : null,
       total: calculated.total, amountPaid: 0, balanceDue: calculated.total,

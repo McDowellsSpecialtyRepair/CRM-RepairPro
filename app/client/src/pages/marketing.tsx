@@ -3,6 +3,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ReferralThanks, MarketingSourcesManager } from "@/components/referral-thanks";
 import { Plus, Megaphone, Mail, Phone, Gift, Calendar, TrendingUp } from "lucide-react";
 
 const formatDate = (s: string) => {
@@ -54,6 +55,11 @@ export default function Marketing() {
           <Plus className="h-4 w-4 mr-1" /> Campaign setup pending
         </Button>
       </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ReferralThanks />
+        <MarketingSourcesManager />
+      </div>
+
       <div className="rounded-md border p-3 text-sm">These are manually maintained campaign counters, not verified delivery or attribution. Budgets are planned, not actual spend. Email, text, WhatsApp delivery, attributed sales and ROI are not connected here.</div>
 
       {/* Summary */}

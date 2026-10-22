@@ -115,6 +115,7 @@ export default function InvoiceDetail() {
                 <h1 className="text-xl font-bold" style={{ fontFamily: "'Satoshi', sans-serif" }}>
                   {invoice.invoiceNumber}
                 </h1>
+                {invoice.estimateNumber && <span className="text-sm text-muted-foreground" data-testid="text-invoice-estimate-number">Estimate {invoice.estimateNumber}</span>}
                 <Badge variant="secondary" className={statusColors[invoice.status] || ""}>
                   {invoice.status === "sent" ? "issued" : invoice.status}
                 </Badge>

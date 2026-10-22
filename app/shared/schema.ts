@@ -173,6 +173,7 @@ export const invoices = sqliteTable("invoices", {
   taxAmount: real("tax_amount").notNull().default(0),
   discount: real("discount").notNull().default(0),
   discountNote: text("discount_note"),
+  estimateNumber: text("estimate_number"),
   total: real("total").notNull().default(0),
   amountPaid: real("amount_paid").notNull().default(0),
   balanceDue: real("balance_due").notNull().default(0),

@@ -25,6 +25,7 @@ import {categoriesFor,categoryAllowed,templateAllowed,nonLaborCategory,categoryT
 import {DocumentBreakdown} from "@/components/document-breakdown";
 import {EstimateCommercial} from "@/components/estimate-commercial";
 import {DiscountEditor} from "@/components/discount-editor";
+import {EstimateMarketing} from "@/components/estimate-marketing";
 import {useAuth} from "@/components/auth-provider";
 
 const formatCurrency = (n: number) =>
@@ -105,11 +106,12 @@ export default function EstimateBuilder() {
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");
   const [editingDiscount, setEditingDiscount] = useState(false);
+  const [marketingDirty, setMarketingDirty] = useState(false);
   const [assignOpen,setAssignOpen] = useState(false);
   const [editingLine,setEditingLine]=useState<any>(null);
   const [taxDraft,setTaxDraft]=useState("");
   const [salesDirty,setSalesDirty]=useState(false),[laborDirty,setLaborDirty]=useState(false);
-  const unsavedEdits=salesDirty||laborDirty||!!editingLine||!!newItem.description.trim()||editingDiscount||editingNotes;
+  const unsavedEdits=salesDirty||marketingDirty||laborDirty||!!editingLine||!!newItem.description.trim()||editingDiscount||editingNotes;
   useEffect(()=>setTaxDraft(String(estimate?.taxRate??0)),[estimate?.taxRate,id]);
   const allowedCategories=categoriesFor(estimate?.serviceType||"");
   const allowedTemplates=(serviceTemplates||[]).filter((t:any)=>templateAllowed(estimate?.serviceType,t));
@@ -515,6 +517,7 @@ export default function EstimateBuilder() {
         </CardContent>
       </Card>
       <EstimatePeople key={`people-${estimate.id}`} kind="estimates" id={estimate.id} locked={estimate.status === "invoiced"} onDirtyChange={setSalesDirty} />
+      <EstimateMarketing key={`marketing-${estimate.id}`} estimateId={estimate.id} customerId={estimate.customerId} locked={estimate.status === "invoiced"} onDirtyChange={setMarketingDirty} />
       </section>
 
       {/* 2. Vehicle damage mapping and individual dent details */}
@@ -538,7 +541,7 @@ export default function EstimateBuilder() {
       <section aria-labelledby="estimate-section-3" className="space-y-4" data-testid="estimate-section-3">
       <SectionHeading id="estimate-section-3" n={3}>Pricing, line items, totals and delivery</SectionHeading>
       {estimate.serviceType === "pdr" && <DentBillingPanel estimate={estimate} readOnly={!can("estimates.write") || estimate.status === "invoiced"} />}
-      {unsavedEdits&&<p role="status" className="rounded-md border p-3 text-sm">Unsaved estimate changes. Save or cancel the line, notes, discount or staff assignments before approving, sending or invoicing.</p>}
+      {unsavedEdits&&<p role="status" className="rounded-md border p-3 text-sm">Unsaved estimate changes. Save or cancel the line, notes, discount, marketing source or staff assignments before approving, sending or invoicing.</p>}
       {(addLineItem.error || deleteLineItem.error || updateEstimate.error || convertToInvoice.error) && (
         <p role="alert" className="rounded-md border border-destructive/30 p-3 text-sm text-destructive">
           {(addLineItem.error || deleteLineItem.error || updateEstimate.error || convertToInvoice.error)?.message}

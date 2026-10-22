@@ -270,6 +270,62 @@ try{
  check("Removing the discount clears the code and description",removed.discount===0&&removed.discountNote===null&&removed.discountCode===null&&Math.abs(removed.total-(removed.subtotal+removed.taxAmount))<0.005);
  {const dbr=new Database(dbPath,{readonly:true});
   check("People changes are recorded in the audit history",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='people.updated' AND record_id=?").get(String(tint.id)));dbr.close();}
+ // ---- A1: one number follows the repair (estimate -> work order -> invoice -> print/email) ----
+ {const e=await ok("GET",ep);
+  check("The invoice carries the estimate's number",inv.estimateNumber===e.estimateNumber&&/^EST-/.test(e.estimateNumber));
+  const printed=await ok("GET",`/print/invoice/${inv.id}`);
+  check("The printed invoice shows the estimate number under the invoice number",printed.includes(`Estimate ${e.estimateNumber}`));
+  check("The invoice list shows the estimate number",(await ok("GET","/api/invoices")).find(i=>i.id===inv.id)?.estimateNumber===e.estimateNumber);}
+ // ---- A1: everything stays editable on a work order in progress, until invoiced ----
+ {const job=await ok("POST","/api/jobs",{customerId:cust.id,serviceType:"window_tint",vehicleId:v2.id,title:"Tint in progress",status:"pending",priority:"normal"},owner);
+  const je=await ok("POST",`/api/jobs/${job.id}/estimate`,{},owner);
+  check("The work order list shows the linked estimate number",(await ok("GET","/api/jobs")).find(j=>j.id===job.id)?.estimateNumbers.includes(je.estimateNumber));
+  await ok("POST",`/api/estimates/${je.id}/line-items`,{serviceCategory:"window_tint",description:"Tint labor",unitPrice:300});
+  let jp=await ok("GET",`/api/jobs/${job.id}/planning`);
+  jp=await ok("PATCH",`/api/jobs/${job.id}/planning`,{revision:jp.revision,status:"in_progress"},owner);
+  check("The work order is in progress",jp.status==="in_progress");
+  const pp=await ok("GET",`/api/estimates/${je.id}/planning`);
+  const pe=await ok("PATCH",`/api/estimates/${je.id}/people`,{revision:pp.peopleRevision,salesTeam:[{staffId:advisorId,shareBps:5000},{staffId:managerId,shareBps:5000}],estimatorId:managerId,followUpId:ownerId});
+  check("Salespeople, estimator and follow-up can be changed while the work order is in progress",pe.salesTeam.length===2&&pe.estimatorId===managerId);
+  check("The work order shows the same people",(await ok("GET",`/api/jobs/${job.id}/planning`)).estimatorId===managerId);
+  const dj=await ok("PATCH",`/api/estimates/${je.id}`,{discountBasis:"labor",discountCode:"VET10"});
+  check("A discount can be added while the work order is in progress",dj.discount===30);
+  const jd=await ok("GET",`/api/jobs/${job.id}/detail`);
+  check("The work order page receives the estimate's discount details",jd.estimates[0].discountCode==="VET10"&&jd.estimates[0].discount===30);
+  const early=await ok("PATCH",`/api/jobs/${job.id}/planning`,{revision:jp.revision,scheduledDate:"2020-02-01",confirmEarlyDate:true},owner);
+  check("The schedule date can be changed (with the early-date confirmation) while in progress",early.scheduledDate==="2020-02-01");}
+ // ---- A1: how the customer heard about us, and the referral thank-you list ----
+ {const sources=await ok("GET","/api/marketing-sources");
+  const src=n=>sources.find(s=>s.name===n);
+  check("The starting choices include Radio, Referral, Repeat customer, Sign and Vans",["Radio","Referral","Repeat customer","Sign","Vans / vehicle lettering"].every(n=>src(n)?.active));
+  check("Referral asks who referred them; Radio does not",src("Referral").needsReferrer&&!src("Radio").needsReferrer);
+  check("Only marketing managers can change the choices",(await call("POST","/api/marketing-sources",{name:"Billboard"})).status===403);
+  const bb=await ok("POST","/api/marketing-sources",{name:"Billboard on Eagle Rd"},owner);
+  check("A manager can add a choice",bb.active&&!bb.needsReferrer);
+  check("Duplicate choices are refused",(await call("POST","/api/marketing-sources",{name:"billboard on eagle rd"},owner)).status===409);
+  const mu=`/api/estimates/${tint.id}/marketing`;
+  check("An estimate starts with no source recorded",(await ok("GET",mu)).sourceId===null);
+  const radio=await ok("PUT",mu,{sourceId:src("Radio").id});
+  check("Radio is saved on the estimate",radio.source==="Radio");
+  check("The customer's record gets the source when it had none",(await ok("GET",`/api/customers/${cust.id}`)).referralSource==="Radio");
+  check("Referral without a referrer is refused with an explanation",await (async()=>{const r=await call("PUT",mu,{sourceId:src("Referral").id});return r.status===400&&/who referred/.test(r.text);})());
+  check("A customer cannot refer themselves",(await call("PUT",mu,{sourceId:src("Referral").id,referrerCustomerId:cust.id})).status===400);
+  const friend=await ok("POST","/api/customers",{customerType:"retail",firstName:"Pat",lastName:"Referrer",phone:"555-010-3131",status:"active"});
+  const ref=await ok("PUT",mu,{sourceId:src("Referral").id,referrerCustomerId:friend.id,referrerNote:"Coworker"});
+  check("A referral by an existing customer is saved with their name and phone",ref.referrer.name==="Pat Referrer"&&ref.referrer.phone==="555-010-3131"&&ref.thankYouStatus==="to_thank");
+  check("Service advisors cannot open the thank-you list (marketing staff only)",(await call("GET","/api/referrals")).status===403);
+  let list=await ok("GET","/api/referrals",undefined,owner);
+  const row=list.find(r=>r.estimateId===tint.id);
+  check("The referrer is on the thank-you list with the referred customer and estimate number",row&&row.status==="to_thank"&&row.referrerName==="Pat Referrer"&&row.referredCustomer==="Dana Phase-Two"&&row.estimateNumber===tintBefore.estimateNumber);
+  const th=await ok("PATCH",`/api/referrals/${tint.id}`,{thanked:true,note:"Card mailed"},owner);
+  check("Marking a referral thanked records who and how",th.status==="thanked"&&th.thankedNote==="Card mailed"&&!!th.thankedBy);
+  check("Re-saving the same referrer keeps it thanked",(await ok("PUT",mu,{sourceId:src("Referral").id,referrerCustomerId:friend.id,referrerNote:"Coworker"})).thankYouStatus==="thanked");
+  const byName=await ok("PUT",mu,{sourceId:src("Referral").id,referrerName:"Lee Neighbor",referrerPhone:"555-010-4444"});
+  check("A referrer who is not a customer can be typed in, and goes back on the list to thank",byName.referrer.name==="Lee Neighbor"&&byName.thankYouStatus==="to_thank");
+  check("A turned-off choice cannot be picked for a new answer",await (async()=>{await ok("PATCH",`/api/marketing-sources/${bb.id}`,{active:false},owner);return (await call("PUT",mu,{sourceId:bb.id})).status===400;})());
+  check("The marketing answer is locked once the estimate is invoiced",(await call("PUT",`/api/estimates/${est.id}/marketing`,{sourceId:src("Radio").id})).status===409);
+  const dbr=new Database(dbPath,{readonly:true});
+  check("Marketing answers and thank-yous are in the audit history",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='marketing.updated' AND record_id=?").get(String(tint.id))&&!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='referral.thanked'").get());dbr.close();}
  // ---- A1: logo on printed estimates and invoices ----
  const logoHtml=await ok("GET",`/print/estimate/${tint.id}`);
  check("Printed estimate shows the McDowells logo image",/<img src="data:image\/png;base64,[A-Za-z0-9+/=]{1000,}" alt="McDowells Specialty Repair"/.test(logoHtml));

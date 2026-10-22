@@ -37,6 +37,7 @@ export function DiscountEditor({ estimate, locked, onEditingChange }: { estimate
         : { discountBasis: "labor", discountCode: null, discountNote: note.trim(), ...(kind === "percent" ? { discountPercent: amount, discount: 0 } : { discountPercent: null, discount: amount }) };
       await apiRequest("PATCH", `/api/estimates/${estimate.id}`, body);
       await qc.invalidateQueries({ queryKey: ["/api/estimates", String(estimate.id)] });
+      await qc.invalidateQueries({ queryKey: ["/api/jobs"] }); // the work order page shows the same discount
       setOpen(false);
     } catch (e: any) { setError(e.message); } finally { setBusy(false); }
   }

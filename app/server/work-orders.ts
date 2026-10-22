@@ -239,8 +239,9 @@ export function registerWorkOrders(app: Express) {
     if (!job) fail("Work order not found.", 404);
     const role = res.locals.staff.role;
     const estimates = storage.getEstimates().filter(e => e.jobId === id).map(e => ({
-      id: e.id, estimateNumber: e.estimateNumber, status: e.status, notes: e.notes,
-      ...(hasPermission(role, "estimates.read") ? { total: e.total } : {}),
+      id: e.id, estimateNumber: e.estimateNumber, status: e.status, notes: e.notes, customerId: e.customerId, invoiceId: e.invoiceId,
+      ...(hasPermission(role, "estimates.read") ? { total: e.total, discount: e.discount, discountBasis: e.discountBasis, discountCode: e.discountCode,
+        discountNote: e.discountNote, discountPercent: e.discountPercent } : {}),
       lineItems: storage.getEstimateLineItems(e.id).map(l => hasPermission(role, "estimates.read") ? l : { id: l.id, description: l.description, quantity: l.quantity, unit: l.unit, lineType: l.lineType, panelLocation: l.panelLocation }),
     }));
     res.json({ ...job, customer: storage.getCustomer(job.customerId),

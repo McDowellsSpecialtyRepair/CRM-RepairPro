@@ -23,6 +23,19 @@ async function session(viewport,label){
  const nav=async name=>{if(await p.getByTestId("button-mobile-menu").isVisible())await p.getByTestId("button-mobile-menu").click();await p.getByRole("link",{name,exact:true}).first().click();};
  return {ctx,p,problems,signIn,nav};
 }
+// A demo work order in progress with its own linked estimate (made through the API, demo data only).
+async function workOrderInProgress(){
+ const login=await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})})).json();
+ const h={"Content-Type":"application/json",Authorization:`Bearer ${login.token}`};
+ const call=async(m,path,body)=>{const r=await fetch(base+path,{method:m,headers:h,body:body&&JSON.stringify(body)});if(!r.ok)throw Error(`${m} ${path}: ${await r.text()}`);return r.json();};
+ const cust=(await call("GET","/api/customers")).find(c=>c.firstName==="Robert"&&c.lastName==="Chen");
+ const job=await call("POST","/api/jobs",{customerId:cust.id,serviceType:"upholstery",title:"Checklist: chair in progress",status:"pending",priority:"normal"});
+ const e=await call("POST",`/api/jobs/${job.id}/estimate`,{});
+ await call("POST",`/api/estimates/${e.id}/line-items`,{serviceCategory:"upholstery",description:"Reupholster chair",unitPrice:400});
+ const pl=await call("GET",`/api/jobs/${job.id}/planning`);
+ await call("PATCH",`/api/jobs/${job.id}/planning`,{revision:pl.revision,status:"in_progress"});
+ return {jobId:job.id,estimateNumber:e.estimateNumber};
+}
 // Another staff member's save, made through the API while the page has unsaved edits.
 async function otherUserSets(estimateId,changes){
  const login=await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:"sam.rivera@example.invalid",password})})).json();
@@ -202,6 +215,63 @@ try{
   await row.getByText("Turned off").waitFor();
   check(`${label}: a discount code can be turned off`,true);
   await shot(p,`${label}-8-discount-codes-tab`,false);
+
+  // 9. How the customer heard about us: a referral by an existing customer, saved on the estimate.
+  await p.goto(estUrl);
+  const mk=p.getByTestId("card-estimate-marketing");await mk.waitFor();
+  check(`${label}: the estimate asks "How did the customer hear about us?"`,/How did the customer hear about us\?/.test(await mk.innerText()));
+  const srcOpts=await mk.getByTestId("select-marketing-source").locator("option").allInnerTexts();
+  check(`${label}: the choices include Radio, Referral, Repeat customer, Sign and Vans`,["Radio","Referral","Repeat customer","Sign","Vans / vehicle lettering"].every(o=>srcOpts.includes(o)),srcOpts.join(" | "));
+  await mk.getByTestId("select-marketing-source").selectOption({label:"Referral"});
+  await mk.getByTestId("referrer-fields").waitFor();
+  await mk.getByLabel("Find referring customer").fill("Sarah");
+  await mk.getByTestId("referrer-matches").getByRole("button",{name:/Sarah Mitchell/}).click();
+  await mk.getByLabel("Referral note").fill(`Neighbor (${label} test)`);
+  await shot(p,`${label}-9-heard-about-us-referral`,false);
+  await mk.getByTestId("button-save-marketing").click();
+  await mk.getByText("Saved.").waitFor();
+  check(`${label}: the referral is saved and waiting for a thank-you`,/waiting for a thank-you/.test(await mk.getByTestId("text-thank-you-status").innerText()));
+  const estNumber=(await p.getByText(/^EST-\d{4}-\d+$/).first().innerText()).trim();
+
+  // 10. Marketing page: the referral thank-you list and the editable list of choices.
+  await nav("Marketing");
+  const thanks=p.getByTestId("card-referral-thanks");await thanks.waitFor();
+  const refRow=thanks.getByTestId(`referral-row-${estNumber}`);await refRow.waitFor();
+  check(`${label}: Sarah Mitchell is on the referral thank-you list for ${estNumber}`,/Sarah Mitchell/.test(await refRow.innerText())&&/Robert Chen/.test(await refRow.innerText()));
+  if(shots)await thanks.screenshot({path:join(shots,`${label}-10-referral-thank-you-list.png`)});
+  await refRow.getByLabel(/How we thanked/).fill("Thank-you card mailed");
+  await thanks.getByTestId(`button-mark-thanked-${estNumber}`).click();
+  await thanks.getByTestId("button-referrals-thanked").click();
+  await thanks.getByTestId(`referral-row-${estNumber}`).getByText(/Thanked .*Thank-you card mailed/).waitFor();
+  check(`${label}: Mark thanked moves it to "Already thanked" with how we thanked them`,true);
+  const choices=p.getByTestId("card-marketing-sources");
+  await choices.getByTestId("button-new-marketing-source").click();
+  const newChoice=`KBOI radio ${label}`;
+  await choices.getByLabel("Choice name").fill(newChoice);
+  await choices.getByTestId("button-save-marketing-source").click();
+  await choices.getByTestId(`marketing-source-${newChoice}`).waitFor();
+  check(`${label}: a new "heard about us" choice can be added`,true);
+
+  // 11. A work order in progress: people, discount and marketing are still editable there.
+  const wo=await workOrderInProgress();
+  await p.goto(`${base}/#/jobs/${wo.jobId}`);
+  const woBox=p.getByTestId(`work-order-estimate-${wo.estimateNumber}`);await woBox.waitFor();
+  check(`${label}: the work order shows its estimate number at the top`,(await p.getByTestId("text-job-estimate-numbers").innerText()).includes(wo.estimateNumber));
+  const woPeople=woBox.getByTestId("card-estimate-people");
+  await woPeople.getByTestId("button-add-salesperson").click();
+  await woPeople.getByLabel("Salesperson 1",{exact:true}).selectOption({label:"Kelly Brooks (service advisor)"});
+  await woPeople.getByLabel("Estimator",{exact:true}).selectOption({label:"Sam Rivera (service writer)"});
+  await woPeople.getByTestId("button-save-people").click();await woPeople.getByText("People saved.").waitFor();
+  check(`${label}: on a work order in progress, Save people works`,await p.getByText(/changed while you were editing/).count()===0);
+  await woBox.getByTestId("button-edit-discount").click();
+  await woBox.getByTestId("select-discount-code").selectOption("SAMPLE10");
+  await woBox.getByTestId("button-apply-discount").click();
+  await woBox.getByTestId("text-discount-label").waitFor();
+  check(`${label}: on a work order in progress, a discount code can be applied`,/SAMPLE10/.test(await woBox.getByTestId("text-discount-label").innerText()));
+  await woBox.getByTestId("card-estimate-marketing").getByTestId("select-marketing-source").selectOption({label:"Radio"});
+  await woBox.getByTestId("button-save-marketing").click();await woBox.getByTestId("card-estimate-marketing").getByText("Saved.",{exact:true}).waitFor();
+  check(`${label}: on a work order in progress, "heard about us" can be changed`,true);
+  await shot(p,`${label}-11-work-order-in-progress-editing`,true);
 
   // 5. Invoices list and detail: no fake "QB Synced" labels.
   await nav("Invoices");await p.getByText(/INV-2026-/).first().waitFor();

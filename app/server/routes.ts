@@ -2,6 +2,7 @@ import type { Express } from "express";
 // Customer-facing discount wording: the code's description (never internal notes), marked as a labor discount.
 const discountLabel = (e: any) => "Discount" + (e.discountNote ? `: ${e.discountNote}` : "") + (e.discountBasis === "labor" ? (e.discountPercent ? ` (${e.discountPercent}% off labor)` : " (off labor)") : "");
 import { registerDiscounts } from "./discounts";
+import { registerMarketing } from "./marketing";
 import { logoImg, withLogoAttachment } from "./brand-logo";
 import type { Server } from "node:http";
 import { storage } from "./storage";
@@ -75,6 +76,12 @@ function invoiceDentDetails(invoiceId: number): Record<number, string[]> {
     (out[d.invoice_line_id] ||= []).push(d.detail);
   return out;
 }
+// The estimate number (and work order number) printed under the invoice number, so one number follows the
+// repair from estimate to work order to invoice. Pass already-escaped (printable) records.
+const refLine = (invoice: any, job: any, attrs: string) => {
+  const parts = [invoice?.estimateNumber ? `Estimate ${invoice.estimateNumber}` : "", job?.jobNumber ? `Work order ${job.jobNumber}` : ""].filter(Boolean);
+  return parts.length ? `<div ${attrs}>${parts.join(" · ")}</div>` : "";
+};
 const detailHtml = (details?: string[]) => details?.length ? `<ul style="margin:4px 0 0 16px;padding:0;font-size:12px;color:#444">${details.map(t => `<li>${printable(t)}</li>`).join("")}</ul>` : "";
 
 export async function registerRoutes(
@@ -92,6 +99,7 @@ export async function registerRoutes(
   app.patch("/api/estimates/line-items/:id",(req,res)=>res.json(updateEstimateLine(Number(req.params.id),req.body)));
   registerWorkOrders(app);
   registerDiscounts(app);
+  registerMarketing(app);
   registerOperations(app);
   registerCapacity(app);
   registerVin(app);
@@ -685,7 +693,10 @@ export async function registerRoutes(
 
   // ===== JOBS =====
   app.get("/api/jobs", async (_req, res) => {
-    res.json(storage.getJobs());
+    // Each work order lists the estimate numbers it carries, so the estimate's number follows the job.
+    const byJob = new Map<number, string[]>();
+    for (const e of storage.getEstimates()) if (e.jobId) byJob.set(e.jobId, [...(byJob.get(e.jobId) || []), e.estimateNumber]);
+    res.json(storage.getJobs().map(j => ({ ...j, estimateNumbers: byJob.get(j.id) || [] })));
   });
   app.get("/api/jobs/:id", async (req, res) => {
     const job = storage.getJob(parseInt(req.params.id));
@@ -935,6 +946,7 @@ export async function registerRoutes(
         <div style="font-size:12px;color:#666;margin-top:2px;">Paintless Dent Repair | Hail | Interior | Upholstery | Tint</div></div>
         <div style="text-align:right;"><div style="font-size:28px;font-weight:bold;">INVOICE</div>
         <div style="font-size:14px;color:#666;">${invoice.invoiceNumber}</div>
+        ${refLine(invoice, printable(job), 'style="font-size:12px;color:#666;"')}
         <div style="display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:bold;text-transform:uppercase;background:#fef3e2;color:#92400e;">${invoice.status}</div></div>
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:20px;">
@@ -985,7 +997,7 @@ export async function registerRoutes(
         smtpResult = await transporter.sendMail({
           from: `McDowells Specialty Repair <${SMTP_CONFIG.user}>`,
           to: recipientEmail,
-          subject: `Invoice ${invoice.invoiceNumber} - McDowells Specialty Repair`,
+          subject: `Invoice ${invoice.invoiceNumber}${(invoice as any).estimateNumber ? ` (Estimate ${(invoice as any).estimateNumber})` : ""} - McDowells Specialty Repair`,
           ...withLogoAttachment(emailHtml),
         });
         console.log(`Email sent: ${invoice.invoiceNumber} -> ${recipientEmail} (MessageId: ${smtpResult.messageId})`);
@@ -1149,6 +1161,7 @@ export async function registerRoutes(
         .logo-sub { font-size: 12px; color: #666; margin-top: 2px; }
         .doc-title { font-size: 28px; font-weight: bold; text-align: right; }
         .doc-num { font-size: 14px; color: #666; text-align: right; margin-top: 4px; }
+        .doc-ref { font-size: 12px; color: #666; text-align: right; margin-top: 2px; }
         .info-grid { display: flex; justify-content: space-between; margin-bottom: 30px; }
         .info-block { font-size: 13px; line-height: 1.6; }
         .info-label { font-weight: bold; font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 4px; }
@@ -1243,6 +1256,7 @@ export async function registerRoutes(
         .logo-sub { font-size: 12px; color: #666; margin-top: 2px; }
         .doc-title { font-size: 28px; font-weight: bold; text-align: right; }
         .doc-num { font-size: 14px; color: #666; text-align: right; margin-top: 4px; }
+        .doc-ref { font-size: 12px; color: #666; text-align: right; margin-top: 2px; }
         .info-grid { display: flex; justify-content: space-between; margin-bottom: 30px; }
         .info-block { font-size: 13px; line-height: 1.6; }
         .info-label { font-weight: bold; font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 4px; }
@@ -1261,7 +1275,7 @@ export async function registerRoutes(
       </style></head><body>
       <div class="header">
         <div>${logoImg(56)}<div class="logo-sub">Paintless Dent Repair | Hail | Interior | Upholstery | Tint</div></div>
-        <div><div class="doc-title">INVOICE</div><div class="doc-num">${invoice.invoiceNumber}</div><div class="badge">${invoice.status}</div></div>
+        <div><div class="doc-title">INVOICE</div><div class="doc-num">${invoice.invoiceNumber}</div>${refLine(invoice, job, 'class="doc-ref"')}<div class="badge">${invoice.status}</div></div>
       </div>
       <div class="info-grid">
         <div class="info-block">

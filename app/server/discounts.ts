@@ -34,6 +34,11 @@ export function migrateDiscounts() {
   add("estimates", "discount_note", "discount_note TEXT");
   add("estimates", "discount_percent", "discount_percent REAL");
   add("invoices", "discount_note", "discount_note TEXT");
+  // The estimate number follows the job onto its invoice (and later to QuickBooks with the invoice).
+  if (!all("PRAGMA table_info(invoices)").some(c => c.name === "estimate_number")) {
+    add("invoices", "estimate_number", "estimate_number TEXT");
+    sqlite.exec("UPDATE invoices SET estimate_number=(SELECT estimate_number FROM estimates WHERE estimates.id=invoices.estimate_id) WHERE estimate_id IS NOT NULL");
+  }
 }
 
 const shape = (r: any) => r && ({ id: r.id, code: r.code, description: r.description, kind: r.kind, amount: r.amount, appliesTo: r.applies_to, active: !!r.active });

@@ -57,6 +57,8 @@ export function EstimatePeople({ kind, id, locked, onDirtyChange }: { kind: "est
       const result = await apiRequest("PATCH", `/api/${kind}/${id}/people`, body);
       qc.setQueryData([url], result);
       await qc.invalidateQueries({ queryKey: ["/api/estimates", String(id), "sales-team"] });
+      // A linked work order shares these people; refresh its planning box too.
+      await qc.invalidateQueries({ predicate: x => typeof x.queryKey[0] === "string" && x.queryKey[0] !== url && x.queryKey[0].endsWith("/planning") });
       setDraft(null); setSaved(true);
     } catch (e: any) { setError(e.message); } finally { setBusy(false); }
   }
