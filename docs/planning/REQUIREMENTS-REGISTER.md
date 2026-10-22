@@ -922,6 +922,8 @@ The document's own build plan (DOC p.26, §13) is followed: audit → metric dic
 | PDR-014 | "Aluminum or steel?" per panel; aluminum is harder (a price adjustment) | Not asked | Not Started | B0 | P1 | Approved |
 | PDR-015 | Expected result: "% of original factory condition", printed on the estimate to set customer expectations | Not available | Not Started | B0 | P1 | Approved |
 | SPL-001 | Non-PDR diagrams: each panel is Repair or Replace/Reupholster, each with its own customer price | Today a severity choice (minor = repair 60%, moderate = reupholster, severe = reupholster + foam) | Not Started | B1 | P1 | Approved |
+| SPL-003 | Two ways to start the same estimate: (a) open **Splats**, mark damage, choose a customer, create the estimate with the marks carried in; (b) open a customer, choose a splat, create the estimate. Both give the same result. | Splats menu page is reference only (marks are not saved); estimates start from Estimates or the customer | Approved (2026-10-22), "first option" | S0 (proposed, after A1) | P1 | Approved |
+| SPL-004 | On every non-PDR splat, each marked panel offers **Repair** and **Reupholster (replace)**, each priced from its own price table. The tables live in the Pricing Matrix tab and are **fully customizable** by management (items, damage types, sizes, prices, units). | Severity choice: minor = repair 60%, moderate = reupholster 100%, severe = reupholster + foam 125% of one fixed list price. Not editable. | Approved (2026-10-22); extends SPL-001 | U4 (tables) + S3/S6 (splat options) | P1 | Approved |
 | SPL-002 | Exterior non-PDR services per panel: paint touch-up, paint correction, clear-coat scratch wet sand and buff, polish, ceramic coating | Not available as services or prices | Not Started | B1 | P2 | Approved |
 | CRM-014 | Edit customer information from inside the estimate and return: emails, phones, SMS number, address, sales team, how they heard about us | Must leave the estimate | Not Started | A2 | P1 | Approved |
 | CRM-015 | Estimate header shows full customer contact: company and individual name, type, address, town, ZIP, phone, email | Shows name, type and vehicle only | Not Started | A2 | P1 | Approved |
@@ -960,6 +962,7 @@ The document's own build plan (DOC p.26, §13) is followed: audit → metric dic
 
 | Date | Change |
 |---|---|
+| 2026-10-22 | Added SPL-003 (start an estimate from Splats or from the customer) and SPL-004 (repair and reupholster price tables, fully customizable, for every non-PDR splat). Menu "Vehicle Splat" renamed "Splats" in A1. |
 | 2026-10-21 | Final corrections: the owner's tax summary is **not** implemented. The TAX entries stay Blocked / Awaiting Decision pending the accountant's approval of the service-specific tax decision table (ESTIMATING-STRATEGY §7). Authorization policy approved (price increases need new approval). QuickBooks practice recorded as business information to validate. Five line classification fields approved. Split-credit export deferred. Minimum launch scope proposed. |
 | 2026-10-21 | Added requirement types; linked the estimate-first proposal (`ESTIMATING-STRATEGY.md`, awaiting approval). |
 | 2026-10-20 | Added the owner retest list and ideas from public MobileTechRX and VehicleHub materials. Crease range and section 2 heading fixed on PR #5 (b73d9d5). |
