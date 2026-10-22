@@ -127,6 +127,10 @@ export const estimates = sqliteTable("estimates", {
   taxRate: real("tax_rate").notNull().default(0),
   taxAmount: real("tax_amount").notNull().default(0),
   discount: real("discount").notNull().default(0),
+  discountBasis: text("discount_basis").notNull().default("all"), // all (legacy spread) or labor
+  discountCode: text("discount_code"),
+  discountNote: text("discount_note"),
+  discountPercent: real("discount_percent"),
   total: real("total").notNull().default(0),
   notes: text("notes"),
   validUntil: text("valid_until"),
@@ -168,6 +172,7 @@ export const invoices = sqliteTable("invoices", {
   taxRate: real("tax_rate").notNull().default(0),
   taxAmount: real("tax_amount").notNull().default(0),
   discount: real("discount").notNull().default(0),
+  discountNote: text("discount_note"),
   total: real("total").notNull().default(0),
   amountPaid: real("amount_paid").notNull().default(0),
   balanceDue: real("balance_due").notNull().default(0),

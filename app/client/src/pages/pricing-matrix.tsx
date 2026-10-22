@@ -3,6 +3,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { PricingPrintPreview } from "@/components/pricing-print-preview";
 import { HailReference } from "@/components/hail-reference";
 import { PdrPricingEditor } from "@/components/pdr-pricing-editor";
+import { DiscountCodesManager } from "@/components/discount-codes-manager";
 import { HAIL_REFERENCE_ROWS } from "@shared/hail-reference";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -131,6 +132,7 @@ export default function PricingMatrix() {
             <TabsTrigger value="upholstery" data-testid="tab-upholstery">Upholstery</TabsTrigger>
             <TabsTrigger value="labor" data-testid="tab-labor">Labor Rates</TabsTrigger>
             <TabsTrigger value="material" data-testid="tab-material">Materials</TabsTrigger>
+            <TabsTrigger value="discounts" data-testid="tab-discount-codes">Discount Codes</TabsTrigger>
           </TabsList>
 
           {/* PDR DENT MATRIX */}
@@ -497,6 +499,10 @@ export default function PricingMatrix() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="discounts" className="space-y-4">
+            <DiscountCodesManager />
           </TabsContent>
         </Tabs>
       )}

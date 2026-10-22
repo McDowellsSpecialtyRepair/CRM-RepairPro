@@ -69,7 +69,7 @@ try{
  const invite=JSON.parse(readFileSync(join(work,"owner.json"),"utf8"));
  const owner=(await ok("POST","/api/auth/activate",{email:ownerEmail,activationCode:invite.activationCode,password:password()})).token;
  const staff={};
- for(const [role,extra] of [["advisor",{}],["technician",{technicianId:1}],["auditor",{}]]){
+ for(const [role,extra] of [["advisor",{}],["manager",{}],["technician",{technicianId:1}],["auditor",{}]]){
   const email=`${role}@example.invalid`,r=await ok("POST","/api/staff",{email,fullName:`Test ${role}`,role,...extra},owner);
   staff[role]=(await ok("POST","/api/auth/activate",{email,activationCode:r.activationCode,password:password()})).token;
  }
@@ -206,16 +206,68 @@ try{
  const tp=`/api/estimates/${tint.id}`;
  const tintBefore=await ok("GET",tp);
  let plan=await ok("GET",tp+"/planning");
- const advisorId=sid("Test advisor"),ownerId=people.find(p=>p.role==="owner")?.id;
- plan=await ok("PATCH",tp+"/people",{revision:plan.revision,salesPersonId:advisorId,estimatorId:ownerId,followUpId:advisorId});
+ const advisorId=sid("Test advisor"),managerId=sid("Test manager"),ownerId=people.find(p=>p.role==="owner")?.id;
+ // One People box: up to 3 salespeople whose shares total 100%, plus the estimator and follow-up salesperson.
+ plan=await ok("PATCH",tp+"/people",{revision:plan.peopleRevision,salesTeam:[{staffId:advisorId,shareBps:6000},{staffId:managerId,shareBps:2500},{staffId:ownerId,shareBps:1500}],estimatorId:ownerId,followUpId:advisorId});
  const reread=await ok("GET",tp+"/planning");
- check("Salesperson, estimator and follow-up salesperson are saved and read back",
-  reread.salesPersonId===advisorId&&reread.estimatorId===ownerId&&reread.followUpId===advisorId&&reread.salesPerson==="Test advisor");
+ check("Three salespeople with shares, the estimator and the follow-up salesperson are saved and read back",
+  reread.salesTeam.length===3&&reread.salesTeam.find(r=>r.staff_id===managerId)?.share_bps===2500&&reread.estimatorId===ownerId&&reread.followUpId===advisorId);
+ check("The salesperson with the largest share is the lead salesperson",reread.salesPersonId===advisorId&&reread.salesPerson==="Test advisor");
+ check("The commission split screen reads the same salespeople (one place to enter them)",await (async()=>{const t=await ok("GET",tp+"/sales-team");const rows=t.splits||t.rows||t;return JSON.stringify(rows).includes(String(managerId))&&JSON.stringify(rows).includes("2500");})());
  {const t=await ok("GET",tp);check("Changing people does not change the estimate's totals, status or lines",t.total===tintBefore.total&&t.status===tintBefore.status&&JSON.stringify(t.lineItems)===JSON.stringify(tintBefore.lineItems));}
+ check("Salesperson shares must add up to 100%",await (async()=>{const r=await call("PATCH",tp+"/people",{revision:reread.peopleRevision,salesTeam:[{staffId:advisorId,shareBps:6000},{staffId:managerId,shareBps:3000}]});return r.status===400&&/100%/.test(r.text);})());
+ check("No more than 3 salespeople",(await call("PATCH",tp+"/people",{revision:reread.peopleRevision,salesTeam:[1,2,3,4].map(()=>({staffId:advisorId,shareBps:2500}))})).status===400);
+ check("The same salesperson cannot be listed twice",(await call("PATCH",tp+"/people",{revision:reread.peopleRevision,salesTeam:[{staffId:advisorId,shareBps:5000},{staffId:advisorId,shareBps:5000}]})).status===400);
  check("A stale people edit is refused (another user changed it)",(await call("PATCH",tp+"/people",{revision:"stale",estimatorId:null})).status===409);
- check("A technician cannot change the people on an estimate",(await call("PATCH",tp+"/people",{revision:reread.revision,estimatorId:null},staff.technician)).status===403);
- check("A non-sales role (auditor) cannot be chosen as salesperson, with an explanation",await (async()=>{const r=await call("PATCH",tp+"/people",{revision:reread.revision,salesPersonId:sid("Test auditor")});return r.status===400&&/Service advisor/.test(r.text);})());
- check("Unexpected fields are refused",(await call("PATCH",tp+"/people",{revision:reread.revision,priority:"high"})).status===400);
+ check("A technician cannot change the people on an estimate",(await call("PATCH",tp+"/people",{revision:reread.peopleRevision,estimatorId:null},staff.technician)).status===403);
+ check("A non-sales role (auditor) cannot be chosen as salesperson, with an explanation",await (async()=>{const r=await call("PATCH",tp+"/people",{revision:reread.peopleRevision,salesTeam:[{staffId:sid("Test auditor"),shareBps:10000}]});return r.status===400&&/Service advisor/.test(r.text);})());
+ check("Unexpected fields are refused",(await call("PATCH",tp+"/people",{revision:reread.peopleRevision,priority:"high"})).status===400);
+ // The owner's "This record changed while you were editing" on every save: adding a line, or saving the
+ // other box, must not invalidate the box still open on the same screen.
+ {const p0=await ok("GET",tp+"/planning");
+  await ok("POST",tp+"/line-items",{serviceCategory:"window_tint",description:"Tint labor",unitPrice:400});
+  const p1=await ok("PATCH",tp+"/planning",{revision:p0.revision,priority:"high"});
+  check("Planning saves after a line item was added on the same screen (no false 'record changed')",p1.priority==="high");
+  const p2=await ok("PATCH",tp+"/people",{revision:p0.peopleRevision,followUpId:managerId});
+  check("People save after planning was saved on the same screen (no false 'record changed')",p2.followUpId===managerId);
+  check("Planning still saves after people were saved",(await ok("PATCH",tp+"/planning",{revision:p2.revision,priority:"low"})).priority==="low");
+  check("A planning edit based on an old planning version is still refused",(await call("PATCH",tp+"/planning",{revision:p0.revision,priority:"urgent"})).status===409);}
+ // ---- A1: schedule date before the estimate was created needs a confirmation ----
+ {const pl=await ok("GET",tp+"/planning");
+  const r=await call("PATCH",tp+"/planning",{revision:pl.revision,scheduledDate:"2020-01-15"});
+  check("Scheduling before the estimate was created is stopped with a warning",r.status===409&&/before this estimate was created/.test(r.text));
+  check("The refused early date is not saved",(await ok("GET",tp+"/planning")).scheduledDate!=="2020-01-15");
+  const c=await ok("PATCH",tp+"/planning",{revision:pl.revision,scheduledDate:"2020-01-15",confirmEarlyDate:true});
+  check("The estimator can confirm the early date (work really started first) and it is saved",c.scheduledDate==="2020-01-15");
+  const dbr=new Database(dbPath,{readonly:true});
+  check("A confirmed early date is recorded in the audit history",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='schedule.date_before_estimate_confirmed' AND record_id=?").get(String(tint.id)));dbr.close();
+  const today=new Date().toLocaleDateString("en-CA",{timeZone:"America/Boise"});
+  check("A date on or after the estimate date needs no confirmation",(await ok("PATCH",tp+"/planning",{revision:c.revision,scheduledDate:today})).scheduledDate===today);}
+ // ---- A1: discount codes and labor discounts ----
+ check("Only pricing managers can add discount codes",(await call("POST","/api/discount-codes",{code:"VET10",description:"Veteran",kind:"percent",amount:10})).status===403);
+ const vet=await ok("POST","/api/discount-codes",{code:"vet10",description:"Veteran discount",kind:"percent",amount:10},owner);
+ const flat=await ok("POST","/api/discount-codes",{code:"FLAT50",description:"$50 off labor",kind:"amount",amount:50},owner);
+ check("A discount code is saved with its code, description and amount",vet.code==="VET10"&&vet.description==="Veteran discount"&&vet.kind==="percent"&&vet.amount===10&&vet.active);
+ check("Duplicate discount codes are refused",(await call("POST","/api/discount-codes",{code:"VET10",description:"x",kind:"percent",amount:5},owner)).status===409);
+ check("A percentage over 100 is refused",(await call("POST","/api/discount-codes",{code:"BAD",description:"x",kind:"percent",amount:150},owner)).status===400);
+ check("Estimators can read the discount list",(await ok("GET","/api/discount-codes")).some(c=>c.code==="VET10"));
+ await ok("POST",tp+"/line-items",{serviceCategory:"window_tint",description:"Tint film",unitPrice:100,lineType:"parts"});
+ const noDisc=await ok("GET",tp);
+ const laborTotal=noDisc.lineItems.filter(l=>l.lineType==="labor").reduce((n,l)=>n+l.total,0);
+ const withCode=await ok("PATCH",tp,{discountBasis:"labor",discountCode:"VET10"});
+ check("Choosing a discount code applies its description and amount (10% of labor)",withCode.discountCode==="VET10"&&withCode.discountNote==="Veteran discount"&&withCode.discountPercent===10&&Math.abs(withCode.discount-laborTotal*0.1)<0.005);
+ check("A labor discount does not change the sales tax on parts",withCode.taxAmount===noDisc.taxAmount);
+ check("The total drops by exactly the discount",Math.abs(withCode.total-(noDisc.total-withCode.discount))<0.005);
+ await ok("POST",tp+"/line-items",{serviceCategory:"window_tint",description:"More tint labor",unitPrice:200});
+ {const t=await ok("GET",tp);check("A percentage labor discount follows the labor when lines are added",Math.abs(t.discount-(laborTotal+200)*0.1)<0.005);}
+ check("A hand-entered discount needs a description",(await call("PATCH",tp,{discountBasis:"labor",discountCode:null,discountNote:"",discount:25,discountPercent:null})).status===400);
+ const manual=await ok("PATCH",tp,{discountBasis:"labor",discountCode:null,discountNote:"Returning customer",discount:25,discountPercent:null});
+ check("A hand-entered dollar discount with a description is saved",manual.discount===25&&manual.discountNote==="Returning customer"&&manual.discountCode===null);
+ check("A labor discount larger than the labor is refused",(await call("PATCH",tp,{discountBasis:"labor",discountCode:null,discountNote:"Too much",discount:99999,discountPercent:null})).status===400);
+ check("Turned-off discount codes cannot be chosen",await (async()=>{await ok("PATCH",`/api/discount-codes/${flat.id}`,{active:false},owner);return (await call("PATCH",tp,{discountBasis:"labor",discountCode:"FLAT50"})).status===400;})());
+ {const printed=await ok("GET",`/print/estimate/${tint.id}`);check("The printed estimate shows the discount description and that it is off labor",/Discount: Returning customer \(off labor\)/.test(printed));}
+ const removed=await ok("PATCH",tp,{discountBasis:"labor",discount:0,discountPercent:null,discountCode:null,discountNote:null});
+ check("Removing the discount clears the code and description",removed.discount===0&&removed.discountNote===null&&removed.discountCode===null&&Math.abs(removed.total-(removed.subtotal+removed.taxAmount))<0.005);
  {const dbr=new Database(dbPath,{readonly:true});
   check("People changes are recorded in the audit history",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='people.updated' AND record_id=?").get(String(tint.id)));dbr.close();}
  // ---- A1: logo on printed estimates and invoices ----

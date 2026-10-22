@@ -15,18 +15,24 @@ export function WorkPlanning({ kind, id }: { kind: "jobs" | "estimates"; id: num
   const q = useQuery<any>({ queryKey: [url], staleTime: 0, refetchOnWindowFocus: true, queryFn: () => apiRequest("GET", url) });
   const [draft, setDraft] = useState<any>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [saved, setSaved] = useState(false);
+  // A planned date before the estimate was created needs a deliberate confirmation (it is then recorded).
+  const [earlyWarning, setEarlyWarning] = useState(""), [earlyConfirmed, setEarlyConfirmed] = useState(false);
   const techs = useQuery<any[]>({ queryKey: ["/api/technicians"], enabled: can("schedule.read") });
     const p = draft || q.data;
   const editable = can(`${kind}.write`) && can("schedule.write") && (!q.data?.jobId || can("jobs.write"));
-  function change(key: string, value: any) { setDraft({ ...p, [key]: value }); setSaved(false); }
-  async function save(e: React.FormEvent) {
-    e.preventDefault(); setBusy(true); setError("");
+  function change(key: string, value: any) { setDraft({ ...p, [key]: value }); setSaved(false); if (key === "scheduledDate") { setEarlyWarning(""); setEarlyConfirmed(false); } }
+  async function save(e?: React.FormEvent, confirmEarlyDate = false) {
+    e?.preventDefault(); setBusy(true); setError("");
     try {
-      const payload = Object.fromEntries(["revision", "scheduledDate", "assignedTechId", "salesPersonId", "priority", ...(p.jobId ? ["title", "description", "status"] : [])].map(k => [k, p[k]]));
+      // The salesperson is changed under "People" at the top, so it is not sent from here.
+      const payload: any = Object.fromEntries(["revision", "scheduledDate", "assignedTechId", "priority", ...(p.jobId ? ["title", "description", "status"] : [])].map(k => [k, p[k]]));
+      if (confirmEarlyDate) payload.confirmEarlyDate = true;
       const result = await apiRequest("PATCH", url, payload);
-      qc.setQueryData([url], result); setDraft(null); setSaved(true);
+      qc.setQueryData([url], result); setDraft(null); setSaved(true); setEarlyWarning(""); setEarlyConfirmed(false);
       await qc.invalidateQueries();
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) {
+      if (/is before this estimate was created/.test(e.message)) setEarlyWarning(e.message); else setError(e.message);
+    }
     finally { setBusy(false); }
   }
   if (q.isLoading) return <Card><CardContent className="p-5" role="status">Loading work planning…</CardContent></Card>;
@@ -58,6 +64,16 @@ export function WorkPlanning({ kind, id }: { kind: "jobs" | "estimates"; id: num
       </fieldset>
       {techs.error && <p role="alert" className="text-sm text-destructive">Staff choices could not load. Reload before changing assignments.</p>}
       {p.slots.length > 0 && <div className="rounded-md border p-3 text-sm space-y-1"><p className="font-medium">Calendar appointments are already booked</p>{p.slots.map((s: any) => <p key={s.id}>{s.date} · {s.startTime}–{s.endTime} · {(techs.data || []).find(t => t.id === s.technicianId)?.name || "Technician"} · {s.status.replaceAll("_", " ")}</p>)}<p>Cancel and rebook in Scheduling to change the date or lead technician.</p></div>}
+      {earlyWarning && <div role="alertdialog" aria-labelledby="early-date-title" className="rounded-md border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm space-y-2" data-testid="early-date-warning">
+        <p id="early-date-title" className="font-semibold">Check the planned date</p>
+        <p>{earlyWarning}</p>
+        <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={earlyConfirmed} onChange={e => setEarlyConfirmed(e.target.checked)} data-testid="checkbox-confirm-early-date" />
+          <span>Yes, I know this date is before the estimate was created. The work really started on this date, and I want to use it to keep the schedule record accurate.</span></label>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" disabled={!earlyConfirmed || busy} onClick={() => save(undefined, true)} data-testid="button-save-early-date">Save with this date</Button>
+          <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { setEarlyWarning(""); setEarlyConfirmed(false); }}>Go back and change the date</Button>
+        </div>
+      </div>}
       {error && <div role="alert" className="text-sm text-destructive"><p>{error}</p><Button type="button" variant="outline" className="mt-2" disabled={busy} onClick={async () => { const fresh = await q.refetch(); if (!fresh.error) { setDraft(null); setError(""); setSaved(false); } }}>Reload latest record (discard edits)</Button></div>}
       {saved && <p role="status" className="text-sm text-primary">Planning changes saved.</p>}
       <div className="flex flex-wrap gap-3 items-center">

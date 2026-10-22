@@ -597,7 +597,7 @@ export function registerOperations(app: Express) {
             now(),
           ).lastInsertRowid,
         );
-        const net = lineNetCents(lines, e.discount);
+        const net = lineNetCents(lines, e.discount, (e as any).discountBasis || "all");
         lines.forEach((l, i) =>
           run(
             "INSERT INTO ops_tasks(case_id,source_line_id,description,line_type,net_cents) VALUES(?,?,?,?,?)",

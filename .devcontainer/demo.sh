@@ -92,6 +92,10 @@ create_demo() {
           const invited = await call("/api/staff", { fullName, email, role }, token);
           await call("/api/auth/activate", { email, activationCode: invited.activationCode, password });
         }
+        // Sample discount codes (not McDowells codes) so the estimate discount list has choices to try.
+        for (const [code, description, kind, amount] of [["SAMPLE10", "Sample: returning customer", "percent", 10],
+          ["SAMPLE50", "Sample: $50 off labor", "amount", 50]])
+          await call("/api/discount-codes", { code, description, kind, amount }, token);
       }).catch(e => { console.error(e.message); process.exit(1); });
   ' "$SETUP_PORT" "$OWNER_EMAIL" "$DEMO_DIR/invite.json" "$password"
   stop_server "$SETUP_PORT"

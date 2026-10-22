@@ -24,6 +24,7 @@ import {NewEstimateDialog} from "@/components/new-estimate-dialog";
 import {categoriesFor,categoryAllowed,templateAllowed,nonLaborCategory,categoryTaxable,repairActionsFor,customerLineLabel,documentBreakdown} from "@shared/estimate-rules";
 import {DocumentBreakdown} from "@/components/document-breakdown";
 import {EstimateCommercial} from "@/components/estimate-commercial";
+import {DiscountEditor} from "@/components/discount-editor";
 import {useAuth} from "@/components/auth-provider";
 
 const formatCurrency = (n: number) =>
@@ -104,7 +105,6 @@ export default function EstimateBuilder() {
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");
   const [editingDiscount, setEditingDiscount] = useState(false);
-  const [discountDraft, setDiscountDraft] = useState("0");
   const [assignOpen,setAssignOpen] = useState(false);
   const [editingLine,setEditingLine]=useState<any>(null);
   const [taxDraft,setTaxDraft]=useState("");
@@ -290,10 +290,6 @@ export default function EstimateBuilder() {
 
   const handleSaveNotes = () => {
     updateEstimate.mutate({ notes: notesDraft },{onSuccess:()=>setEditingNotes(false)});
-  };
-
-  const handleSaveDiscount = () => {
-    updateEstimate.mutate({ discount: Number(discountDraft) || 0 },{onSuccess:()=>setEditingDiscount(false)});
   };
 
   if (isLoading || !estimate) {
@@ -518,7 +514,7 @@ export default function EstimateBuilder() {
           </div>
         </CardContent>
       </Card>
-      <EstimatePeople key={`people-${estimate.id}`} kind="estimates" id={estimate.id} locked={estimate.status === "invoiced"} />
+      <EstimatePeople key={`people-${estimate.id}`} kind="estimates" id={estimate.id} locked={estimate.status === "invoiced"} onDirtyChange={setSalesDirty} />
       </section>
 
       {/* 2. Vehicle damage mapping and individual dent details */}
@@ -641,7 +637,7 @@ export default function EstimateBuilder() {
               </div>
 
               <div className="mt-4"><EstimateLabor id={id!} locked={estimate.status === "invoiced"} onDirtyChange={setLaborDirty}/></div>
-              <div className="mt-4"><EstimateCommercial estimate={estimate} onDirtyChange={setSalesDirty}/></div>
+              <div className="mt-4"><EstimateCommercial estimate={estimate}/></div>
               {/* Add line item form */}
               <fieldset id="estimate-line-editor" disabled={estimate.status === "invoiced"||addLineItem.isPending||!can("estimates.write")} className="mt-4 rounded-lg border border-border p-4 space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
@@ -787,31 +783,7 @@ export default function EstimateBuilder() {
                   <span className="text-muted-foreground">{documentBreakdown(lineItems,subtotal).taxLabel}</span>
                   <span className="tabular-nums">{formatCurrency(taxAmount)}</span>
                 </div>
-                {/* Discount - editable */}
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Discount</span>
-                  {editingDiscount ? (
-                    <div className="flex items-center gap-1">
-                      <Input
-                        type="number"
-                        value={discountDraft}
-                        onChange={(e) => setDiscountDraft(e.target.value)}
-                        className="w-20 h-7 text-xs text-right"
-                        step="0.01"
-                      />
-                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={handleSaveDiscount}>OK</Button>
-                    </div>
-                  ) : (
-                    <button
-                      className="tabular-nums text-destructive hover:underline"
-                      onClick={() => { setDiscountDraft(String(discount)); setEditingDiscount(true); }}
-                      data-testid="button-edit-discount"
-                      disabled={estimate.status === "invoiced"}
-                    >
-                      -{formatCurrency(discount)}
-                    </button>
-                  )}
-                </div>
+                <DiscountEditor estimate={estimate} locked={estimate.status === "invoiced"} onEditingChange={setEditingDiscount} />
               </div>
               <div className="flex justify-between border-t border-border pt-2 text-base font-bold">
                 <span>Total</span>

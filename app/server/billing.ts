@@ -9,6 +9,7 @@ import { categoryAllowed, categoryTaxable, nonLaborCategory, repairActionsFor, t
 import { snapshotSales } from "./estimate-sales";
 import { assertPackagesApproved } from "./dent-approval";
 import { customerDentDetail } from "../shared/dents";
+import { discountCode } from "./discounts";
 
 export function fail(message: string, status = 400): never {
   throw Object.assign(new Error(message), { status });
@@ -47,13 +48,18 @@ export function recalculateEstimate(id: number) {
   const lines = storage.getEstimateLineItems(id);
   const subtotalCents = lines.reduce((s, i) => s + cents(i.total), 0);
   const rate = number(est.taxRate, "Tax rate", 0, 100);
-  const discount = cents(number(est.discount, "Discount"));
+  const basis = (est as any).discountBasis || "all";
+  const laborCents = lines.reduce((s, l) => s + (l.lineType === "labor" ? cents(l.total) : 0), 0);
+  // A percentage labor discount follows the labor on the estimate as lines are added or removed.
+  const pct = (est as any).discountPercent;
+  const discount = basis === "labor" && pct != null ? Math.round(laborCents * pct / 100) : cents(number(est.discount, "Discount"));
   if (discount > subtotalCents) fail("Discount cannot exceed the subtotal");
+  if (basis === "labor" && discount > laborCents) fail(`The labor discount ($${(discount / 100).toFixed(2)}) is larger than the labor on this estimate ($${(laborCents / 100).toFixed(2)}). A labor discount can only reduce labor charges. Reduce or remove the discount first.`);
   const exempt = storage.getCustomer(est.customerId)?.taxExempt;
-  const net = lineNetCents(lines, est.discount);
+  const net = lineNetCents(lines, discount / 100, basis);
   const parts = lines.reduce((s,l,i) => s+(categoryTaxable(l.serviceCategory,l.lineType) ? net[i] : 0),0);
   const tax = exempt ? 0 : Math.round(parts * rate / 100);
-  return storage.updateEstimate(id, { subtotal: subtotalCents / 100, taxAmount: tax / 100, total: (subtotalCents + tax - discount) / 100 })!;
+  return storage.updateEstimate(id, { subtotal: subtotalCents / 100, discount: discount / 100, taxAmount: tax / 100, total: (subtotalCents + tax - discount) / 100 })!;
 }
 export function createEstimateSafe(body: any) {
   return sqlite.transaction(() => {
@@ -72,7 +78,7 @@ export function createEstimateSafe(body: any) {
 export function updateEstimateSafe(id: number, body: any) {
   return sqlite.transaction(() => {
     const est = editableEstimate(id);
-    const allowed = ["notes", "validUntil", "vehicleId", "assetId", "jobId", "taxRate", "discount", "status", "approvedDate"];
+    const allowed = ["notes", "validUntil", "vehicleId", "assetId", "jobId", "taxRate", "discount", "status", "approvedDate", "discountCode", "discountNote", "discountPercent", "discountBasis"];
     if (Object.keys(body).some(k => !allowed.includes(k))) fail("Unsupported or server-calculated estimate field");
     if (body.status && !["draft", "sent", "approved", "rejected", "expired"].includes(body.status)) fail("Invalid estimate status");
     if (body.status === "sent" && est.status !== "sent") fail("Sent status requires acceptance by a configured email provider.",409);
@@ -84,14 +90,41 @@ export function updateEstimateSafe(id: number, body: any) {
     if(body.status==="approved")validateEstimateServices(id);
     if(body.status==="approved")assertPackagesApproved(id,"marked approved");
     if (body.discount !== undefined) data.discount = money(number(body.discount, "Discount"));
+    const discountChange = ["discount", "discountCode", "discountNote", "discountPercent", "discountBasis"].some(k => Object.hasOwn(body, k));
+    if (discountChange) {
+      // Discounts set from now on are labor discounts (owner decision 2026-10-22), chosen from a discount code or
+      // entered by hand with a description. A code supplies its own description and amount.
+      if (body.discountBasis !== undefined && body.discountBasis !== "labor") fail("Discounts apply to labor.");
+      data.discountBasis = "labor";
+      const code = body.discountCode == null || body.discountCode === "" ? null : String(body.discountCode);
+      const note = body.discountNote == null ? null : String(body.discountNote).trim().slice(0, 200) || null;
+      if (code) {
+        const c = discountCode(code);
+        if (!c) fail("That discount code is not active. Choose another code or enter the discount by hand.");
+        data.discountCode = c.code; data.discountNote = note || c.description;
+        if (c.kind === "percent") { data.discountPercent = c.amount; data.discount = 0; } else { data.discountPercent = null; data.discount = c.amount; }
+      } else {
+        data.discountCode = null; data.discountNote = note;
+        if (body.discountPercent != null) { data.discountPercent = number(body.discountPercent, "Discount percentage", 0, 100); data.discount = 0; }
+        else data.discountPercent = null;
+      }
+      if (!data.discountPercent && !data.discount) { data.discountCode = null; data.discountNote = null; data.discountPercent = null; }
+      else if (!data.discountCode && !data.discountNote) fail("Enter a description for the discount, or choose a discount code.");
+    }
     if (body.taxRate !== undefined) number(body.taxRate, "Tax rate", 0, 100);
-    if (["discount","taxRate","vehicleId","assetId","jobId"].some(k=>Object.hasOwn(body,k)) && est.status === "approved") {
+    if (["taxRate","vehicleId","assetId","jobId"].some(k=>Object.hasOwn(body,k)) && est.status === "approved") {
       data.status = "draft"; data.approvedDate = null;
     }
     if (data.status === "approved") data.approvedDate = localToday();
     else if(data.status&&["draft","rejected","expired"].includes(data.status))data.approvedDate=null;
     storage.updateEstimate(id, data);
-    return recalculateEstimate(id);
+    const updated = recalculateEstimate(id);
+    // Approved authorization policy: a lower price (a bigger discount) needs no new customer approval; a higher
+    // price (a smaller or removed discount) does.
+    if (discountChange && est.status === "approved" && updated.total > est.total) {
+      return storage.updateEstimate(id, { status: "draft", approvedDate: null })!;
+    }
+    return updated;
   }).immediate();
 }
 export function validateEstimateServices(id:number){
@@ -205,11 +238,12 @@ export function convertEstimate(id: number) {
       invoiceNumber: `INV-${issueDay.slice(0,4)}-${String(next).padStart(6, "0")}`,
       customerId: est.customerId, jobId: est.jobId, estimateId: id, status: "sent",
       subtotal: calculated.subtotal, taxRate: calculated.taxRate, taxAmount: calculated.taxAmount,
-      discount: calculated.discount, total: calculated.total, amountPaid: 0, balanceDue: calculated.total,
+      discount: calculated.discount, discountNote: calculated.discount ? [(calculated as any).discountCode, (calculated as any).discountNote].filter(Boolean).join(" · ") + ((calculated as any).discountBasis === "labor" ? " (labor discount)" : "") || null : null,
+      total: calculated.total, amountPaid: 0, balanceDue: calculated.total,
       issueDate: issueDay,
       dueDate: addDays(issueDay, 30), notes: est.notes,
     });
-    const net = lineNetCents(lines, calculated.discount);
+    const net = lineNetCents(lines, calculated.discount, (calculated as any).discountBasis || "all");
     const showDetails = !!(sqlite.prepare("SELECT show_dent_details s FROM estimate_pricing_options WHERE estimate_id=?").get(id) as any)?.s;
     for (let index=0;index<lines.length;index++) {
       const it = lines[index];

@@ -1,4 +1,7 @@
 import type { Express } from "express";
+// Customer-facing discount wording: the code's description (never internal notes), marked as a labor discount.
+const discountLabel = (e: any) => "Discount" + (e.discountNote ? `: ${e.discountNote}` : "") + (e.discountBasis === "labor" ? (e.discountPercent ? ` (${e.discountPercent}% off labor)` : " (off labor)") : "");
+import { registerDiscounts } from "./discounts";
 import { logoImg, withLogoAttachment } from "./brand-logo";
 import type { Server } from "node:http";
 import { storage } from "./storage";
@@ -88,6 +91,7 @@ export async function registerRoutes(
   registerPdrPricing(app);
   app.patch("/api/estimates/line-items/:id",(req,res)=>res.json(updateEstimateLine(Number(req.params.id),req.body)));
   registerWorkOrders(app);
+  registerDiscounts(app);
   registerOperations(app);
   registerCapacity(app);
   registerVin(app);
@@ -960,7 +964,7 @@ export async function registerRoutes(
         ${breakdownHtml(lineItems,subtotal)}
         <tr><td style="padding:6px 12px;">Subtotal</td><td style="padding:6px 12px;text-align:right;">$${subtotal.toFixed(2)}</td></tr>
         <tr><td style="padding:6px 12px;">${documentBreakdown(lineItems,subtotal).taxLabel} (${invoice.taxRate || 0}%)</td><td style="padding:6px 12px;text-align:right;">$${taxAmount.toFixed(2)}</td></tr>
-        ${invoice.discount ? `<tr><td style="padding:6px 12px;">Discount</td><td style="padding:6px 12px;text-align:right;">-$${(invoice.discount || 0).toFixed(2)}</td></tr>` : ""}
+        ${invoice.discount ? `<tr><td style="padding:6px 12px;">${(invoice as any).discountNote ? "Discount: " + (invoice as any).discountNote : "Discount"}</td><td style="padding:6px 12px;text-align:right;">-$${(invoice.discount || 0).toFixed(2)}</td></tr>` : ""}
         <tr><td style="border-top:2px solid #183873;font-weight:bold;font-size:16px;padding-top:10px;padding:6px 12px;">Total</td><td style="border-top:2px solid #183873;font-weight:bold;font-size:16px;padding-top:10px;padding:6px 12px;text-align:right;">$${total.toFixed(2)}</td></tr>
         <tr><td style="padding:6px 12px;">Paid</td><td style="padding:6px 12px;text-align:right;">$${(invoice.amountPaid || 0).toFixed(2)}</td></tr>
         <tr><td style="padding:6px 12px;">Balance Due</td><td style="padding:6px 12px;text-align:right;">$${(invoice.balanceDue || 0).toFixed(2)}</td></tr>
@@ -1192,7 +1196,7 @@ export async function registerRoutes(
         ${breakdownHtml(lineItems,subtotal)}
         <tr><td>Subtotal</td><td class="text-right">$${subtotal.toFixed(2)}</td></tr>
         <tr><td>${documentBreakdown(lineItems,subtotal).taxLabel} (${estimate.taxRate || 0}%)</td><td class="text-right">$${taxAmount.toFixed(2)}</td></tr>
-        ${estimate.discount ? `<tr><td>Discount</td><td class="text-right">-$${(estimate.discount || 0).toFixed(2)}</td></tr>` : ""}
+        ${estimate.discount ? `<tr><td>${discountLabel(estimate)}</td><td class="text-right">-$${(estimate.discount || 0).toFixed(2)}</td></tr>` : ""}
         <tr><td>Total</td><td class="text-right">$${total.toFixed(2)}</td></tr>
       </table>
       ${estimate.notes ? `<div class="notes"><strong>Notes:</strong><br>${estimate.notes}</div>` : ""}
@@ -1286,7 +1290,7 @@ export async function registerRoutes(
         ${breakdownHtml(lineItems,subtotal)}
         <tr><td>Subtotal</td><td class="text-right">$${subtotal.toFixed(2)}</td></tr>
         <tr><td>${documentBreakdown(lineItems,subtotal).taxLabel} (${invoice.taxRate || 0}%)</td><td class="text-right">$${taxAmount.toFixed(2)}</td></tr>
-        ${invoice.discount ? `<tr><td>Discount</td><td class="text-right">-$${(invoice.discount || 0).toFixed(2)}</td></tr>` : ""}
+        ${invoice.discount ? `<tr><td>${(invoice as any).discountNote ? "Discount: " + (invoice as any).discountNote : "Discount"}</td><td class="text-right">-$${(invoice.discount || 0).toFixed(2)}</td></tr>` : ""}
         <tr><td>Total</td><td class="text-right">$${total.toFixed(2)}</td></tr>
         <tr><td>Paid</td><td class="text-right">$${(invoice.amountPaid || 0).toFixed(2)}</td></tr>
         <tr><td>Balance Due</td><td class="text-right">$${(invoice.balanceDue || 0).toFixed(2)}</td></tr>
