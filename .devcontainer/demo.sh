@@ -3,7 +3,8 @@
 #
 #   bash .devcontainer/demo.sh setup     install, build, create the demo database and login (first start)
 #   bash .devcontainer/demo.sh start     start the demo server (every start of the codespace)
-#   bash .devcontainer/demo.sh reset     throw away all demo changes and start again with fresh sample data
+#   bash .devcontainer/demo.sh update    get the newest version of this branch and restart, KEEPING your demo data
+#   bash .devcontainer/demo.sh reset     ERASE all demo changes and start again with fresh sample data (asks first)
 #   bash .devcontainer/demo.sh selftest  setup + start + sign-in check, then stop (used by CI)
 #   bash .devcontainer/demo.sh status    which code version is checked out, built and running
 #   bash .devcontainer/demo.sh logs      show the demo server's request log as it happens
@@ -153,8 +154,27 @@ case "${1:-}" in
     echo "RepairPro demo request log (keep this terminal open while testing; it keeps the codespace active)."
     exec tail -n 5 -F "$DEMO_DIR/server.log"
     ;;
+  update)
+    # Newest code from GitHub for this branch; the estimates, customers and other demo records you entered are kept
+    # (the server upgrades the existing demo database when it starts).
+    branch="$(git -C "$REPO" rev-parse --abbrev-ref HEAD)"
+    echo "Getting the newest version of $branch (your demo data is kept)..."
+    git -C "$REPO" pull --ff-only origin "$branch" || { echo "Could not get the newest version. Nothing was changed; tell Claude what this window says." >&2; exit 1; }
+    "$0" start
+    echo "Updated to version $(head_commit). Your demo data is unchanged. Reload the CRM tab and sign in again (same password as before)."
+    ;;
   reset)
     case "$DEMO_DIR" in *demo*) ;; *) echo "Refusing to reset: DEMO_DIR does not look like a demo folder." >&2; exit 1 ;; esac
+    if [ "${2:-}" != "--yes" ]; then
+      echo "This ERASES every estimate, customer and other change you made in this demo and starts over with sample data."
+      echo "To get the newest version and KEEP your data, use instead:  bash .devcontainer/demo.sh update"
+      if [ -t 0 ]; then
+        read -r -p "Type ERASE to erase all demo data, or press Enter to cancel: " answer
+        [ "$answer" = "ERASE" ] || { echo "Cancelled. Nothing was erased."; exit 0; }
+      else
+        echo "Not erased. Run 'bash .devcontainer/demo.sh reset --yes' to confirm." >&2; exit 1
+      fi
+    fi
     stop_server "$PORT"
     rm -rf "$DEMO_DIR" "$LOGIN_FILE"
     create_demo
