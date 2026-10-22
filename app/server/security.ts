@@ -27,6 +27,17 @@ sqlite.function("staff_actor_id", () => securityContext.getStore()?.userId || nu
 sqlite.function("staff_actor_label", () => actorLabel());
 sqlite.function("staff_request_id", () => securityContext.getStore()?.requestId || "system");
 
+// Private Codespaces demo only: the sign-in screen offers a one-click demo sign-in. All three must hold: the
+// server was started by .devcontainer/demo.sh (which passes the login), the database is a demo-data database,
+// and the account exists. A real database never qualifies, so this can't expose a real login.
+function demoSignIn() {
+  const raw = process.env.REPAIRPRO_DEMO_SIGNIN || "";
+  const [email, password] = raw.split(" ");
+  if (!email || !password || !process.argv.some(a => a.startsWith("--repairpro-demo-port="))) return {};
+  const demo = !!sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_migrations'").get() && !!sqlite.prepare("SELECT 1 FROM app_migrations WHERE version='demo-data-v1'").get();
+  if (!demo || !row("SELECT id FROM staff_accounts WHERE email=? AND status='active'", email)) return {};
+  return { demoSignIn: { email, password } };
+}
 export function initializeSecurity() {
   sqlite.transaction(() => {
     sqlite.exec(`
@@ -252,7 +263,7 @@ export function registerSecurity(app: Express) {
   const handle = (fn: (req: Request, res: Response) => any) => async (req: Request, res: Response) => {
     try { await fn(req, res); } catch (e: any) { res.status(e.status || 400).json({ error: String(e.message || "Request failed.") }); }
   };
-  app.get("/api/auth/status", (_req, res) => res.json({ authenticationRequired: true, setupRequired:row("SELECT COUNT(*) n FROM staff_accounts").n===0, selfRegistration: false, idleMinutes: 30, sessionHours: 8 }));
+  app.get("/api/auth/status", (_req, res) => res.json({ authenticationRequired: true, setupRequired:row("SELECT COUNT(*) n FROM staff_accounts").n===0, selfRegistration: false, idleMinutes: 30, sessionHours: 8, ...demoSignIn() }));
   app.post("/api/auth/login", handle(async (req, res) => {
     fields(req.body, ["email","password"]);
     // Lockout is per email *and* network address, so another client cannot lock a staff member

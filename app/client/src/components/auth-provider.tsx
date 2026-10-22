@@ -19,6 +19,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const timer = setInterval(() => { void apiRequest("GET", "/api/auth/me").catch(() => {}); }, 60000);
     return () => clearInterval(timer);
   }, [session?.user.id]);
+  async function demoLogin(d: { email: string; password: string }) {
+    setError(""); setBusy(true);
+    try {
+      const data = await apiRequest("POST", "/api/auth/login", d);
+      await queryClient.cancelQueries(); queryClient.clear(); authState.set({ token: data.token, user: data.user });
+    } catch (e: any) { setError(e.message); } finally { setBusy(false); }
+  }
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setError("");
     if(mode==="activate"&&code.includes("@")){setError("That looks like an email address. Put your work email in Work email. Activation code needs the separate one-time code from your private activation instructions, not your email address.");return;}
@@ -43,7 +50,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       <section className="border rounded-xl bg-card p-6 shadow-sm">
         {setup.data?.setupRequired && <p role="status" className="mb-4 rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">First Owner setup is pending. An administrator with server access must issue the private one-time activation code. No email or message is sent. Existing business records are preserved.</p>}
         <h2 className="text-lg font-semibold">{mode === "login" ? "Sign in to your workspace" : "Activate your staff account"}</h2>
-        <p className="text-sm text-muted-foreground mt-2 mb-5">{mode === "login" ? "Use your individual staff account. Shared demo logins are disabled." : "Use the one-time code from an owner or administrator, then choose your own password."}</p>
+        <p className="text-sm text-muted-foreground mt-2 mb-5">{mode === "login" ? (setup.data?.demoSignIn ? "Use the button below, or your own staff login." : "Use your individual staff account. Shared demo logins are disabled.") : "Use the one-time code from an owner or administrator, then choose your own password."}</p>
+        {mode === "login" && setup.data?.demoSignIn && <div className="mb-5 rounded-md border-2 border-primary/50 bg-primary/5 p-3 text-sm space-y-2" data-testid="demo-signin">
+          <p className="font-semibold">Private test demo (sample data only)</p>
+          <p className="text-xs text-muted-foreground">Sign in as the demo owner with one click. Email {setup.data.demoSignIn.email}. This button exists only in your private demo codespace.</p>
+          <Button type="button" className="w-full min-h-11" disabled={busy} onClick={() => void demoLogin(setup.data.demoSignIn)} data-testid="button-demo-signin">Sign in to the demo</Button>
+        </div>}
         <form onSubmit={submit} className="space-y-4">
           <label className="block text-sm">Work email<Input aria-label="Work email" type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} className="mt-1 h-11" /></label>
           {mode === "activate" && <label className="block text-sm">Activation code<Input aria-label="Activation code" autoComplete="off" required value={code} onChange={e => setCode(e.target.value)} className="mt-1 h-11 font-mono" /><span className="block text-xs text-muted-foreground mt-2">Enter the separate one-time code, not your email address. Codes expire after 24 hours and work only once. After activation, use Sign in with your email and the password you chose.</span></label>}

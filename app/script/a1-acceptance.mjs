@@ -58,7 +58,12 @@ try{
  browser=await chromium.launch(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{});
  for(const [label,viewport] of [["desktop",{width:1366,height:900}],["phone",{width:390,height:844}]]){
   const {ctx,p,problems,signIn,nav}=await session(viewport,label);
-  await p.goto(base+"/");await signIn();
+  await p.goto(base+"/");
+  // The private demo offers a one-click sign-in (no hunting for DEMO-LOGIN.md). The phone run uses it.
+  const demoBtn=p.getByTestId("button-demo-signin");
+  check(`${label}: the demo sign-in screen has a "Sign in to the demo" button`,await demoBtn.waitFor({timeout:10000}).then(()=>true,()=>false));
+  if(label==="phone"){await shot(p,`phone-0-demo-signin`,false);await demoBtn.click();await p.getByRole("button",{name:"Sign out",exact:true}).waitFor({state:"attached"});check("phone: one click on \"Sign in to the demo\" signs in",true);}
+  else await signIn();
   const version=(await p.getByTestId("text-build-version").textContent())||"";
   check(`${label}: the menu shows the version under test`,/^Version [0-9a-f]{7,}/.test(version.trim()),version);
   if(process.env.ACCEPT_EXPECT_VERSION)check(`${label}: running version is ${process.env.ACCEPT_EXPECT_VERSION}`,version.includes(process.env.ACCEPT_EXPECT_VERSION),version);

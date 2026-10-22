@@ -35,7 +35,9 @@ is_up() { curl -fs "http://127.0.0.1:$1/api/auth/status" >/dev/null 2>&1; }
 
 start_server() { # $1 = port
   mkdir -p "$DEMO_DIR"
-  (cd "$APP" && DB_PATH="$DB" EMAIL_OUTPUT_DIR="$DEMO_DIR/emails" PORT="$1" \
+  # The sign-in screen offers a one-click demo sign-in with this login (the server shows it only on a demo database).
+  local signin=""; [ -f "$LOGIN_FILE" ] && signin="$OWNER_EMAIL $(grep -o 'Demo-[A-Za-z0-9_-]*' "$LOGIN_FILE" | head -1)"
+  (cd "$APP" && DB_PATH="$DB" EMAIL_OUTPUT_DIR="$DEMO_DIR/emails" PORT="$1" REPAIRPRO_DEMO_SIGNIN="$signin" \
     setsid -f nohup node dist/index.cjs "--repairpro-demo-port=$1" >>"$DEMO_DIR/server.log" 2>&1 </dev/null)
   for _ in $(seq 1 150); do is_up "$1" && { built_commit >"$DEMO_DIR/running-$1"; return 0; }; sleep 0.2; done
   echo "The demo server did not start. Details: $DEMO_DIR/server.log" >&2

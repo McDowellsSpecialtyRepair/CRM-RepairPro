@@ -386,6 +386,7 @@ try{
   check("Calendar bookings show no prices or costs",!/"(?:unitPrice|unit_price|total|unitCost|unit_cost|price)"/.test(JSON.stringify(slot.details)));
   const mine=await ok("GET","/api/my-work",undefined,staff.technician);
   check("A technician's own work list includes where to go, the customer phone and their booked times",Array.isArray(mine)&&mine.every(j=>"address" in j&&"phone" in j&&Array.isArray(j.appointments)));}
+ check("A normal server never offers the demo one-click sign-in",!("demoSignIn" in (await ok("GET","/api/auth/status"))));
  // ---- A1: logo on printed estimates and invoices ----
  const logoHtml=await ok("GET",`/print/estimate/${tint.id}`);
  check("Printed estimate shows the McDowells logo image",/<img src="data:image\/png;base64,[A-Za-z0-9+/=]{1000,}" alt="McDowells Specialty Repair"/.test(logoHtml));
