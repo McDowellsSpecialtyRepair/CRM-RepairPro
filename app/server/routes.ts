@@ -4,6 +4,7 @@ const discountLabel = (e: any) => "Discount" + (e.discountNote ? `: ${e.discount
 import { registerDiscounts } from "./discounts";
 import { registerMarketing } from "./marketing";
 import { registerHistory } from "./history";
+import { checkPhone, checkEmail } from "@shared/contact-validation";
 import { logoImg, withLogoAttachment } from "./brand-logo";
 import type { Server } from "node:http";
 import { storage } from "./storage";
@@ -223,9 +224,27 @@ export async function registerRoutes(
     };
   };
 
+  // Phone and email typing checks for customer saves (the same checks the forms show while typing). Saves the
+  // tidied value (208-555-1212, lower-case email). A probable email typo needs confirmEmail: true to keep.
+  const checkContactFields = (body: any, raw: any) => {
+    for (const [key, label] of [["phone", "Phone"], ["mobile", "Mobile"]] as const) {
+      if (typeof body[key] !== "string" || !body[key].trim()) continue;
+      const r = checkPhone(body[key]);
+      if (!r.ok) fail(`${label}: ${r.message}`);
+      body[key] = r.value;
+    }
+    if (typeof body.email === "string" && body.email.trim()) {
+      const r = checkEmail(body.email);
+      if (!r.ok && !(r.suggestion && raw?.confirmEmail === true && !/\s/.test(body.email.trim())))
+        throw Object.assign(new Error(`Email: ${r.message}${r.suggestion ? ` Did you mean ${r.suggestion}?` : ""}`), { status: 400, suggestion: r.suggestion });
+      body.email = r.ok ? r.value : body.email.trim();
+    }
+  };
   const findDuplicates = (input: any, excludeId?: number) => {
     const inEmail = String(input.email || "").trim().toLowerCase();
-    const inPhones = [digits(input.phone), digits(input.mobile)].filter((d) => d.length >= 7);
+    // Compare phone numbers by their digits, ignoring a leading US country code 1.
+    const phoneKey = (p: any) => { const d = digits(p); return d.length === 11 && d[0] === "1" ? d.slice(1) : d; };
+    const inPhones = [phoneKey(input.phone), phoneKey(input.mobile)].filter((d) => d.length >= 7);
     const inFirst = norm(input.firstName), inLast = norm(input.lastName), inCompany = norm(input.companyName);
     const inAddr = normAddr(input.address), inZip = String(input.zip || "").trim().slice(0, 5);
     const results: any[] = [];
@@ -234,7 +253,7 @@ export async function registerRoutes(
       const reasons: string[] = []; let score = 0;
       const contacts = storage.getContacts(c.id);
       if (inEmail && [c.email, ...contacts.map(x => x.email)].some(x => String(x || "").trim().toLowerCase() === inEmail)) { reasons.push("Same email"); score += 60; }
-      const cPhones = [digits(c.phone), digits(c.mobile), ...contacts.map(x => digits(x.phone))].filter((d) => d.length >= 7);
+      const cPhones = [phoneKey(c.phone), phoneKey(c.mobile), ...contacts.map(x => phoneKey(x.phone))].filter((d) => d.length >= 7);
       if (inPhones.some((p) => cPhones.includes(p))) { reasons.push("Same phone number"); score += 50; }
       const cFirst = norm(c.firstName), cLast = norm(c.lastName), cCompany = norm(c.companyName);
       if (inCompany && cCompany) {
@@ -321,7 +340,8 @@ export async function registerRoutes(
         fail("A new address requires street, city, state and ZIP");
     }
   };
-  const applyContactAnswers = (customerId: number, answers: any[], context: string) => {
+  // check: typing checks on new numbers/emails (off for merges, which only move details already on file).
+  const applyContactAnswers = (customerId: number, answers: any[], context: string, check = true, confirmEmail = false) => {
     if (!Array.isArray(answers)) fail("Contact answers must be a list");
     answers.forEach(validateAnswer);
     const c = storage.getCustomer(customerId) as any;
@@ -337,6 +357,12 @@ export async function registerRoutes(
     const updates: any = {}; const notes: string[] = []; const log: string[] = [];
     const stamp = new Date().toLocaleDateString("en-US");
     const name = custName(c);
+    // New phone numbers and emails get the same typing checks as the customer forms (unless kept unchanged).
+    for (const a of answers || []) {
+      if (!check || a.answer === "kept" || typeof a.incoming !== "string" || !a.incoming.trim()) continue;
+      if (a.key === "phone" || a.key === "mobile") { const r = checkPhone(a.incoming); if (!r.ok) fail(`New ${a.key === "phone" ? "phone" : "mobile"} number: ${r.message}`); a.incoming = r.value; }
+      if (a.key === "email") { const r = checkEmail(a.incoming); if (!r.ok && !(confirmEmail && r.suggestion && !/\s/.test(a.incoming.trim()))) fail(`New email: ${r.message}${r.suggestion ? ` Did you mean ${r.suggestion}?` : ""}`); a.incoming = r.value; }
+    }
     for (const a of answers || []) {
       if (a.key === "phone" || a.key === "mobile") {
         const field = a.key; const label = field === "phone" ? "Phone" : "Mobile";
@@ -376,7 +402,7 @@ export async function registerRoutes(
     }
     if (notes.length) updates.notes = [c.notes, `[${stamp}] ${context}: ${notes.join(" ")}`].filter(Boolean).join("\n");
     if (Object.keys(updates).length) storage.updateCustomer(customerId, updates);
-    if (log.length) storage.createActivity({ customerId, activityType: "note", description: `Contact info reviewed (${context}): ${log.join("; ")}.`, performedBy: "System Admin", createdAt: new Date().toISOString() } as any);
+    if (log.length) storage.createActivity({ customerId, activityType: "note", description: `Contact info reviewed (${context}): ${log.join("; ")}.`, performedBy: actorLabel(), createdAt: new Date().toISOString() } as any);
     return { updates, log };
   };
 
@@ -388,7 +414,7 @@ export async function registerRoutes(
   app.post("/api/customers/:id/contact-update", async (req, res) => {
     const id = parseInt(req.params.id);
     if (!storage.getCustomer(id)) return res.status(404).json({ message: "Not found" });
-    const r = sqlite.transaction(() => applyContactAnswers(id, req.body?.answers || [], req.body?.context || "Returning customer check-in")).immediate();
+    const r = sqlite.transaction(() => applyContactAnswers(id, req.body?.answers || [], req.body?.context || "Returning customer check-in", true, req.body?.confirmEmail === true)).immediate();
     res.json({ ok: true, ...r, customer: storage.getCustomer(id) });
   });
 
@@ -485,7 +511,7 @@ export async function registerRoutes(
         const note = `[${stamp}] Merged duplicate ${src.customerNumber} (${custName(src)}).` + (kept.length ? ` Other contact info on file: ${kept.join("; ")}.` : "") + (src.notes ? ` Notes from duplicate: ${src.notes}` : "");
         updates.notes = [keep.notes, note].filter(Boolean).join("\n");
         storage.updateCustomer(keepId, updates);
-        if (answers.length) applyContactAnswers(keepId, answers, `Merge of ${src.customerNumber}`);
+        if (answers.length) applyContactAnswers(keepId, answers, `Merge of ${src.customerNumber}`, false);
         sqlite.prepare("DELETE FROM customers WHERE id = ?").run(srcId);
         storage.createActivity({ customerId: keepId, activityType: "note", description: `Merged duplicate account ${src.customerNumber} (${custName(src)}) into ${keep.customerNumber}. Moved: ${Object.entries(moved).map(([t, n]) => `${n} ${t.replace(/_/g, " ")}`).join(", ") || "no records"}.`, performedBy: "System Admin", createdAt: new Date().toISOString() } as any);
       });
@@ -516,6 +542,7 @@ export async function registerRoutes(
   app.post("/api/customers", async (req, res) => {
     try {
       const body: any = acceptFields(customers, req.body, res, ["customerNumber"]);
+      checkContactFields(body, req.body);
       const confirmDuplicate = req.body.confirmDuplicate;
       if (![body.firstName, body.lastName, body.companyName].some(x => typeof x === "string" && x.trim()))
         return res.status(400).json({ message: "A customer name or company is required" });
@@ -530,11 +557,12 @@ export async function registerRoutes(
       if (!body.status) body.status = "active";
       res.json(storage.createCustomer(body));
     } catch (err: any) {
-      res.status(err.status || 400).json({ message: err.message });
+      res.status(err.status || 400).json({ message: err.message, ...(err.suggestion ? { suggestion: err.suggestion } : {}) });
     }
   });
   app.patch("/api/customers/:id", async (req, res) => {
     const patch = acceptFields(customers, req.body, res, ["customerNumber"]);
+    checkContactFields(patch, req.body);
     const id = parseInt(req.params.id);
     const customer = Object.keys(patch).length ? storage.updateCustomer(id, patch) : storage.getCustomer(id);
     if (!customer) return res.status(404).json({ error: "Not found" });

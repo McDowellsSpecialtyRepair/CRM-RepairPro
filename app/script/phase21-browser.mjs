@@ -172,7 +172,8 @@ try{
    await p.getByTestId("button-create-customer-inline").click();
    await p.getByLabel("First name").fill("Pat");await p.getByLabel("Last name").fill(last);await p.getByLabel("Phone").fill("555-019-1001");
    await p.getByTestId("duplicate-warning").waitFor();
-   check(`${label}: likely duplicate blocks Create until confirmed`,await p.getByTestId("button-save-quick-customer").isDisabled());
+   await p.getByTestId("button-save-quick-customer").click();
+   check(`${label}: likely duplicate blocks Create until confirmed, and says why`,/existing customer/.test(await p.getByTestId("quick-customer-problems").innerText())&&await p.getByTestId("form-quick-customer").count()===1);
    await p.getByRole("button",{name:"Use this existing customer"}).first().click();
    await p.getByText(`Pat ${last}`).first().waitFor();
    check(`${label}: duplicate warning selects the existing customer`,await p.getByTestId("form-quick-customer").count()===0);

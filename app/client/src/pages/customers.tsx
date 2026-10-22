@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { ContactCheck, contactProblems } from "@/components/contact-check";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,10 +95,13 @@ export default function Customers() {
   }, [form.firstName, form.lastName, form.companyName, form.email, form.phone, form.address, form.zip, dialogOpen]);
 
   const likelyDup = dupMatches.some((m) => m.level === "likely");
+  const [keepEmail, setKeepEmail] = useState(false);
+  const contactIssues = contactProblems(form.phone, form.email, keepEmail);
 
   const handleSubmit = () => {
     setCreateError("");
-    createCustomer.mutate({ ...form, status: "active", confirmDuplicate: confirmNew });
+    if (contactIssues.length) { setCreateError(contactIssues.join(" ")); return; }
+    createCustomer.mutate({ ...form, status: "active", confirmDuplicate: confirmNew, confirmEmail: keepEmail });
   };
 
   const [review, setReview] = useState<{ c: any; action: "open" | "estimate"; diffs: any[] } | null>(null);
@@ -221,11 +225,13 @@ export default function Customers() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs">Email</Label>
-                      <Input className="mt-1" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} data-testid="input-email" />
+                      <Input className="mt-1" type="text" inputMode="email" autoCapitalize="none" value={form.email} onChange={(e) => { setForm({ ...form, email: e.target.value }); setKeepEmail(false); }} data-testid="input-email" />
+                      <ContactCheck kind="email" value={form.email} keep={keepEmail} onKeep={setKeepEmail} onFix={(v) => { setForm({ ...form, email: v }); setKeepEmail(false); }} testId="check-email" />
                     </div>
                     <div>
                       <Label className="text-xs">Phone</Label>
-                      <Input className="mt-1" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} data-testid="input-phone" />
+                      <Input className="mt-1" inputMode="tel" placeholder="208-555-1212" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} data-testid="input-phone" />
+                      <ContactCheck kind="phone" value={form.phone} onFix={(v) => setForm({ ...form, phone: v })} testId="check-phone" />
                     </div>
                   </div>
                   <div>

@@ -282,6 +282,41 @@ try{
   check(`${label}: the history shows "How they heard about us" changed to Radio`,/Heard about us from:.*Radio/.test(htext));
   if(shots)await hist.screenshot({path:join(shots,`${label}-12-change-history.png`)});
 
+  // 13. New Estimate, new customer: the owner's exact entry (Insurance, no company name, 11-digit phone,
+  // "bm47 ford @ gmmail.con"). Every problem is explained, the email fix is one click, duplicates are caught.
+  await nav("Estimates");
+  await p.getByTestId("button-new-estimate").click();
+  await p.getByTestId("button-service-interior_repair").click();
+  await p.getByTestId("button-create-customer-inline").click();
+  await p.locator("#qc-type").click();await p.getByRole("option",{name:"Insurance"}).click();
+  await p.locator("#qc-phone").fill("208-555-12111");
+  await p.locator("#qc-email").fill("bm47 ford @ gmmail.con");
+  check(`${label}: an 11-digit phone number is flagged right under the box`,/11 digits.*10 digits/.test(await p.getByTestId("check-quick-phone").innerText()));
+  check(`${label}: the email with spaces and "gmmail.con" is flagged and "bm47ford@gmail.com" is suggested`,
+   /can't contain spaces/.test(await p.getByTestId("check-quick-email").innerText())&&/bm47ford@gmail\.com/.test(await p.getByTestId("check-quick-email").innerText()));
+  const qcCreate=p.getByTestId("button-save-quick-customer");
+  check(`${label}: Create customer is not greyed out`,await qcCreate.isEnabled());
+  await qcCreate.click();
+  const probs=p.getByTestId("quick-customer-problems");await probs.waitFor();
+  const ptext=await probs.innerText();
+  check(`${label}: clicking Create customer lists everything to fix (company name, phone, email)`,/company name/i.test(ptext)&&/phone/i.test(ptext)&&/email/i.test(ptext),ptext);
+  check(`${label}: the estimate's message says to finish the new customer (not just "choose a customer")`,/Finish the new customer/.test(await p.getByTestId("text-create-missing").innerText()));
+  await shot(p,`${label}-13a-new-customer-problems`,false);
+  await p.getByTestId("check-quick-email-fix").click();
+  check(`${label}: "Use this" puts in bm47ford@gmail.com`,await p.locator("#qc-email").inputValue()==="bm47ford@gmail.com");
+  await p.locator("#qc-phone").fill("208-555-0177");
+  await p.getByTestId("duplicate-warning").waitFor();
+  check(`${label}: a phone number already on file shows the existing customer (Sarah Mitchell)`,/Sarah Mitchell/.test(await p.getByTestId("duplicate-warning").innerText()));
+  await shot(p,`${label}-13b-duplicate-customer-found`,false);
+  await p.locator("#qc-phone").fill(label==="desktop"?"208-555-7161":"208-555-7162");
+  await p.locator("#qc-company").fill(`BM47 Ford Insurance ${label}`);
+  await p.waitForTimeout(700);
+  if(await p.getByTestId("checkbox-confirm-different").count())await p.getByTestId("checkbox-confirm-different").check();
+  await qcCreate.click();
+  await p.getByTestId("form-quick-customer").waitFor({state:"detached"});
+  check(`${label}: after fixing the entries, the customer is created and chosen for the estimate`,await p.getByText(`BM47 Ford Insurance ${label}`).first().isVisible());
+  await p.getByRole("button",{name:"Cancel",exact:true}).click();
+
   // 5. Invoices list and detail: no fake "QB Synced" labels.
   await nav("Invoices");await p.getByText(/INV-2026-/).first().waitFor();
   check(`${label}: the invoices list shows no "QB Synced" / "Not Synced" labels`,await p.getByText(/QB Synced|Not Synced/).count()===0);

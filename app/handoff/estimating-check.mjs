@@ -349,6 +349,22 @@ try{
   check("A work order's history includes its status change",jh.some(e=>e.changes.some(c=>c.field==="Status"&&c.to==="in progress")));
   const dbr=new Database(dbPath,{readonly:true});
   check("Opening the change history is itself recorded",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='history.viewed' AND entity='customers' AND record_id=?").get(String(cust.id)));dbr.close();}
+ // ---- A1: phone and email typing checks, and duplicate customers ----
+ {const bad=async(body,re)=>{const r=await call("POST","/api/customers",{customerType:"insurance",companyName:"Check Ins Co",status:"active",...body});return r.status===400&&re.test(r.text);};
+  check("A phone number with too many digits is refused with how many digits it has",await bad({phone:"208-555-12111"},/11 digits.*10 digits/));
+  check("A phone number with too few digits is refused",await bad({phone:"208-555"},/6 digits/));
+  check("An email with spaces is refused and the fix is suggested",await bad({email:"bm47 ford @ gmmail.con"},/can't contain spaces.*bm47ford@gmail\.com/));
+  check("A misspelled email domain (gmmail.con) is caught and gmail.com suggested",await bad({email:"bm47ford@gmmail.con"},/Did you mean bm47ford@gmail\.com/));
+  check("An email without an @ is refused",await bad({email:"bm47ford.gmail.com"},/needs an @/));
+  const ok1=await ok("POST","/api/customers",{customerType:"insurance",companyName:"Check Ins Co",status:"active",phone:"(208) 555 7788",email:"Claims@CheckIns.com"});
+  check("A good phone number is saved in one format (208-555-7788) and the email in lower case",ok1.phone==="208-555-7788"&&ok1.email==="claims@checkins.com");
+  const kept=await ok("POST","/api/customers",{customerType:"insurance",companyName:"Rare Domain Co",status:"active",email:"ops@gmail.co",confirmEmail:true});
+  check("A flagged email can be kept as typed when the person confirms it",kept.email==="ops@gmail.co");
+  const dup=await call("POST","/api/customers",{customerType:"insurance",companyName:"Another Name",status:"active",phone:"1-208-555-7788"});
+  check("The same phone number written differently (1-208-555-7788) is caught as a possible duplicate customer",dup.status===409&&/duplicate/i.test(dup.text));
+  check("Editing a customer to a bad phone number is refused",(await call("PATCH",`/api/customers/${ok1.id}`,{phone:"555-12"})).status===400);
+  check("Editing a customer's email to a typo is refused",(await call("PATCH",`/api/customers/${ok1.id}`,{email:"claims@hotmial.com"})).status===400);
+  check("A new number on the contact-change screen gets the same check",(await call("POST",`/api/customers/${ok1.id}/contact-update`,{answers:[{key:"phone",current:"208-555-7788",incoming:"208-555-77889",answer:"replaced"}]})).status===400);}
  // ---- A1: logo on printed estimates and invoices ----
  const logoHtml=await ok("GET",`/print/estimate/${tint.id}`);
  check("Printed estimate shows the McDowells logo image",/<img src="data:image\/png;base64,[A-Za-z0-9+/=]{1000,}" alt="McDowells Specialty Repair"/.test(logoHtml));
