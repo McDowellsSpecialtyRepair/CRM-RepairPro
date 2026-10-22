@@ -50,6 +50,15 @@ stop_server() { # $1 = port. The server is tagged with its port so only the demo
 }
 
 BUILD_MARK="$APP/dist/.build-commit"
+pull_latest() {
+  local branch; branch="$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null)" || return 1
+  [ "$branch" != "HEAD" ] || return 1
+  if [ -n "$(git -C "$REPO" status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+    echo "Files in this codespace were changed by hand, so the newest version was not downloaded automatically."; return 1
+  fi
+  echo "Checking GitHub for the newest version of $branch..."
+  git -C "$REPO" pull --ff-only --quiet origin "$branch" && echo "Code version $(head_commit)." || { echo "Could not reach GitHub; starting the version already here."; return 1; }
+}
 head_commit() { git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown; }
 built_commit() { cat "$BUILD_MARK" 2>/dev/null || echo none; }
 
@@ -135,6 +144,9 @@ case "${1:-}" in
     [ -f "$DB" ] || create_demo
     ;;
   start)
+    # Every codespace start (and "update") first gets the newest version of this branch, so restarting the
+    # codespace is enough to see new changes. Demo data is kept. Skipped if files were edited by hand.
+    pull_latest || true
     rebuild_if_stale
     [ -f "$DB" ] || create_demo
     # A server started from an older build keeps the old code in memory: restart it on the new build.
@@ -159,7 +171,7 @@ case "${1:-}" in
     # (the server upgrades the existing demo database when it starts).
     branch="$(git -C "$REPO" rev-parse --abbrev-ref HEAD)"
     echo "Getting the newest version of $branch (your demo data is kept)..."
-    git -C "$REPO" pull --ff-only origin "$branch" || { echo "Could not get the newest version. Nothing was changed; tell Claude what this window says." >&2; exit 1; }
+    pull_latest || { echo "Could not get the newest version. Nothing was changed; tell Claude what this window says." >&2; exit 1; }
     "$0" start
     echo "Updated to version $(head_commit). Your demo data is unchanged. Reload the CRM tab and sign in again (same password as before)."
     ;;
