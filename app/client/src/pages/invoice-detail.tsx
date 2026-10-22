@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { NumberInput } from "@/components/ui/number-input";
 import { apiRequest, printDocument } from "@/lib/queryClient";
 import { InvoiceLabor, DeliveryStatus } from "@/components/labor-sales";
 import {InvoiceCommercial} from "@/components/estimate-commercial";
@@ -117,11 +118,7 @@ export default function InvoiceDetail() {
                 <Badge variant="secondary" className={statusColors[invoice.status] || ""}>
                   {invoice.status === "sent" ? "issued" : invoice.status}
                 </Badge>
-                {invoice.qbSynced ? (
-                  <Badge variant="outline" className="text-[10px] text-chart-3">QB Synced: {invoice.qbTxnId}</Badge>
-                ) : (
-                  <Badge variant="outline" className="text-[10px] text-chart-4">Not Synced</Badge>
-                )}
+                {/* QuickBooks is not connected (backlog INT-01), so no sync status is shown. */}
               </div>
               <p className="text-sm text-muted-foreground mt-1">{customerName}</p>
               <p className="text-xs text-muted-foreground mt-1">
@@ -232,13 +229,11 @@ export default function InvoiceDetail() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div>
                   <label htmlFor="payment-amount" className="text-xs text-muted-foreground mb-1 block">Amount</label>
-                  <Input
+                  <NumberInput
                     id="payment-amount"
-                    type="number"
-                    min="0.01" step="0.01" max={invoice.balanceDue}
                     placeholder="0.00"
                     value={payment.amount}
-                    onChange={(e) => setPayment({ ...payment, amount: Number(e.target.value) })}
+                    onValueChange={(n) => setPayment({ ...payment, amount: n })}
                     data-testid="input-payment-amount"
                   />
                 </div>
@@ -294,11 +289,7 @@ export default function InvoiceDetail() {
                       </div>
                       <div className="flex shrink-0 flex-col sm:flex-row items-end sm:items-center gap-2">
                         <span className="text-sm font-bold tabular-nums">{formatCurrency(p.amount)}</span>
-                        {p.qbSynced ? (
-                          <Badge variant="outline" className="text-[10px] text-chart-3">QB Synced</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px] text-chart-4">Pending</Badge>
-                        )}
+                        {/* QuickBooks is not connected (backlog INT-01), so no sync status is shown. */}
                       </div>
                     </div>
                   ))}

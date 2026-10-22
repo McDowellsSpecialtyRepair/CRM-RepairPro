@@ -86,13 +86,15 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
 
   // A vehicle can be saved with only its VIN (for example when the VIN lookup fails), or with a make or model.
   const newVehicleReady = normalizeVin(newVehicle.vin).length >= 5 || !!(newVehicle.make.trim() || newVehicle.model.trim());
+  // A new item's name is optional: if it is left blank, the chosen type is used (for example "Chair").
+  const assetTypeLabel = ASSET_TYPE_LABELS[newAsset.assetType] || "Item";
+  const assetName = newAsset.name.trim() || assetTypeLabel;
   const missingReason = !cid ? "Choose or create the customer first." : !svc ? "Choose the service." :
     effectiveItem === "" ? `Choose which ${svc.target === "asset" ? "item" : "vehicle"} this is for, add a new one, or skip.` :
-    effectiveItem === "new" && svc.target === "asset" && !newAsset.name.trim() ? "Enter a name for the new item." :
-    effectiveItem === "new" && svc.target === "vehicle" && !newVehicleReady ? "Enter the VIN, or the make or model, to save this vehicle." : "";
+    effectiveItem === "new" && svc.target === "vehicle" && !newVehicleReady ? `To save this ${svc.domain === "marine" ? "boat" : svc.domain === "rv" ? "RV" : "vehicle"}, enter its VIN, or type its make or model.` : "";
   const canCreate = !!cid && !!svc && (
     effectiveItem === "none" ||
-    (effectiveItem === "new" && (svc.target === "asset" ? !!newAsset.name.trim() : newVehicleReady)) ||
+    (effectiveItem === "new" && (svc.target === "asset" || newVehicleReady)) ||
     (effectiveItem !== "" && effectiveItem !== "new" && effectiveItem !== "none")
   );
 
@@ -104,7 +106,7 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
       let assetId: number | null = null;
       if (effectiveItem === "new") {
         if (svc.target === "asset") {
-          const a = await apiRequest("POST", "/api/assets", { ...newAsset, customerId: parseInt(cid) });
+          const a = await apiRequest("POST", "/api/assets", { ...newAsset, name: assetName, customerId: parseInt(cid) });
           assetId = a.id;
           setItemId(String(a.id));
           await queryClient.invalidateQueries({queryKey:["/api/customers",cid]});
@@ -126,7 +128,7 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
       if (isWO) {
         const v = vehicleId ? (customer?.vehicles || []).find((x: any) => x.id === vehicleId) : null;
         const a = assetId ? (customer?.assets || []).find((x: any) => x.id === assetId) : null;
-        const target = v ? `${v.year || ""} ${v.make || ""} ${v.model || ""}`.trim() : a ? a.name : (effectiveItem === "new" ? (svc.target === "asset" ? newAsset.name : `${newVehicle.year} ${newVehicle.make} ${newVehicle.model}`.trim()) : "");
+        const target = v ? `${v.year || ""} ${v.make || ""} ${v.model || ""}`.trim() : a ? a.name : (effectiveItem === "new" ? (svc.target === "asset" ? assetName : `${newVehicle.year} ${newVehicle.make} ${newVehicle.model}`.trim()) : "");
         const job = await apiRequest("POST", "/api/jobs", {
           customerId: parseInt(cid), serviceType: svc.value, vehicleId, assetId,
           title: `${svc.label}${target ? " - " + target : ""}`, status: "pending", priority: "normal",
@@ -295,7 +297,8 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
                       <SelectContent>{ASSET_TYPES.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
-                  <div><Label className="text-xs">Name</Label><Input value={newAsset.name} onChange={(e) => setNewAsset({ ...newAsset, name: e.target.value })} placeholder="e.g. Dining booths (12)" data-testid="input-asset-name" /></div>
+                  <div><Label htmlFor="estimate-asset-name" className="text-xs">Name (optional)</Label><Input id="estimate-asset-name" value={newAsset.name} onChange={(e) => setNewAsset({ ...newAsset, name: e.target.value })} placeholder={`Leave blank to use "${assetTypeLabel}"`} data-testid="input-asset-name" />
+                    <p className="text-xs text-muted-foreground mt-1">For example "Dining booths (12)". If left blank, it is saved as "{assetTypeLabel}".</p></div>
                   <div><Label className="text-xs">Location</Label><Input value={newAsset.location} onChange={(e) => setNewAsset({ ...newAsset, location: e.target.value })} placeholder="Address or room" /></div>
                   <div><Label className="text-xs">Description</Label><Input value={newAsset.description} onChange={(e) => setNewAsset({ ...newAsset, description: e.target.value })} placeholder="Material, color, quantity" /></div>
                 </div>
@@ -304,7 +307,7 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
           )}
 
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-          {!error && !saving && missingReason && (svc || cid) && <p className="text-xs text-muted-foreground" data-testid="text-create-missing">{missingReason}</p>}
+          {!error && !saving && missingReason && (svc || cid) && <p role="status" className="rounded-md border border-amber-500/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-sm text-amber-900 dark:text-amber-200" data-testid="text-create-missing">Before you can continue: {missingReason}</p>}
         </div>
 
         <DialogFooter>

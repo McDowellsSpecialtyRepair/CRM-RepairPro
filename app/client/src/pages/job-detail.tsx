@@ -1,4 +1,5 @@
 import { Link, useRoute, useLocation } from "wouter";
+import { EstimatePeople } from "@/components/estimate-people";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/components/auth-provider";
@@ -29,6 +30,7 @@ export default function JobDetail() {
     <Link href="/jobs" className="text-sm underline">Back to work orders</Link>
     <header className="flex flex-wrap justify-between gap-3"><div><p className="text-sm text-muted-foreground">{j.jobNumber}</p><h1 className="text-xl font-bold break-words">{j.title}</h1><p className="text-sm mt-2">{SERVICE_LABELS[j.serviceType] || j.serviceType} · {item}</p>{j.vehicle?.vin && <p className="text-xs mt-1">VIN: {j.vehicle.vin}</p>}</div><Badge variant="secondary" className="self-start">{j.status.replaceAll("_", " ")}</Badge></header>
     <Card><CardContent className="p-5 flex flex-wrap gap-4 justify-between"><div><h2 className="text-xs text-muted-foreground">Customer</h2><Link href={`/customers/${j.customerId}`} className="font-medium underline">{c?.companyName || [c?.firstName,c?.lastName].filter(Boolean).join(" ") || `Customer ${j.customerId}`}</Link><p className="text-sm mt-1">{[c?.phone,c?.email].filter(Boolean).join(" · ")}</p></div><div className="flex flex-wrap gap-4 items-center">{j.vehicleId && <Link className="text-sm underline" href={`/vehicles/${j.vehicleId}`}>Vehicle & service history</Link>}{j.production && can("operations.read") && <Link className="text-sm underline" href={`/operations/${j.production}`}>Production tasks & labor progress</Link>}</div></CardContent></Card>
+    <EstimatePeople key={`people-${id}`} kind="jobs" id={id} />
     <WorkPlanning key={id} kind="jobs" id={id} />
     <section className="space-y-3"><h2 className="font-semibold">Estimated repair scope</h2>
       {j.estimates.length === 0 && candidates.length > 0 && can("estimates.write") && can("jobs.write") && !["completed","cancelled"].includes(j.status) && <Card><CardContent className="p-5 space-y-3">

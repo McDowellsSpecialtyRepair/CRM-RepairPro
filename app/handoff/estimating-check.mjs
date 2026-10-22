@@ -197,6 +197,30 @@ try{
  check("Invoice total equals the dent-backed estimate total",inv.total===(await ok("GET",ep)).total);
  check("Invoiced estimates refuse dent changes",(await call("POST",ep+"/dents",{...hood,size:"dime"})).status===409&&(await call("PATCH",`/api/estimates/dents/${d1.id}`,{notes:"late"})).status===409);
  check("Invoiced dent records remain readable",(await ok("GET",ep+"/dents")).length===4&&!!invLines);
+ // ---- A1: Salesperson, Estimator and Follow-up salesperson on an estimate ----
+ const allStaff=await ok("GET","/api/staff",undefined,owner);
+ const sid=name=>allStaff.find(u=>u.fullName===name||u.full_name===name)?.id;
+ const people=await ok("GET","/api/people/staff");
+ check("People choices are active owner/admin/manager/service-advisor staff (no technician or auditor)",
+  people.some(p=>p.name==="Test advisor")&&!people.some(p=>p.name==="Test technician"||p.name==="Test auditor"));
+ const tp=`/api/estimates/${tint.id}`;
+ const tintBefore=await ok("GET",tp);
+ let plan=await ok("GET",tp+"/planning");
+ const advisorId=sid("Test advisor"),ownerId=people.find(p=>p.role==="owner")?.id;
+ plan=await ok("PATCH",tp+"/people",{revision:plan.revision,salesPersonId:advisorId,estimatorId:ownerId,followUpId:advisorId});
+ const reread=await ok("GET",tp+"/planning");
+ check("Salesperson, estimator and follow-up salesperson are saved and read back",
+  reread.salesPersonId===advisorId&&reread.estimatorId===ownerId&&reread.followUpId===advisorId&&reread.salesPerson==="Test advisor");
+ {const t=await ok("GET",tp);check("Changing people does not change the estimate's totals, status or lines",t.total===tintBefore.total&&t.status===tintBefore.status&&JSON.stringify(t.lineItems)===JSON.stringify(tintBefore.lineItems));}
+ check("A stale people edit is refused (another user changed it)",(await call("PATCH",tp+"/people",{revision:"stale",estimatorId:null})).status===409);
+ check("A technician cannot change the people on an estimate",(await call("PATCH",tp+"/people",{revision:reread.revision,estimatorId:null},staff.technician)).status===403);
+ check("A non-sales role (auditor) cannot be chosen as salesperson, with an explanation",await (async()=>{const r=await call("PATCH",tp+"/people",{revision:reread.revision,salesPersonId:sid("Test auditor")});return r.status===400&&/Service advisor/.test(r.text);})());
+ check("Unexpected fields are refused",(await call("PATCH",tp+"/people",{revision:reread.revision,priority:"high"})).status===400);
+ {const dbr=new Database(dbPath,{readonly:true});
+  check("People changes are recorded in the audit history",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='people.updated' AND record_id=?").get(String(tint.id)));dbr.close();}
+ // ---- A1: logo on printed estimates and invoices ----
+ const logoHtml=await ok("GET",`/print/estimate/${tint.id}`);
+ check("Printed estimate shows the McDowells logo image",/<img src="data:image\/png;base64,[A-Za-z0-9+/=]{1000,}" alt="McDowells Specialty Repair"/.test(logoHtml));
  const html=await ok("GET",`/print/estimate/${est.id}`);
  check("Printed estimate does not show internal dent notes",!html.includes("Near the cowl")&&!html.includes("Detail-only change"));
 

@@ -81,7 +81,18 @@ create_demo() {
     const { activationCode } = JSON.parse(require("fs").readFileSync(inviteFile, "utf8"));
     fetch(`http://127.0.0.1:${port}/api/auth/activate`, { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, activationCode, password }) })
-      .then(async r => { if (!r.ok) { console.error(await r.text()); process.exit(1); } });
+      .then(async r => { if (!r.ok) { console.error(await r.text()); process.exit(1); }
+        // Demo staff (sample people only) so salesperson, estimator and follow-up lists have real choices.
+        // Service writers use the Service advisor role. They share the demo password.
+        const { token } = await r.json(), base = `http://127.0.0.1:${port}`;
+        const call = (path, body, auth) => fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json", ...(auth ? { Authorization: `Bearer ${auth}` } : {}) }, body: JSON.stringify(body) })
+          .then(async x => { if (!x.ok) throw new Error(path + ": " + await x.text()); return x.json(); });
+        for (const [fullName, email, role] of [["Sam Rivera (service writer)", "sam.rivera@example.invalid", "advisor"],
+          ["Kelly Brooks (service advisor)", "kelly.brooks@example.invalid", "advisor"], ["Morgan Lee (manager)", "morgan.lee@example.invalid", "manager"]]) {
+          const invited = await call("/api/staff", { fullName, email, role }, token);
+          await call("/api/auth/activate", { email, activationCode: invited.activationCode, password });
+        }
+      }).catch(e => { console.error(e.message); process.exit(1); });
   ' "$SETUP_PORT" "$OWNER_EMAIL" "$DEMO_DIR/invite.json" "$password"
   stop_server "$SETUP_PORT"
   rm -f "$DEMO_DIR/invite.json"
@@ -94,6 +105,14 @@ create_demo() {
 |---|---|
 | Work email | \`$OWNER_EMAIL\` |
 | Password | \`$password\` |
+
+Other sample staff logins (same password), useful for testing roles and the salesperson lists:
+
+| Name | Work email | Role |
+|---|---|---|
+| Sam Rivera (service writer) | \`sam.rivera@example.invalid\` | Service advisor |
+| Kelly Brooks (service advisor) | \`kelly.brooks@example.invalid\` | Service advisor |
+| Morgan Lee (manager) | \`morgan.lee@example.invalid\` | Manager |
 
 1. Open the CRM: it usually opens in a new browser tab by itself. If not, click the **Ports** tab
    at the bottom of this window, find **RepairPro demo (5000)**, and click the globe icon.

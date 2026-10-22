@@ -124,11 +124,7 @@ export default function Invoices() {
                       <Badge variant="secondary" className={`text-[10px] ${statusColors[inv.status] || ""}`}>
                         {inv.status === "sent" ? "issued" : inv.status}
                       </Badge>
-                      {inv.qbSynced ? (
-                        <Badge variant="outline" className="text-[10px] text-chart-3">QB Synced</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] text-chart-4">Not Synced</Badge>
-                      )}
+                      {/* QuickBooks is not connected (backlog INT-01), so no sync status is shown. */}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {customerMap.get(inv.customerId) || "Unknown"} • Issued {formatDate(inv.issueDate)}

@@ -16,8 +16,7 @@ export function WorkPlanning({ kind, id }: { kind: "jobs" | "estimates"; id: num
   const [draft, setDraft] = useState<any>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [saved, setSaved] = useState(false);
   const techs = useQuery<any[]>({ queryKey: ["/api/technicians"], enabled: can("schedule.read") });
-  const staff = useQuery<any[]>({ queryKey: ["/api/planning/staff"], enabled: can("schedule.read") });
-  const p = draft || q.data;
+    const p = draft || q.data;
   const editable = can(`${kind}.write`) && can("schedule.write") && (!q.data?.jobId || can("jobs.write"));
   function change(key: string, value: any) { setDraft({ ...p, [key]: value }); setSaved(false); }
   async function save(e: React.FormEvent) {
@@ -53,15 +52,11 @@ export function WorkPlanning({ kind, id }: { kind: "jobs" | "estimates"; id: num
             <option value="">Unassigned</option>
             {(techs.data || []).filter(t => t.status === "active" || t.id === p.assignedTechId).map(t => <option key={t.id} value={t.id}>{t.name}{t.status !== "active" ? " (inactive)" : ""}</option>)}
           </select>{!p.assignedTechId && p.assignedTech && <span className="text-xs">Legacy assignment: {p.assignedTech}</span>}</label>
-          <label className="text-sm">Salesperson / service advisor<select aria-label="Salesperson / service advisor" className={selectClass} value={p.salesPersonId ?? ""} onChange={e => change("salesPersonId", e.target.value ? Number(e.target.value) : null)}>
-            <option value="">Unassigned</option>
-            {p.salesPersonId && !staff.data?.some(s => s.id === p.salesPersonId) && <option value={p.salesPersonId}>{p.salesPerson || "Previous staff member"}</option>}
-            {(staff.data || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select></label>
+          <div className="text-sm">Salesperson<p className="mt-1 h-10 flex items-center rounded-md border border-dashed px-3 text-muted-foreground" data-testid="planning-salesperson">{p.salesPerson || "Not assigned"}</p><span className="text-xs text-muted-foreground">Change it under "People" at the top.</span></div>
           <label className="text-sm">Repair urgency<select aria-label="Repair urgency" className={selectClass} value={p.priority} onChange={e => change("priority", e.target.value)}>{["low","normal","high","urgent"].map(s => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}</select></label>
         </div>
       </fieldset>
-      {(techs.error || staff.error) && <p role="alert" className="text-sm text-destructive">Staff choices could not load. Reload before changing assignments.</p>}
+      {techs.error && <p role="alert" className="text-sm text-destructive">Staff choices could not load. Reload before changing assignments.</p>}
       {p.slots.length > 0 && <div className="rounded-md border p-3 text-sm space-y-1"><p className="font-medium">Calendar appointments are already booked</p>{p.slots.map((s: any) => <p key={s.id}>{s.date} · {s.startTime}–{s.endTime} · {(techs.data || []).find(t => t.id === s.technicianId)?.name || "Technician"} · {s.status.replaceAll("_", " ")}</p>)}<p>Cancel and rebook in Scheduling to change the date or lead technician.</p></div>}
       {error && <div role="alert" className="text-sm text-destructive"><p>{error}</p><Button type="button" variant="outline" className="mt-2" disabled={busy} onClick={async () => { const fresh = await q.refetch(); if (!fresh.error) { setDraft(null); setError(""); setSaved(false); } }}>Reload latest record (discard edits)</Button></div>}
       {saved && <p role="status" className="text-sm text-primary">Planning changes saved.</p>}

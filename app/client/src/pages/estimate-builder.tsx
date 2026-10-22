@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { EstimatePeople } from "@/components/estimate-people";
+import { NumberInput } from "@/components/ui/number-input";
 import { SERVICE_LABELS, ASSET_TYPE_LABELS } from "@/lib/services";
 import { apiRequest, printDocument } from "@/lib/queryClient";
 import { EstimateLabor, DeliveryStatus } from "@/components/labor-sales";
@@ -516,6 +518,7 @@ export default function EstimateBuilder() {
           </div>
         </CardContent>
       </Card>
+      <EstimatePeople key={`people-${estimate.id}`} kind="estimates" id={estimate.id} locked={estimate.status === "invoiced"} />
       </section>
 
       {/* 2. Vehicle damage mapping and individual dent details */}
@@ -701,10 +704,10 @@ export default function EstimateBuilder() {
                   </div>}
                   <div className="space-y-1">
                     <Label className="text-[10px] text-muted-foreground">Qty</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
+                      aria-label="Quantity"
                       value={newItem.quantity}
-                      onChange={(e) => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
+                      onValueChange={(n) => setNewItem({ ...newItem, quantity: n })}
                       data-testid="input-quantity"
                     />
                   </div>
@@ -721,16 +724,17 @@ export default function EstimateBuilder() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-[10px] text-muted-foreground">Customer Unit Price</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
+                      aria-label="Customer unit price"
+                      placeholder="0.00"
                       value={newItem.unitPrice}
-                      onChange={(e) => setNewItem({ ...newItem, unitPrice: Number(e.target.value) })}
+                      onValueChange={(n) => setNewItem({ ...newItem, unitPrice: n })}
                       data-testid="input-unit-price"
                     />
                   </div>
-                  {can("costs.write")&&<label className="text-xs">Purchase unit cost (internal)<Input aria-label="Purchase unit cost" type="number" min="0" step=".01" value={newItem.unitCost} onChange={e=>setNewItem({...newItem,unitCost:Number(e.target.value)})}/></label>}
+                  {can("costs.write")&&<label className="text-xs">Purchase unit cost (internal)<NumberInput aria-label="Purchase unit cost" placeholder="0.00" value={newItem.unitCost} onValueChange={n=>setNewItem({...newItem,unitCost:n})}/></label>}
                   {can("costs.write")&&newItem.serviceCategory==="supplies"&&<>
-                    <label className="text-xs">Use tax still owed on purchase (%)<Input aria-label="Use tax rate" type="number" min="0" max="100" step=".01" value={newItem.useTaxRate} onChange={e=>setNewItem({...newItem,useTaxRate:Number(e.target.value)})}/></label>
+                    <label className="text-xs">Use tax still owed on purchase (%)<NumberInput aria-label="Use tax rate" value={newItem.useTaxRate} onValueChange={n=>setNewItem({...newItem,useTaxRate:n})}/></label>
                     <label className="text-xs">Use-tax basis / vendor-tax note<Input aria-label="Use tax note" value={newItem.taxNote} onChange={e=>setNewItem({...newItem,taxNote:e.target.value})}/></label>
                   </>}
                 </div>

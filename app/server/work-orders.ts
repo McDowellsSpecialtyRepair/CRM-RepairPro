@@ -40,7 +40,19 @@ export function migrateWorkOrders() {
       priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('low','normal','high','urgent'))
     );
   `);
+  // People on an estimate or work order (A1): the estimator and the follow-up salesperson, alongside the
+  // existing salesperson. Sales credit percentages stay in the separate sales team (no duplicate credit).
+  for (const table of ["estimate_planning", "job_planning"]) {
+    const cols = all(`PRAGMA table_info(${table})`).map(c => c.name);
+    if (!cols.includes("estimator_id")) sqlite.exec(`ALTER TABLE ${table} ADD COLUMN estimator_id INTEGER REFERENCES staff_accounts(id)`);
+    if (!cols.includes("follow_up_id")) sqlite.exec(`ALTER TABLE ${table} ADD COLUMN follow_up_id INTEGER REFERENCES staff_accounts(id)`);
+  }
 }
+
+// Salesperson, estimator and follow-up salesperson choices: active owner, administrator, manager or
+// service advisor (service writers use the Service advisor role).
+const PEOPLE_ROLES = "('owner','admin','manager','advisor')";
+const staffName = (id: number | null) => id ? one("SELECT id,full_name FROM staff_accounts WHERE id=?", id) : null;
 
 function resolve(kind: string, id: number) {
   const estimate = kind === "estimates" ? storage.getEstimate(id) : null;
@@ -59,6 +71,7 @@ export function planning(kind: string, id: number) {
   const techId = job?.assignedTechId ?? extra?.assigned_tech_id ?? null;
   const tech = techId ? storage.getTechnician(techId) : null;
   const sales = extra?.sales_person_id ? one("SELECT id,full_name,status FROM staff_accounts WHERE id=?", extra.sales_person_id) : null;
+  const estimator = staffName(extra?.estimator_id ?? null), followUp = staffName(extra?.follow_up_id ?? null);
   const value = {
     jobId: job?.id ?? null,
     scheduledDate: job ? job.scheduledDate : extra?.scheduled_date ?? null,
@@ -66,6 +79,10 @@ export function planning(kind: string, id: number) {
     assignedTech: tech?.name || job?.assignedTech || null,
     salesPersonId: sales?.id ?? null,
     salesPerson: sales?.full_name ?? null,
+    estimatorId: estimator?.id ?? null,
+    estimator: estimator?.full_name ?? null,
+    followUpId: followUp?.id ?? null,
+    followUp: followUp?.full_name ?? null,
     priority: job?.priority || extra?.priority || "normal",
     ...(job ? { title: job.title, description: job.description, status: job.status } : {}),
     slots,
@@ -79,7 +96,7 @@ export function inheritEstimatePlanning(estimateId: number, jobId: number) {
   if (!p) return;
   const t = p.assigned_tech_id ? storage.getTechnician(p.assigned_tech_id) : null;
   storage.updateJob(jobId, { scheduledDate: p.scheduled_date, assignedTechId: t?.id ?? null, assignedTech: t?.name ?? null, priority: p.priority });
-  sqlite.prepare("INSERT INTO job_planning(job_id,sales_person_id) VALUES(?,?) ON CONFLICT(job_id) DO NOTHING").run(jobId, p.sales_person_id);
+  sqlite.prepare("INSERT INTO job_planning(job_id,sales_person_id,estimator_id,follow_up_id) VALUES(?,?,?,?) ON CONFLICT(job_id) DO NOTHING").run(jobId, p.sales_person_id, p.estimator_id ?? null, p.follow_up_id ?? null);
   audit("planning.inherited", "jobs", jobId, null, { estimateId, ...planning("jobs", jobId) });
 }
 
@@ -121,9 +138,43 @@ export function updatePlanning(kind: string, id: number, body: any) {
   })();
 }
 
+// The people on an estimate or work order can be changed by anyone who can edit it; scheduling permission is
+// not needed. Every change is recorded in the audit history.
+export function updatePeople(kind: string, id: number, body: any) {
+  return sqlite.transaction(() => {
+    const { job } = resolve(kind, id);
+    const before = planning(kind, id);
+    const keys = ["salesPersonId", "estimatorId", "followUpId"];
+    if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some(k => ![...keys, "revision"].includes(k))) fail("Unexpected fields.");
+    if (body.revision !== before.revision) fail("This record changed while you were editing. Reload the latest record before saving.", 409);
+    const next: any = { ...before, ...body };
+    const labels: Record<string, string> = { salesPersonId: "salesperson", estimatorId: "estimator", followUpId: "follow-up salesperson" };
+    for (const k of keys) {
+      if (next[k] !== null && (!Number.isSafeInteger(next[k]) || next[k] <= 0)) fail(`Choose a valid ${labels[k]}.`);
+      if (next[k] !== (before as any)[k] && next[k] && !one(`SELECT id FROM staff_accounts WHERE id=? AND status='active' AND role IN ${PEOPLE_ROLES}`, next[k]))
+        fail(`Choose an active staff member as ${labels[k]}. Service writers use the Service advisor role; a newly invited person appears once they have activated their login.`);
+    }
+    if (job) {
+      sqlite.prepare(`INSERT INTO job_planning(job_id,sales_person_id,estimator_id,follow_up_id) VALUES(?,?,?,?)
+        ON CONFLICT(job_id) DO UPDATE SET sales_person_id=excluded.sales_person_id,estimator_id=excluded.estimator_id,follow_up_id=excluded.follow_up_id`)
+        .run(job.id, next.salesPersonId, next.estimatorId, next.followUpId);
+    } else {
+      sqlite.prepare(`INSERT INTO estimate_planning(estimate_id,sales_person_id,estimator_id,follow_up_id) VALUES(?,?,?,?)
+        ON CONFLICT(estimate_id) DO UPDATE SET sales_person_id=excluded.sales_person_id,estimator_id=excluded.estimator_id,follow_up_id=excluded.follow_up_id`)
+        .run(id, next.salesPersonId, next.estimatorId, next.followUpId);
+    }
+    const after = planning(kind, id);
+    audit("people.updated", kind, id, { salesPersonId: before.salesPersonId, estimatorId: before.estimatorId, followUpId: before.followUpId },
+      { salesPersonId: after.salesPersonId, estimatorId: after.estimatorId, followUpId: after.followUpId });
+    return after;
+  })();
+}
+
 export function registerWorkOrders(app: Express) {
+  app.get("/api/people/staff", (_req, res) => res.json(all(`SELECT id,full_name AS name,role FROM staff_accounts WHERE status='active' AND role IN ${PEOPLE_ROLES} ORDER BY full_name,id`)));
   app.get("/api/planning/staff", (_req, res) => res.json(all("SELECT id,full_name AS name FROM staff_accounts WHERE status='active' AND role IN ('owner','admin','manager','advisor') ORDER BY full_name,id")));
   for (const kind of ["jobs", "estimates"]) {
+    app.patch(`/api/${kind}/:id/people`, (req, res) => res.json(updatePeople(kind, Number(req.params.id), req.body)));
     app.get(`/api/${kind}/:id/planning`, (req, res) => res.json(planning(kind, Number(req.params.id))));
     app.patch(`/api/${kind}/:id/planning`, (req, res) => {
       const p = planning(kind, Number(req.params.id));

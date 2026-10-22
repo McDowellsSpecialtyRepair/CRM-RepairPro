@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { logoImg, withLogoAttachment } from "./brand-logo";
 import type { Server } from "node:http";
 import { storage } from "./storage";
 import { sqlite } from "./storage-db";
@@ -925,8 +926,8 @@ export async function registerRoutes(
     if (!recipientEmail) return res.status(400).json({ error: "No recipient email address found" });
 
     const emailHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;max-width:800px;margin:0 auto;padding:20px;">
-      <div style="display:flex;justify-content:space-between;border-bottom:3px solid #0e7490;padding-bottom:20px;margin-bottom:20px;">
-        <div><div style="font-size:24px;font-weight:bold;color:#0e7490;">McDowells Specialty Repair</div>
+      <div style="display:flex;justify-content:space-between;border-bottom:3px solid #183873;padding-bottom:20px;margin-bottom:20px;">
+        <div>${logoImg(48)}
         <div style="font-size:12px;color:#666;margin-top:2px;">Paintless Dent Repair | Hail | Interior | Upholstery | Tint</div></div>
         <div style="text-align:right;"><div style="font-size:28px;font-weight:bold;">INVOICE</div>
         <div style="font-size:14px;color:#666;">${invoice.invoiceNumber}</div>
@@ -949,7 +950,7 @@ export async function registerRoutes(
         </div>
       </div>
       <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-        <thead><tr><th style="background:#f0f4f5;padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#555;border-bottom:2px solid #0e7490;">Description</th><th style="background:#f0f4f5;padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;color:#555;border-bottom:2px solid #0e7490;">Qty</th><th style="background:#f0f4f5;padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;color:#555;border-bottom:2px solid #0e7490;">Unit Price</th><th style="background:#f0f4f5;padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;color:#555;border-bottom:2px solid #0e7490;">Total</th></tr></thead>
+        <thead><tr><th style="background:#f0f4f5;padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#555;border-bottom:2px solid #183873;">Description</th><th style="background:#f0f4f5;padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;color:#555;border-bottom:2px solid #183873;">Qty</th><th style="background:#f0f4f5;padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;color:#555;border-bottom:2px solid #183873;">Unit Price</th><th style="background:#f0f4f5;padding:10px 12px;text-align:right;font-size:11px;text-transform:uppercase;color:#555;border-bottom:2px solid #183873;">Total</th></tr></thead>
         <tbody>
           ${lineItems.map((item: any) => `<tr><td style="padding:10px 12px;font-size:13px;border-bottom:1px solid #e0e0e0;">${item.description}<br><small>${customerLineLabel(item)}</small>${detailHtml(invoiceDentDetails(invoice.id)[item.id])}</td><td style="padding:10px 12px;font-size:13px;border-bottom:1px solid #e0e0e0;text-align:right;">${item.quantity} ${item.unit}</td><td style="padding:10px 12px;font-size:13px;border-bottom:1px solid #e0e0e0;text-align:right;">$${(item.unitPrice || 0).toFixed(2)}</td><td style="padding:10px 12px;font-size:13px;border-bottom:1px solid #e0e0e0;text-align:right;">$${(item.total || 0).toFixed(2)}</td></tr>`).join("")}
           ${lineItems.length === 0 ? '<tr><td colspan="4" style="text-align:center;color:#999;padding:20px;">No line items</td></tr>' : ""}
@@ -960,7 +961,7 @@ export async function registerRoutes(
         <tr><td style="padding:6px 12px;">Subtotal</td><td style="padding:6px 12px;text-align:right;">$${subtotal.toFixed(2)}</td></tr>
         <tr><td style="padding:6px 12px;">${documentBreakdown(lineItems,subtotal).taxLabel} (${invoice.taxRate || 0}%)</td><td style="padding:6px 12px;text-align:right;">$${taxAmount.toFixed(2)}</td></tr>
         ${invoice.discount ? `<tr><td style="padding:6px 12px;">Discount</td><td style="padding:6px 12px;text-align:right;">-$${(invoice.discount || 0).toFixed(2)}</td></tr>` : ""}
-        <tr><td style="border-top:2px solid #0e7490;font-weight:bold;font-size:16px;padding-top:10px;padding:6px 12px;">Total</td><td style="border-top:2px solid #0e7490;font-weight:bold;font-size:16px;padding-top:10px;padding:6px 12px;text-align:right;">$${total.toFixed(2)}</td></tr>
+        <tr><td style="border-top:2px solid #183873;font-weight:bold;font-size:16px;padding-top:10px;padding:6px 12px;">Total</td><td style="border-top:2px solid #183873;font-weight:bold;font-size:16px;padding-top:10px;padding:6px 12px;text-align:right;">$${total.toFixed(2)}</td></tr>
         <tr><td style="padding:6px 12px;">Paid</td><td style="padding:6px 12px;text-align:right;">$${(invoice.amountPaid || 0).toFixed(2)}</td></tr>
         <tr><td style="padding:6px 12px;">Balance Due</td><td style="padding:6px 12px;text-align:right;">$${(invoice.balanceDue || 0).toFixed(2)}</td></tr>
       </table>
@@ -981,7 +982,7 @@ export async function registerRoutes(
           from: `McDowells Specialty Repair <${SMTP_CONFIG.user}>`,
           to: recipientEmail,
           subject: `Invoice ${invoice.invoiceNumber} - McDowells Specialty Repair`,
-          html: emailHtml,
+          ...withLogoAttachment(emailHtml),
         });
         console.log(`Email sent: ${invoice.invoiceNumber} -> ${recipientEmail} (MessageId: ${smtpResult.messageId})`);
       } catch (err: any) {
@@ -1046,7 +1047,7 @@ export async function registerRoutes(
           from: `McDowells Specialty Repair <${SMTP_CONFIG.user}>`,
           to,
           subject: `Estimate ${estimate.estimateNumber} - McDowells Specialty Repair`,
-          html,
+          ...withLogoAttachment(html),
         });
       } catch (err: any) {
         smtpResult = { error: err.message };
@@ -1139,8 +1140,8 @@ export async function registerRoutes(
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; padding: 40px; max-width: 800px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 3px solid #0e7490; padding-bottom: 20px; }
-        .logo { font-size: 24px; font-weight: bold; color: #0e7490; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 3px solid #183873; padding-bottom: 20px; }
+        .logo { font-size: 24px; font-weight: bold; color: #183873; }
         .logo-sub { font-size: 12px; color: #666; margin-top: 2px; }
         .doc-title { font-size: 28px; font-weight: bold; text-align: right; }
         .doc-num { font-size: 14px; color: #666; text-align: right; margin-top: 4px; }
@@ -1149,19 +1150,19 @@ export async function registerRoutes(
         .info-label { font-weight: bold; font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 4px; }
         .info-value { font-size: 14px; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        th { background: #f0f4f5; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #555; border-bottom: 2px solid #0e7490; }
+        th { background: #f0f4f5; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #555; border-bottom: 2px solid #183873; }
         td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #e0e0e0; }
         .text-right { text-align: right; }
         .totals { margin-left: auto; width: 280px; margin-top: 10px; }
         .totals tr td { border: none; padding: 6px 12px; }
-        .totals tr:last-child td { border-top: 2px solid #0e7490; font-weight: bold; font-size: 16px; padding-top: 10px; }
+        .totals tr:last-child td { border-top: 2px solid #183873; font-weight: bold; font-size: 16px; padding-top: 10px; }
         .notes { margin-top: 30px; font-size: 13px; color: #555; border-top: 1px solid #e0e0e0; padding-top: 15px; }
         .footer { margin-top: 40px; font-size: 11px; color: #999; text-align: center; border-top: 1px solid #e0e0e0; padding-top: 15px; }
-        .badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; background: #e0f2f1; color: #0e7490; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; background: #e0f2f1; color: #183873; }
         @media print { body { padding: 0; } }
       </style></head><body>
       <div class="header">
-        <div><div class="logo">McDowells Specialty Repair</div><div class="logo-sub">Paintless Dent Repair | Hail | Interior | Upholstery | Tint</div></div>
+        <div>${logoImg(56)}<div class="logo-sub">Paintless Dent Repair | Hail | Interior | Upholstery | Tint</div></div>
         <div><div class="doc-title">ESTIMATE</div><div class="doc-num">${estimate.estimateNumber}</div><div class="badge">${estimate.status}</div></div>
       </div>
       <div class="info-grid">
@@ -1233,8 +1234,8 @@ export async function registerRoutes(
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; padding: 40px; max-width: 800px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 3px solid #0e7490; padding-bottom: 20px; }
-        .logo { font-size: 24px; font-weight: bold; color: #0e7490; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 3px solid #183873; padding-bottom: 20px; }
+        .logo { font-size: 24px; font-weight: bold; color: #183873; }
         .logo-sub { font-size: 12px; color: #666; margin-top: 2px; }
         .doc-title { font-size: 28px; font-weight: bold; text-align: right; }
         .doc-num { font-size: 14px; color: #666; text-align: right; margin-top: 4px; }
@@ -1243,19 +1244,19 @@ export async function registerRoutes(
         .info-label { font-weight: bold; font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 4px; }
         .info-value { font-size: 14px; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        th { background: #f0f4f5; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #555; border-bottom: 2px solid #0e7490; }
+        th { background: #f0f4f5; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #555; border-bottom: 2px solid #183873; }
         td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #e0e0e0; }
         .text-right { text-align: right; }
         .totals { margin-left: auto; width: 280px; margin-top: 10px; }
         .totals tr td { border: none; padding: 6px 12px; }
-        .totals tr:last-child td { border-top: 2px solid #0e7490; font-weight: bold; font-size: 16px; padding-top: 10px; }
+        .totals tr:last-child td { border-top: 2px solid #183873; font-weight: bold; font-size: 16px; padding-top: 10px; }
         .notes { margin-top: 30px; font-size: 13px; color: #555; border-top: 1px solid #e0e0e0; padding-top: 15px; }
         .footer { margin-top: 40px; font-size: 11px; color: #999; text-align: center; border-top: 1px solid #e0e0e0; padding-top: 15px; }
         .badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; background: #fef3e2; color: #92400e; }
         @media print { body { padding: 0; } }
       </style></head><body>
       <div class="header">
-        <div><div class="logo">McDowells Specialty Repair</div><div class="logo-sub">Paintless Dent Repair | Hail | Interior | Upholstery | Tint</div></div>
+        <div>${logoImg(56)}<div class="logo-sub">Paintless Dent Repair | Hail | Interior | Upholstery | Tint</div></div>
         <div><div class="doc-title">INVOICE</div><div class="doc-num">${invoice.invoiceNumber}</div><div class="badge">${invoice.status}</div></div>
       </div>
       <div class="info-grid">
