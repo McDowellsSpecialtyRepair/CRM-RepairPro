@@ -956,12 +956,30 @@ The document's own build plan (DOC p.26, §13) is followed: audit → metric dic
 | IDEA-008 | Subcontractor (1099) technicians | Not distinguished | Not Started | D0 | P3 | Proposed |
 | IDEA-009 | Monthly statements for dealer and fleet accounts | Not available | Not Started | later G | P2 | Proposed |
 
+
+## Owner requests from A1 testing, 2026-10-22 (source: OWNER-1022)
+
+| ID | Requirement | Current CRM | Status | PR | Priority | Type |
+|---|---|---|---|---|---|---|
+| CRM-021 | **Check that a phone number is in service and an email address is real** (not only typed correctly). Options: a phone lookup service (for example Twilio Lookup, about a cent per lookup; the number is sent to that company) and a confirmation email the customer clicks (needs real email sending turned on). | Typing checks only (CRM-022). Cannot tell whether a number or mailbox works. | **Planned for later** (owner, 2026-10-22). Needs a provider choice, a cost/privacy decision and the email-sending approval (MKT-011). | later (with real email) | P2 | Approved |
+| CRM-022 | Phone and email typing checks on every customer save, with clear messages and one-click email typo fixes; duplicate check matches phone numbers with or without a leading 1 | Accepted anything | Ready for Testing (PR #8, 99cbb5d) | A1 | P1 | Approved |
+| CRM-023 | New customer in New Estimate explains every missing item (company name required for business customers) instead of a greyed-out button | Button greyed out, small hint | Ready for Testing (PR #8, 99cbb5d) | A1 | P1 | Approved |
+| CRM-024 | One People box: up to 3 salespeople with shares totalling 100%, estimator and follow-up salesperson | Two separate places that did not agree | Ready for Testing (PR #8) | A1 | P1 | Approved |
+| CRM-025 | Discounts off labor, chosen from a discount code matrix (code, description, amount) or entered by hand with a description | One dollar amount, spread over all lines | Ready for Testing (PR #8). Tax effect (parts tax no longer reduced) to be confirmed by the accountant. | A1 | P1 | Approved |
+| CRM-026 | Planned date before the estimate was created needs a warning and a deliberate override, recorded | Accepted any date | Ready for Testing (PR #8) | A1 | P1 | Approved |
+| CRM-027 | False "record changed while you were editing" on every save | Blocked saves | Fixed, Ready for Testing (PR #8) | A1 | P1 | Approved |
+| CRM-028 | People, discount, marketing source and schedule date editable on a work order in progress, until invoiced | Estimate page only | Ready for Testing (PR #8). Line items stay locked once production starts (supplement), unchanged. | A1 | P1 | Approved |
+| MKT-012 | "How did the customer hear about us?" on every estimate from a management-maintained list; Referral records the referrer and adds them to a referral thank-you list | Free-text referral source on the customer only | Ready for Testing (PR #8) | A1 | P1 | Approved |
+| CRM-029 | One number follows the repair: the estimate number shows on the work order, invoice, printouts and email, and is stored for the QuickBooks transfer | Separate numbers, not linked on documents | Ready for Testing (PR #8). Making the invoice number equal the estimate number is an open option for the bookkeeper. | A1 | P1 | Approved |
+| SEC-010 | Change history showing who (name and login) changed what and when on customers, estimates and work orders | Audit log only on the Staff access page | Ready for Testing (PR #8) | A1 | P1 | Approved |
+
 ---
 
 ## Change log
 
 | Date | Change |
 |---|---|
+| 2026-10-22 | Added the A1 testing requests (CRM-021 to CRM-029, MKT-012, SEC-010). CRM-021, checking that phone numbers and emails are real, is planned for later at the owner's request. |
 | 2026-10-22 | Added SPL-003 (start an estimate from Splats or from the customer) and SPL-004 (repair and reupholster price tables, fully customizable, for every non-PDR splat). Menu "Vehicle Splat" renamed "Splats" in A1. |
 | 2026-10-21 | Final corrections: the owner's tax summary is **not** implemented. The TAX entries stay Blocked / Awaiting Decision pending the accountant's approval of the service-specific tax decision table (ESTIMATING-STRATEGY §7). Authorization policy approved (price increases need new approval). QuickBooks practice recorded as business information to validate. Five line classification fields approved. Split-credit export deferred. Minimum launch scope proposed. |
 | 2026-10-21 | Added requirement types; linked the estimate-first proposal (`ESTIMATING-STRATEGY.md`, awaiting approval). |
