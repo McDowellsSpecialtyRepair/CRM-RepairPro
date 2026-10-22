@@ -23,6 +23,15 @@ async function session(viewport,label){
  const nav=async name=>{if(await p.getByTestId("button-mobile-menu").isVisible())await p.getByTestId("button-mobile-menu").click();await p.getByRole("link",{name,exact:true}).first().click();};
  return {ctx,p,problems,signIn,nav};
 }
+// A demo marine interior estimate for Robert Chen with a boat (demo data only).
+async function marineEstimate(){
+ const login=await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})})).json();
+ const h={"Content-Type":"application/json",Authorization:`Bearer ${login.token}`};
+ const call=async(m,path,body)=>{const r=await fetch(base+path,{method:m,headers:h,body:body&&JSON.stringify(body)});if(!r.ok)throw Error(`${m} ${path}: ${await r.text()}`);return r.json();};
+ const cust=(await call("GET","/api/customers")).find(c=>c.firstName==="Robert"&&c.lastName==="Chen");
+ const boat=await call("POST","/api/vehicles",{customerId:cust.id,vehicleType:"marine",year:"2015",make:"Sea Ray",model:"Sundancer"});
+ return (await call("POST","/api/estimates",{customerId:cust.id,serviceType:"marine_interior",vehicleId:boat.id,taxRate:6})).id;
+}
 // A demo work order in progress with its own linked estimate (made through the API, demo data only).
 async function workOrderInProgress(){
  const login=await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})})).json();
@@ -316,6 +325,22 @@ try{
   await p.getByTestId("form-quick-customer").waitFor({state:"detached"});
   check(`${label}: after fixing the entries, the customer is created and chosen for the estimate`,await p.getByText(`BM47 Ford Insurance ${label}`).first().isVisible());
   await p.getByRole("button",{name:"Cancel",exact:true}).click();
+
+  // 14. Marine interior: a panel can be reupholstered instead of repaired (like the furniture splat).
+  const boatEst=await marineEstimate();
+  await p.goto(`${base}/#/estimates/${boatEst}`);
+  await p.getByTestId("estimate-section-2").waitFor();
+  const panelBtn=p.locator('[data-testid^="fpanel-option-"]').first();await panelBtn.waitFor();
+  const panelName=(await panelBtn.innerText()).replace(/^\d+\./,"").split("\n")[0].trim();
+  await panelBtn.click();
+  const work=p.getByTestId("select-panel-work");await work.waitFor();
+  check(`${label}: a marine panel offers "Work on this panel" (repair or reupholster)`,true);
+  await work.click();await p.getByRole("option",{name:"Reupholster the panel"}).click();
+  await p.getByLabel("Panel unit price override").fill("150");
+  await shot(p,`${label}-14-marine-reupholster`,false);
+  await p.getByTestId("button-add-splat-items").click();
+  const addedLine=p.getByTestId("estimate-section-3").locator("visible=true").getByText(`${panelName}: reupholster`).first();
+  check(`${label}: the marine estimate gets a "reupholster" line for ${panelName}`,await addedLine.waitFor({timeout:15000}).then(()=>true,()=>false));
 
   // 5. Invoices list and detail: no fake "QB Synced" labels.
   await nav("Invoices");await p.getByText(/INV-2026-/).first().waitFor();

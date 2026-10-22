@@ -16,8 +16,9 @@ export const CATEGORY_DEFS = [
 export const SERVICE_CATEGORIES:Record<string,string[]>={
   pdr:["pdr_dent"],hail:["pdr_hail"],window_tint:["window_tint"],
   interior_repair:["interior_vinyl","interior_fabric"],
-  rv_interior:["interior_vinyl","interior_fabric"],
-  marine_interior:["interior_vinyl","interior_fabric"],
+  // RV and marine interiors: repair, or reupholster a panel instead (owner request 2026-10-22).
+  rv_interior:["interior_vinyl","interior_fabric","upholstery"],
+  marine_interior:["interior_vinyl","interior_fabric","upholstery"],
   rv_upholstery:["upholstery","interior_fabric"],
   marine_upholstery:["upholstery","interior_fabric"],
   upholstery:["upholstery","interior_fabric","interior_vinyl"],
@@ -29,7 +30,7 @@ export const categoryAllowed=(service:string,category:string)=>categoriesFor(ser
 export const nonLaborCategory=(category:string)=>["material","supplies","freight_in","freight_out"].includes(category);
 export const categoryTaxable=(category:string,lineType:string)=>category==="fabrication"||category==="freight_in"||lineType==="parts"&&!["supplies","freight_out"].includes(category);
 export const templateAllowed=(service:string,t:any)=>t.isActive!==0&&t.isActive!==false&&t.serviceType===service;
-export const repairActionsFor=(service:string)=>["repair","remove_install","replace",...(["upholstery","rv_upholstery","marine_upholstery"].includes(service)?["reupholster","foam_replacement","fabricate"]:[])];
+export const repairActionsFor=(service:string)=>["repair","remove_install","replace",...(["upholstery","rv_upholstery","marine_upholstery"].includes(service)?["reupholster","foam_replacement","fabricate"]:["rv_interior","marine_interior"].includes(service)?["reupholster","foam_replacement"]:[])];
 export const TAX_GUIDE="https://tax.idaho.gov/taxes/sales-use/guides-for-certain-groups/repair-shops/";
 export const customerLineLabel=(line:any)=>line.lineType==="legacy"?"Needs classification":
   `${CATEGORY_DEFS.find(c=>c.value===line.serviceCategory)?.label||line.lineType}${line.repairAction&&line.lineType==="labor"?` · ${line.repairAction.replaceAll("_"," ")}`:""}`;

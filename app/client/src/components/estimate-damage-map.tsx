@@ -24,7 +24,10 @@ interface Mark {
   material: "vinyl" | "fabric";
   damageType: string;
   priceOverride?: number | null;
+  work?: Work;           // RV/marine interiors: repair the panel, or reupholster it instead
 }
+type Work = "repair" | "reupholster" | "reupholster_foam";
+const WORK_LABELS: Record<Work, string> = { repair: "Repair (repair price list)", reupholster: "Reupholster the panel", reupholster_foam: "Reupholster + new foam" };
 
 // Splat panel id -> hail matrix panel names (first match wins)
 const HAIL_PANEL_MAP: Record<string, string[]> = {
@@ -78,6 +81,9 @@ function StandardDamageMap({ estimate, vehicle, asset, matrices, onAdd }: Props)
   const isFurniture = svc === "upholstery";
   const isUpholsteryPricing = svc === "rv_upholstery" || svc === "marine_upholstery" || isFurniture;
   const isInteriorRepairPricing = isAutoInterior || svc === "rv_interior" || svc === "marine_interior";
+  // RV and marine interior panels can be repaired or reupholstered instead, like the furniture splat.
+  const canReupholster = svc === "rv_interior" || svc === "marine_interior";
+  const reupholstering = (m: Mark) => canReupholster && !!m.work && m.work !== "repair";
 
   // Vehicle body type from the linked vehicle
   const derivedBody: VehicleType = useMemo(() => {
@@ -131,6 +137,11 @@ function StandardDamageMap({ estimate, vehicle, asset, matrices, onAdd }: Props)
       const row = matrices.find((r) => r.matrixType === "pdr_dent" && r.sizeCategory === m.size && r.vehicleCategory === vehCat);
       return { qty: m.count, unit: row?.price || 0, unitType: "each", source: row ? `Standard PDR matrix · ${sizeLabel[m.size]} · ${vehCat}` : "No matrix row found", category: "pdr_dent", desc: `${m.panelName}: ${sizeLabel[m.size]} dent` };
     }
+    if (reupholstering(m)) {
+      const base = FURNITURE_PANEL_PRICES[m.panelId] || 0, foam = m.work === "reupholster_foam", f = foam ? 1.25 : 1;
+      return { qty: m.count, unit: Math.round(base * f * 100) / 100, unitType: "each", source: base ? `Upholstery panel list $${base}${foam ? " × 125% (with foam)" : ""}` : "No upholstery list price for this panel",
+        warn: base ? undefined : "Enter a price", category: "upholstery", desc: `${m.panelName}: reupholster${foam ? " + new foam" : ""}` };
+    }
     if (isInteriorRepairPricing) {
       const mt = m.material === "fabric" ? "interior_fabric" : "interior_vinyl";
       const row = matrices.find((r) => r.matrixType === mt && r.damageType === m.damageType && r.severity === m.severity);
@@ -149,7 +160,7 @@ function StandardDamageMap({ estimate, vehicle, asset, matrices, onAdd }: Props)
   });
   const grand = priced.reduce((s, x) => s + x.total, 0);
   const unpriced = priced.some(x => !Number.isFinite(x.unit) || x.unit < 0 ||
-    x.m.priceOverride == null && (isUpholsteryPricing && x.m.panelId.startsWith("f2:") || !!x.p.warn || x.unit === 0));
+    x.m.priceOverride == null && ((isUpholsteryPricing || reupholstering(x.m)) && x.m.panelId.startsWith("f2:") || !!x.p.warn || x.unit === 0));
 
   const addAll = async () => {
     if (unpriced) return;
@@ -159,7 +170,8 @@ function StandardDamageMap({ estimate, vehicle, asset, matrices, onAdd }: Props)
       await onAdd(priced.map(({ m, p, unit, total }) => ({
         serviceCategory: p.category,
         lineType: "labor",
-        repairAction: isUpholsteryPricing ? (m.severity==="severe"?"foam_replacement":m.severity==="moderate"?"reupholster":"repair") : "repair",
+        repairAction: reupholstering(m) ? (m.work === "reupholster_foam" ? "foam_replacement" : "reupholster")
+          : isUpholsteryPricing ? (m.severity==="severe"?"foam_replacement":m.severity==="moderate"?"reupholster":"repair") : "repair",
         description: p.desc,
         panelLocation: m.panelName,
         damageSize: isHail || isPdr ? m.size : "",
@@ -269,7 +281,7 @@ function StandardDamageMap({ estimate, vehicle, asset, matrices, onAdd }: Props)
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
-                <Label className="text-xs">{isHail || isPdr ? "Dent count" : isUpholsteryPricing ? "Pieces / qty" : "Damage spots"}</Label>
+                <Label className="text-xs">{isHail || isPdr ? "Dent count" : isUpholsteryPricing || reupholstering(sel) ? "Pieces / qty" : "Damage spots"}</Label>
                 <div className="flex items-center gap-1">
                   <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => update(sel.panelId, { count: Math.max(1, sel.count - 1) })}><Minus className="h-4 w-4" /></Button>
                   <Input className="h-9 text-center tabular-nums" inputMode="numeric" value={sel.count} onChange={(e) => update(sel.panelId, { count: Math.max(1, parseInt(e.target.value) || 1) })} data-testid="input-dent-count" />
@@ -287,7 +299,16 @@ function StandardDamageMap({ estimate, vehicle, asset, matrices, onAdd }: Props)
                   </Select>
                 </div>
               )}
-              {isInteriorRepairPricing && (
+              {canReupholster && (
+                <div className="col-span-2">
+                  <Label className="text-xs">Work on this panel</Label>
+                  <Select value={sel.work || "repair"} onValueChange={(v) => update(sel.panelId, { work: v as Work })}>
+                    <SelectTrigger className="h-9" data-testid="select-panel-work"><SelectValue /></SelectTrigger>
+                    <SelectContent>{(Object.keys(WORK_LABELS) as Work[]).map((w) => <SelectItem key={w} value={w}>{WORK_LABELS[w]}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              )}
+              {isInteriorRepairPricing && !reupholstering(sel) && (
                 <>
                   <div>
                     <Label className="text-xs">Material</Label>
@@ -305,7 +326,7 @@ function StandardDamageMap({ estimate, vehicle, asset, matrices, onAdd }: Props)
                   </div>
                 </>
               )}
-              {!isHail && !isPdr && (
+              {!isHail && !isPdr && !reupholstering(sel) && (
                 <div>
                   <Label className="text-xs">{isUpholsteryPricing ? "Work" : "Severity"}</Label>
                   <Select value={sel.severity} onValueChange={(v) => update(sel.panelId, { severity: v as Severity })}>

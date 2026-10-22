@@ -365,6 +365,15 @@ try{
   check("Editing a customer to a bad phone number is refused",(await call("PATCH",`/api/customers/${ok1.id}`,{phone:"555-12"})).status===400);
   check("Editing a customer's email to a typo is refused",(await call("PATCH",`/api/customers/${ok1.id}`,{email:"claims@hotmial.com"})).status===400);
   check("A new number on the contact-change screen gets the same check",(await call("POST",`/api/customers/${ok1.id}/contact-update`,{answers:[{key:"phone",current:"208-555-7788",incoming:"208-555-77889",answer:"replaced"}]})).status===400);}
+ // ---- A1: marine and RV interiors can reupholster a panel instead of repairing it ----
+ {const boat=await ok("POST","/api/vehicles",{customerId:cust.id,vehicleType:"marine",year:"2015",make:"Sea Ray",model:"Sundancer"});
+  const me=await ok("POST","/api/estimates",{customerId:cust.id,serviceType:"marine_interior",vehicleId:boat.id,taxRate:6});
+  const up=await ok("POST",`/api/estimates/${me.id}/line-items`,{serviceCategory:"upholstery",repairAction:"reupholster",description:"V-berth cushion: reupholster",panelLocation:"V-berth cushion",unitPrice:110});
+  check("A marine interior estimate accepts a reupholster line",up.serviceCategory==="upholstery"&&up.repairAction==="reupholster");
+  const rep=await ok("POST",`/api/estimates/${me.id}/line-items`,{serviceCategory:"interior_vinyl",repairAction:"repair",description:"Helm seat: vinyl tear",unitPrice:85});
+  check("The same marine estimate still accepts a repair line",rep.serviceCategory==="interior_vinyl");
+  check("Reupholster with new foam is allowed on marine interiors",(await call("POST",`/api/estimates/${me.id}/line-items`,{serviceCategory:"upholstery",repairAction:"foam_replacement",description:"Settee: reupholster + foam",unitPrice:137.5})).status<300);
+  check("Auto interiors are unchanged (no reupholster lines)",(await call("POST",`/api/estimates/${tint.id}/line-items`,{serviceCategory:"upholstery",repairAction:"reupholster",description:"x",unitPrice:1})).status===400);}
  // ---- A1: logo on printed estimates and invoices ----
  const logoHtml=await ok("GET",`/print/estimate/${tint.id}`);
  check("Printed estimate shows the McDowells logo image",/<img src="data:image\/png;base64,[A-Za-z0-9+/=]{1000,}" alt="McDowells Specialty Repair"/.test(logoHtml));
