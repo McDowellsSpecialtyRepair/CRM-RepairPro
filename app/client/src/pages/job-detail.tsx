@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth-provider";
 import { WorkPlanning } from "@/components/work-planning";
 import { DiscountEditor } from "@/components/discount-editor";
 import { EstimateMarketing } from "@/components/estimate-marketing";
+import { ChangeHistory } from "@/components/change-history";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,5 +57,6 @@ export default function JobDetail() {
       </CardContent></Card>)}
     </section>
     {j.invoices.length > 0 && <section className="space-y-3"><h2 className="font-semibold">Linked invoices</h2>{j.invoices.map((i: any) => <Link key={i.id} href={`/invoices/${i.id}`} className="block rounded-md border p-4 hover:bg-muted/40"><span className="font-medium underline">{i.invoiceNumber}</span><span className="text-sm ml-3">{i.status} · {cash(i.total)}</span></Link>)}</section>}
+    <ChangeHistory kind="jobs" id={id} />
   </div>;
 }

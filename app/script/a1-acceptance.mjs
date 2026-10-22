@@ -273,6 +273,15 @@ try{
   check(`${label}: on a work order in progress, "heard about us" can be changed`,true);
   await shot(p,`${label}-11-work-order-in-progress-editing`,true);
 
+  // 12. Change history: who changed what, with their login.
+  const hist=p.getByTestId("card-change-history");
+  await hist.getByTestId("button-toggle-history").click();
+  const entries=hist.getByTestId("history-entries");await entries.locator("li").first().waitFor();
+  const htext=await entries.innerText();
+  check(`${label}: the work order's change history shows the people change with the login that made it`,/People changed/.test(htext)&&/demo\.owner@example\.invalid/.test(htext),htext.slice(0,300));
+  check(`${label}: the history shows "How they heard about us" changed to Radio`,/Heard about us from:.*Radio/.test(htext));
+  if(shots)await hist.screenshot({path:join(shots,`${label}-12-change-history.png`)});
+
   // 5. Invoices list and detail: no fake "QB Synced" labels.
   await nav("Invoices");await p.getByText(/INV-2026-/).first().waitFor();
   check(`${label}: the invoices list shows no "QB Synced" / "Not Synced" labels`,await p.getByText(/QB Synced|Not Synced/).count()===0);

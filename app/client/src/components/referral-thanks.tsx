@@ -42,8 +42,8 @@ export function ReferralThanks() {
         </div>
         {r.note && <p className="text-xs">Note: {r.note}</p>}
         {r.status === "thanked" ? <div className="flex flex-wrap items-center gap-2 text-xs"><span>Thanked {String(r.thankedAt || "").slice(0, 10)}{r.thankedBy ? ` by ${r.thankedBy}` : ""}{r.thankedNote ? ` · ${r.thankedNote}` : ""}</span>
-          {can("marketing.write") && <Button size="sm" variant="ghost" disabled={busy === r.estimateId} onClick={() => mark(r.estimateId, false)}>Move back to "To thank"</Button>}</div>
-        : can("marketing.write") && <div className="flex flex-wrap items-end gap-2">
+          {can("referrals.manage") && <Button size="sm" variant="ghost" disabled={busy === r.estimateId} onClick={() => mark(r.estimateId, false)}>Move back to "To thank"</Button>}</div>
+        : can("referrals.manage") && <div className="flex flex-wrap items-end gap-2">
           <label className="text-xs flex-1 min-w-48">How we thanked them (optional)<Input aria-label={`How we thanked ${r.referrerName}`} className="mt-1 h-9" maxLength={500} value={notes[r.estimateId] || ""} onChange={e => setNotes({ ...notes, [r.estimateId]: e.target.value })} placeholder="For example: card and $25 gift card mailed" /></label>
           <Button size="sm" disabled={busy === r.estimateId} onClick={() => mark(r.estimateId, true)} data-testid={`button-mark-thanked-${r.estimateNumber}`}>Mark thanked</Button>
         </div>}

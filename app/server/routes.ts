@@ -3,6 +3,7 @@ import type { Express } from "express";
 const discountLabel = (e: any) => "Discount" + (e.discountNote ? `: ${e.discountNote}` : "") + (e.discountBasis === "labor" ? (e.discountPercent ? ` (${e.discountPercent}% off labor)` : " (off labor)") : "");
 import { registerDiscounts } from "./discounts";
 import { registerMarketing } from "./marketing";
+import { registerHistory } from "./history";
 import { logoImg, withLogoAttachment } from "./brand-logo";
 import type { Server } from "node:http";
 import { storage } from "./storage";
@@ -100,6 +101,7 @@ export async function registerRoutes(
   registerWorkOrders(app);
   registerDiscounts(app);
   registerMarketing(app);
+  registerHistory(app);
   registerOperations(app);
   registerCapacity(app);
   registerVin(app);

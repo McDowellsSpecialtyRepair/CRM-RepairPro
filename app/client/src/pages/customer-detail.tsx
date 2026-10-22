@@ -1,3 +1,4 @@
+import { ChangeHistory } from "@/components/change-history";
 import { MergeCustomerDialog } from "@/components/merge-customer-dialog";
 import { RelatedWork } from "@/components/related-work";
 import { GitMerge, Pencil } from "lucide-react";
@@ -844,6 +845,7 @@ export default function CustomerDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+      <ChangeHistory kind="customers" id={customer.id} />
     </div>
   );
 }

@@ -313,7 +313,8 @@ try{
   const friend=await ok("POST","/api/customers",{customerType:"retail",firstName:"Pat",lastName:"Referrer",phone:"555-010-3131",status:"active"});
   const ref=await ok("PUT",mu,{sourceId:src("Referral").id,referrerCustomerId:friend.id,referrerNote:"Coworker"});
   check("A referral by an existing customer is saved with their name and phone",ref.referrer.name==="Pat Referrer"&&ref.referrer.phone==="555-010-3131"&&ref.thankYouStatus==="to_thank");
-  check("Service advisors cannot open the thank-you list (marketing staff only)",(await call("GET","/api/referrals")).status===403);
+  check("Service advisors can open the referral thank-you list",(await call("GET","/api/referrals")).status===200);
+  check("Technicians cannot open the referral thank-you list",(await call("GET","/api/referrals",undefined,staff.technician)).status===403);
   let list=await ok("GET","/api/referrals",undefined,owner);
   const row=list.find(r=>r.estimateId===tint.id);
   check("The referrer is on the thank-you list with the referred customer and estimate number",row&&row.status==="to_thank"&&row.referrerName==="Pat Referrer"&&row.referredCustomer==="Dana Phase-Two"&&row.estimateNumber===tintBefore.estimateNumber);
@@ -326,6 +327,28 @@ try{
   check("The marketing answer is locked once the estimate is invoiced",(await call("PUT",`/api/estimates/${est.id}/marketing`,{sourceId:src("Radio").id})).status===409);
   const dbr=new Database(dbPath,{readonly:true});
   check("Marketing answers and thank-yous are in the audit history",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='marketing.updated' AND record_id=?").get(String(tint.id))&&!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='referral.thanked'").get());dbr.close();}
+ // ---- A1: change history shows the login that made each change ----
+ {check("Service advisors cannot open the change history (managers, owners and auditors can)",(await call("GET",`/api/history/estimates/${tint.id}`)).status===403);
+  check("An auditor can read the change history",(await call("GET",`/api/history/estimates/${tint.id}`,undefined,staff.auditor)).status===200);
+  const h=await ok("GET",`/api/history/estimates/${tint.id}`,undefined,owner);
+  const people=h.find(e=>/People changed/.test(e.what)&&e.changes.some(c=>c.field==="Follow-up salesperson"));
+  check("Changing the follow-up salesperson is in the estimate's history with the person's name and login",people&&people.by==="Test advisor"&&people.login==="advisor@example.invalid");
+  check("The history shows the follow-up change from one person to another by name",people.changes.some(c=>c.field==="Follow-up salesperson"&&/Test /.test(c.from)&&/Test /.test(c.to)));
+  const mk=h.find(e=>/heard about us/.test(e.what)&&e.changes.some(c=>c.field==="Referred by"&&/Lee Neighbor/.test(c.to)));
+  check("Changing who referred the customer is in the history (old and new referrer) with the login",mk&&/Pat Referrer/.test(mk.changes.find(c=>c.field==="Referred by").from)&&mk.login==="advisor@example.invalid");
+  check("Marking a referral thanked is in the history with the login",h.some(e=>e.what==="Referral marked thanked"&&e.login==="owner@example.invalid"));
+  check("Discount changes are in the history",h.some(e=>e.changes.some(c=>c.field==="Discount description"&&c.to==="Returning customer")));
+  check("Early schedule dates confirmed by the estimator are in the history",h.some(e=>/Early schedule date confirmed/.test(e.what)));
+  check("Internal costs are not shown in the change history",!JSON.stringify(h).includes("unit cost"));
+  await ok("PATCH",`/api/customers/${cust.id}`,{phone:"555-010-9999"});
+  const ch=await ok("GET",`/api/history/customers/${cust.id}`,undefined,owner);
+  check("Changing a customer's phone is in the customer's history with old and new number and the login",ch.some(e=>e.login==="advisor@example.invalid"&&e.changes.some(c=>c.field==="Phone"&&c.from==="555-010-2101"&&c.to==="555-010-9999")));
+  const job=(await ok("GET","/api/jobs")).find(j=>j.title==="Tint in progress");
+  const jh=await ok("GET",`/api/history/jobs/${job.id}`,undefined,owner);
+  check("A work order's history includes people changes on its linked estimate",jh.some(e=>/People changed/.test(e.what)&&e.changes.some(c=>c.field==="Estimator")));
+  check("A work order's history includes its status change",jh.some(e=>e.changes.some(c=>c.field==="Status"&&c.to==="in progress")));
+  const dbr=new Database(dbPath,{readonly:true});
+  check("Opening the change history is itself recorded",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='history.viewed' AND entity='customers' AND record_id=?").get(String(cust.id)));dbr.close();}
  // ---- A1: logo on printed estimates and invoices ----
  const logoHtml=await ok("GET",`/print/estimate/${tint.id}`);
  check("Printed estimate shows the McDowells logo image",/<img src="data:image\/png;base64,[A-Za-z0-9+/=]{1000,}" alt="McDowells Specialty Repair"/.test(logoHtml));

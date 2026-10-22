@@ -26,6 +26,7 @@ import {DocumentBreakdown} from "@/components/document-breakdown";
 import {EstimateCommercial} from "@/components/estimate-commercial";
 import {DiscountEditor} from "@/components/discount-editor";
 import {EstimateMarketing} from "@/components/estimate-marketing";
+import {ChangeHistory} from "@/components/change-history";
 import {useAuth} from "@/components/auth-provider";
 
 const formatCurrency = (n: number) =>
@@ -878,6 +879,7 @@ export default function EstimateBuilder() {
       <section aria-labelledby="estimate-section-4" className="space-y-2" data-testid="estimate-section-4">
         <SectionHeading id="estimate-section-4" n={4}>Scheduling, work planning and technicians</SectionHeading>
         <WorkPlanning key={estimate.id} kind="estimates" id={estimate.id} />
+        <ChangeHistory kind="estimates" id={estimate.id} />
       </section>
     </div>
   );

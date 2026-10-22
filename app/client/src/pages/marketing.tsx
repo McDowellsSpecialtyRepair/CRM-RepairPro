@@ -4,6 +4,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ReferralThanks, MarketingSourcesManager } from "@/components/referral-thanks";
+import { useAuth } from "@/components/auth-provider";
+
+const ReferralThanksIfAllowed = () => useAuth().can("referrals.manage") ? <ReferralThanks /> : null;
 import { Plus, Megaphone, Mail, Phone, Gift, Calendar, TrendingUp } from "lucide-react";
 
 const formatDate = (s: string) => {
@@ -56,7 +59,7 @@ export default function Marketing() {
         </Button>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <ReferralThanks />
+        <ReferralThanksIfAllowed />
         <MarketingSourcesManager />
       </div>
 

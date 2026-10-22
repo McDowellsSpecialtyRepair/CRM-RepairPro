@@ -7,17 +7,19 @@ export const PERMISSIONS = [
   "customers.tax_terms", // change a customer's tax-exempt status or credit limit
   "pricing.manage", // edit the PDR price matrices, adjustments and package approval threshold
   "pricing.approve", // approve a package price below the calculated individual dent total
+  "history.read", // see the change history (who changed what, when) on customers, estimates and work orders
+  "referrals.manage", // see the referral thank-you list and mark referrers thanked
 ] as const;
 export type Permission = typeof PERMISSIONS[number];
 export const ROLES = {
   owner: { label: "Owner", description: "All access; can appoint other owners.", permissions: [...PERMISSIONS] },
   admin: { label: "Administrator", description: "All operations and staff administration, except changing owners.", permissions: [...PERMISSIONS] },
   manager: { label: "Manager", description: "Operations, billing, reports and customer merges; no staff security administration.", permissions: PERMISSIONS.filter(p => !["staff.manage", "settings.manage", "audit.read", "records.delete"].includes(p)) },
-  advisor: { label: "Service advisor", description: "Customers, estimates, work orders, scheduling, operational queues and payment recording. No merges or shop-wide reports.", permissions: ["customers.read","customers.write","jobs.read","jobs.write","estimates.read","estimates.write","billing.read","billing.write","payments.record","schedule.read","schedule.write","pricing.read","activity.read","activity.write","operations.read","operations.write"] },
+  advisor: { label: "Service advisor", description: "Customers, estimates, work orders, scheduling, operational queues and payment recording. No merges or shop-wide reports.", permissions: ["marketing.read","referrals.manage","customers.read","customers.write","jobs.read","jobs.write","estimates.read","estimates.write","billing.read","billing.write","payments.record","schedule.read","schedule.write","pricing.read","activity.read","activity.write","operations.read","operations.write"] },
   technician: { label: "Technician", description: "Assigned work only. No other customers, billing, estimates or shop-wide reports.", permissions: ["mywork"] },
   support: { label: "Support / dispatcher", description: "Customer contact details, jobs and scheduling. No financial documents, marketing or reports.", permissions: ["customers.read","customers.write","jobs.read","jobs.write","schedule.read","schedule.write"] },
   accountant: { label: "Accounting", description: "Read operational records; issue invoices, record payments, manage direct costs, customer tax terms and run reports. No estimate editing or staff administration.", permissions: ["dashboard.read","customers.read","jobs.read","estimates.read","billing.read","billing.write","payments.record","reports.read","reports.write","pricing.read","activity.read","schedule.read","operations.read","costs.read","costs.write","customers.tax_terms"] },
-  auditor: { label: "Read-only auditor", description: "Read records, reports and audit history. No business or staff changes.", permissions: ["dashboard.read","customers.read","jobs.read","estimates.read","billing.read","reports.read","pricing.read","activity.read","schedule.read","marketing.read","audit.read","operations.read","costs.read"] },
+  auditor: { label: "Read-only auditor", description: "Read records, reports and audit history. No business or staff changes.", permissions: ["history.read","dashboard.read","customers.read","jobs.read","estimates.read","billing.read","reports.read","pricing.read","activity.read","schedule.read","marketing.read","audit.read","operations.read","costs.read"] },
 } satisfies Record<string, { label: string; description: string; permissions: readonly string[] }>;
 export type Role = keyof typeof ROLES;
 export type StaffUser = { id: number; email: string; fullName: string; role: Role; status: string; technicianId: number | null; permissions: string[] };
@@ -120,8 +122,9 @@ export function routePermission(method: string, path: string): Permission | "aut
     ["PATCH", /^\/api\/marketing-sources\/\d+$/, "marketing.write"],
     ["GET", /^\/api\/estimates\/\d+\/marketing$/, "estimates.read"],
     ["PUT", /^\/api\/estimates\/\d+\/marketing$/, "estimates.write"],
-    ["GET", /^\/api\/referrals$/, "marketing.read"],
-    ["PATCH", /^\/api\/referrals\/\d+$/, "marketing.write"],
+    ["GET", /^\/api\/referrals$/, "referrals.manage"],
+    ["PATCH", /^\/api\/referrals\/\d+$/, "referrals.manage"],
+    ["GET", /^\/api\/history\/(?:customers|estimates|jobs)\/\d+$/, "history.read"],
     ["PATCH", /^\/api\/estimates\/\d+\/people$/, "estimates.write"],
     ["PATCH", /^\/api\/jobs\/\d+\/people$/, "jobs.write"],
     ["POST", /^\/api\/jobs$/, "jobs.write"],
