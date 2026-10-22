@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { sqlite } from "./storage-db";
 import { storage } from "./storage";
 import { fail } from "./billing";
-import { scheduleJobDetails } from "./schedule-details";
+import { scheduleJobDetails, plannedWork } from "./schedule-details";
 import { validDate, integer } from "./operations";
 import {
   DEPARTMENTS,
@@ -234,6 +234,7 @@ export function capacity(
           return { ...s, details: s.jobId ? cache.get(s.jobId) : null };
         });
     })(),
+    planned: plannedWork(start, addDays(start, 7)),
     absences: all(
       "SELECT * FROM ops_absences WHERE date>=? AND date<? ORDER BY date,start_time",
       start,

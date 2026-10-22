@@ -574,6 +574,13 @@ function CalendarRow({
                     )}
                 </div>
               ))}
+              {(data.planned || []).filter((w: any) => w.technicianId === t.id && w.date === date).map((w: any) => (
+                <div key={`${w.kind}-${w.id}`} className="border border-dashed border-amber-500 rounded p-2 text-xs bg-amber-50 dark:bg-amber-950/30" data-testid={`planned-${w.kind}-${w.id}`}>
+                  <strong>Planned – no time booked</strong>
+                  {w.details && <SlotDetails d={w.details} jobId={w.kind === "job" ? w.id : 0} estimateId={w.kind === "estimate" ? w.id : undefined} />}
+                  <p className="mt-1 text-muted-foreground">Book a time above so the hours are reserved.</p>
+                </div>
+              ))}
               {absence.map((a: any) => (
                 <div key={a.id} className="border rounded p-2 bg-muted text-xs">
                   <strong>
@@ -740,10 +747,10 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
 }
 
 // The booked work order at a glance: who, where, what item, what service and what work (no prices).
-function SlotDetails({ d, jobId }: { d: any; jobId: number }) {
+function SlotDetails({ d, jobId, estimateId }: { d: any; jobId: number; estimateId?: number }) {
   const urgent = d.priority === "urgent" || d.priority === "high";
   return (
-    <div className="mt-1 space-y-0.5 break-words" data-testid={`slot-details-${jobId}`}>
+    <div className="mt-1 space-y-0.5 break-words" data-testid={estimateId ? `planned-details-estimate-${estimateId}` : `slot-details-${jobId}`}>
       {urgent && <span className="inline-block rounded bg-destructive/15 text-destructive px-1.5 text-[11px] font-semibold uppercase">{d.priority}</span>}
       <p className="font-semibold">{d.customer || "Customer not found"}</p>
       <p>{d.service}{d.item ? ` · ${d.item}` : ""}</p>
@@ -752,7 +759,8 @@ function SlotDetails({ d, jobId }: { d: any; jobId: number }) {
       {d.work?.length > 0 && <ul className="list-disc ml-4 text-muted-foreground">{d.work.map((w: string, i: number) => <li key={i}>{w}</li>)}{d.moreWork > 0 && <li>and {d.moreWork} more</li>}</ul>}
       {!d.work?.length && d.instructions && <p className="text-muted-foreground">{d.instructions}</p>}
       {d.insuranceClaim && <p className="text-muted-foreground">Claim {d.insuranceClaim}</p>}
-      <p><Link href={`/jobs/${jobId}`} className="underline">{d.jobNumber}{d.estimateNumbers?.length ? ` · Estimate ${d.estimateNumbers.join(", ")}` : ""}</Link></p>
+      <p>{estimateId ? <Link href={`/estimates/${estimateId}`} className="underline">Estimate {d.estimateNumbers.join(", ")}</Link>
+        : <Link href={`/jobs/${jobId}`} className="underline">{d.jobNumber}{d.estimateNumbers?.length ? ` · Estimate ${d.estimateNumbers.join(", ")}` : ""}</Link>}</p>
     </div>
   );
 }

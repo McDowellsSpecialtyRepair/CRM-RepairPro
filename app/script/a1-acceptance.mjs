@@ -32,6 +32,20 @@ async function marineEstimate(){
  const boat=await call("POST","/api/vehicles",{customerId:cust.id,vehicleType:"marine",year:"2015",make:"Sea Ray",model:"Sundancer"});
  return (await call("POST","/api/estimates",{customerId:cust.id,serviceType:"marine_interior",vehicleId:boat.id,taxRate:6})).id;
 }
+// A demo estimate planned two days out for the first technician, with no booked time (demo data only).
+async function plannedEstimate(){
+ const login=await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})})).json();
+ const h={"Content-Type":"application/json",Authorization:`Bearer ${login.token}`};
+ const call=async(m,path,body)=>{const r=await fetch(base+path,{method:m,headers:h,body:body&&JSON.stringify(body)});if(!r.ok)throw Error(`${m} ${path}: ${await r.text()}`);return r.json();};
+ const cust=(await call("GET","/api/customers")).find(c=>c.firstName==="Robert"&&c.lastName==="Chen");
+ const tech=(await call("GET","/api/technicians")).find(t=>t.status==="active");
+ const e=await call("POST","/api/estimates",{customerId:cust.id,serviceType:"interior_repair"});
+ await call("POST",`/api/estimates/${e.id}/line-items`,{serviceCategory:"interior_vinyl",description:"Driver seat bolster repair",unitPrice:180});
+ const day=new Date(Date.now()+2*86400000).toLocaleDateString("en-CA",{timeZone:"America/Boise"});
+ const pl=await call("GET",`/api/estimates/${e.id}/planning`);
+ await call("PATCH",`/api/estimates/${e.id}/planning`,{revision:pl.revision,scheduledDate:day,assignedTechId:tech.id});
+ return e.id;
+}
 // A demo work order in progress with its own linked estimate (made through the API, demo data only).
 async function workOrderInProgress(){
  const login=await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})})).json();
@@ -347,6 +361,8 @@ try{
   const addedLine=p.getByTestId("estimate-section-3").locator("visible=true").getByText(`${panelName}: reupholster`).first();
   check(`${label}: the marine estimate gets a "reupholster" line for ${panelName}`,await addedLine.waitFor({timeout:15000}).then(()=>true,()=>false));
 
+  // 15b set-up: an estimate planned for Maria Santos in two days, with no booked time (the owner's case).
+  const plannedId=await plannedEstimate();
   // 15. Scheduling: each booking shows the customer, item, service and work, not just a work order number.
   await nav("Scheduling");
   const det=p.locator('[data-testid^="slot-details-"]').first();
@@ -354,6 +370,10 @@ try{
   const dtext=await det.innerText();
   check(`${label}: a booking shows the customer name, service and work order number`,/JOB-|WO-|\d/.test(dtext)&&dtext.split("\n").length>=3,dtext);
   if(shots)await det.locator("xpath=..").screenshot({path:join(shots,`${label}-15-schedule-booking-details.png`)});
+  const planned=p.getByTestId(`planned-estimate-${plannedId}`);
+  check(`${label}: an estimate planned with a date and lead technician (no booked time) shows on that technician's day`,await planned.waitFor({timeout:15000}).then(()=>true,()=>false));
+  check(`${label}: it is marked "Planned – no time booked" and shows the customer`,/Planned – no time booked/.test(await planned.innerText())&&/Robert Chen/.test(await planned.innerText()));
+  if(shots)await planned.screenshot({path:join(shots,`${label}-15b-planned-estimate.png`)});
 
   // 5. Invoices list and detail: no fake "QB Synced" labels.
   await nav("Invoices");await p.getByText(/INV-2026-/).first().waitFor();

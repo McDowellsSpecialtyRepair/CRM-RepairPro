@@ -387,6 +387,18 @@ try{
   const mine=await ok("GET","/api/my-work",undefined,staff.technician);
   check("A technician's own work list includes where to go, the customer phone and their booked times",Array.isArray(mine)&&mine.every(j=>"address" in j&&"phone" in j&&Array.isArray(j.appointments)));}
  check("A normal server never offers the demo one-click sign-in",!("demoSignIn" in (await ok("GET","/api/auth/status"))));
+ // ---- A1: planned work (date + lead technician, no booked time) shows on the calendar ----
+ {const pe=await ok("POST","/api/estimates",{customerId:cust.id,serviceType:"window_tint",vehicleId:v2.id,taxRate:6});
+  await ok("POST",`/api/estimates/${pe.id}/line-items`,{serviceCategory:"window_tint",description:"Full tint, ceramic",unitPrice:350});
+  const day=new Date(Date.now()+8*86400000).toLocaleDateString("en-CA",{timeZone:"America/Boise"});
+  const pl=await ok("GET",`/api/estimates/${pe.id}/planning`);
+  await ok("PATCH",`/api/estimates/${pe.id}/planning`,{revision:pl.revision,scheduledDate:day,assignedTechId:techs[0].id});
+  const cap=await ok("GET",`/api/capacity?from=${day}`);
+  const w=(cap.planned||[]).find(x=>x.kind==="estimate"&&x.id===pe.id);
+  check("An estimate planned for a day with a lead technician shows on that technician's day of the calendar",w&&w.date===day&&w.technicianId===techs[0].id);
+  check("The planned item shows the customer, service and work (no prices)",w.details.customer==="Dana Phase-Two"&&/tint/i.test(w.details.service)&&w.details.work.some(t=>/ceramic/.test(t))&&!/"(?:unitPrice|total|price)"/.test(JSON.stringify(w.details)));
+  const other=await ok("GET",`/api/capacity?from=${new Date(Date.now()+20*86400000).toLocaleDateString("en-CA",{timeZone:"America/Boise"})}`);
+  check("It does not show on other weeks",!(other.planned||[]).some(x=>x.kind==="estimate"&&x.id===pe.id));}
  // ---- A1: logo on printed estimates and invoices ----
  const logoHtml=await ok("GET",`/print/estimate/${tint.id}`);
  check("Printed estimate shows the McDowells logo image",/<img src="data:image\/png;base64,[A-Za-z0-9+/=]{1000,}" alt="McDowells Specialty Repair"/.test(logoHtml));
