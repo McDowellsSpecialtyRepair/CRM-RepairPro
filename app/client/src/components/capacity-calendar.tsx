@@ -546,9 +546,9 @@ function CalendarRow({
                   <strong>
                     {s.startTime}–{s.endTime}
                   </strong>
-                  <p className="mt-1">
+                  {s.details ? <SlotDetails d={s.details} jobId={s.jobId} /> : <p className="mt-1">
                     {s.jobId ? <Link href={`/jobs/${s.jobId}`} className="underline">{jobs.find((j: any) => j.id === s.jobId)?.jobNumber || "Open work order"}</Link> : s.slotType}
-                  </p>
+                  </p>}
                   <p>{s.status.replace("_", " ")}</p>
                   {canEdit &&
                     !["cancelled", "completed"].includes(s.status) && (
@@ -736,5 +736,23 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// The booked work order at a glance: who, where, what item, what service and what work (no prices).
+function SlotDetails({ d, jobId }: { d: any; jobId: number }) {
+  const urgent = d.priority === "urgent" || d.priority === "high";
+  return (
+    <div className="mt-1 space-y-0.5 break-words" data-testid={`slot-details-${jobId}`}>
+      {urgent && <span className="inline-block rounded bg-destructive/15 text-destructive px-1.5 text-[11px] font-semibold uppercase">{d.priority}</span>}
+      <p className="font-semibold">{d.customer || "Customer not found"}</p>
+      <p>{d.service}{d.item ? ` · ${d.item}` : ""}</p>
+      {d.address && d.address.replace(/[ ,]/g, "") && <p className="text-muted-foreground">{d.address}</p>}
+      {d.phone && <p><a className="underline" href={`tel:${String(d.phone).replace(/[^0-9+]/g, "")}`}>{d.phone}</a></p>}
+      {d.work?.length > 0 && <ul className="list-disc ml-4 text-muted-foreground">{d.work.map((w: string, i: number) => <li key={i}>{w}</li>)}{d.moreWork > 0 && <li>and {d.moreWork} more</li>}</ul>}
+      {!d.work?.length && d.instructions && <p className="text-muted-foreground">{d.instructions}</p>}
+      {d.insuranceClaim && <p className="text-muted-foreground">Claim {d.insuranceClaim}</p>}
+      <p><Link href={`/jobs/${jobId}`} className="underline">{d.jobNumber}{d.estimateNumbers?.length ? ` · Estimate ${d.estimateNumbers.join(", ")}` : ""}</Link></p>
+    </div>
   );
 }

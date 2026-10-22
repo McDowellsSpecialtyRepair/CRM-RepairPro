@@ -374,6 +374,18 @@ try{
   check("The same marine estimate still accepts a repair line",rep.serviceCategory==="interior_vinyl");
   check("Reupholster with new foam is allowed on marine interiors",(await call("POST",`/api/estimates/${me.id}/line-items`,{serviceCategory:"upholstery",repairAction:"foam_replacement",description:"Settee: reupholster + foam",unitPrice:137.5})).status<300);
   check("Auto interiors are unchanged (no reupholster lines)",(await call("POST",`/api/estimates/${tint.id}/line-items`,{serviceCategory:"upholstery",repairAction:"reupholster",description:"x",unitPrice:1})).status===400);}
+ // ---- A1: the schedule shows who, where, what item and what work for each booking ----
+ {const slots=await ok("GET","/api/schedule-slots",undefined,owner);
+  const withJob=slots.find(x=>x.jobId&&x.status!=="cancelled");
+  check("Test data has a booked work order on the calendar",!!withJob);
+  const cap=await ok("GET",`/api/capacity?from=${withJob.date}`);
+  const slot=cap.slots.find(x=>x.id===withJob.id);
+  const job=await ok("GET",`/api/jobs/${withJob.jobId}`,undefined,owner),c=await ok("GET",`/api/customers/${job.customerId}`,undefined,owner);
+  check("Each calendar booking includes the customer's name, service and work order number",slot.details&&slot.details.customer===(c.companyName||`${c.firstName} ${c.lastName}`.trim())&&slot.details.jobNumber===job.jobNumber&&!!slot.details.service);
+  check("Each calendar booking includes the customer's phone and address",slot.details.phone===(c.mobile||c.phone||null)&&(c.address?slot.details.address.includes(c.address):true));
+  check("Calendar bookings show no prices or costs",!/"(?:unitPrice|unit_price|total|unitCost|unit_cost|price)"/.test(JSON.stringify(slot.details)));
+  const mine=await ok("GET","/api/my-work",undefined,staff.technician);
+  check("A technician's own work list includes where to go, the customer phone and their booked times",Array.isArray(mine)&&mine.every(j=>"address" in j&&"phone" in j&&Array.isArray(j.appointments)));}
  // ---- A1: logo on printed estimates and invoices ----
  const logoHtml=await ok("GET",`/print/estimate/${tint.id}`);
  check("Printed estimate shows the McDowells logo image",/<img src="data:image\/png;base64,[A-Za-z0-9+/=]{1000,}" alt="McDowells Specialty Repair"/.test(logoHtml));

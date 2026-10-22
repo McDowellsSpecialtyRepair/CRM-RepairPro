@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { sqlite } from "./storage-db";
 import { storage } from "./storage";
 import { fail } from "./billing";
+import { scheduleJobDetails } from "./schedule-details";
 import { validDate, integer } from "./operations";
 import {
   DEPARTMENTS,
@@ -222,9 +223,17 @@ export function capacity(
           b.next ? `${b.next.date} ${b.next.startTime}` : "9999",
         ),
       ),
-    slots: storage
-      .getScheduleSlots()
-      .filter((s) => s.date >= start && s.date < addDays(start, 7)),
+    // Each booking carries the customer, place, item and work, so the calendar can be read without opening jobs.
+    slots: (() => {
+      const cache = new Map<number, any>();
+      return storage
+        .getScheduleSlots()
+        .filter((s) => s.date >= start && s.date < addDays(start, 7))
+        .map((s) => {
+          if (s.jobId && !cache.has(s.jobId)) cache.set(s.jobId, scheduleJobDetails(s.jobId));
+          return { ...s, details: s.jobId ? cache.get(s.jobId) : null };
+        });
+    })(),
     absences: all(
       "SELECT * FROM ops_absences WHERE date>=? AND date<? ORDER BY date,start_time",
       start,

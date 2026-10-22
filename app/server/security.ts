@@ -399,10 +399,13 @@ export function registerSecurity(app: Express) {
     const id = res.locals.staff.technician_id;
     if (!id) return res.json([]);
     // No invoices, pricing, private customer notes or unrelated records.
-    res.json(rows(`SELECT j.id,j.job_number AS jobNumber,j.title,j.service_type AS serviceType,j.status,j.scheduled_date AS scheduledDate,j.completed_date AS completedDate,
-      c.company_name AS companyName,c.first_name AS firstName,c.last_name AS lastName,
-      v.year,v.make,v.model,v.vin FROM jobs j JOIN customers c ON c.id=j.customer_id LEFT JOIN vehicles v ON v.id=j.vehicle_id
-      WHERE j.assigned_tech_id=? ORDER BY j.scheduled_date,j.id`, id));
+    // Includes where to go and whom to call (address and phone) and this technician's booked times.
+    const jobs = rows(`SELECT j.id,j.job_number AS jobNumber,j.title,j.service_type AS serviceType,j.status,j.priority,j.scheduled_date AS scheduledDate,j.completed_date AS completedDate,
+      c.company_name AS companyName,c.first_name AS firstName,c.last_name AS lastName,coalesce(nullif(c.mobile,''),c.phone) AS phone,
+      trim(coalesce(c.address,'')||', '||coalesce(c.city,'')||' '||coalesce(c.state,'')||' '||coalesce(c.zip,''),', ') AS address,
+      v.year,v.make,v.model,v.color,v.vin FROM jobs j JOIN customers c ON c.id=j.customer_id LEFT JOIN vehicles v ON v.id=j.vehicle_id
+      WHERE j.assigned_tech_id=? ORDER BY j.scheduled_date,j.id`, id);
+    res.json(jobs.map((j: any) => ({ ...j, appointments: rows("SELECT date,start_time AS startTime,end_time AS endTime,status FROM schedule_slots WHERE job_id=? AND technician_id=? AND status NOT IN ('cancelled') ORDER BY date,start_time", j.id, id) })));
   });
   app.post("/api/my-work/:id/:action", handle((req, res) => {
     const job = row("SELECT * FROM jobs WHERE id=? AND assigned_tech_id=?", Number(req.params.id), res.locals.staff.technician_id || -1);

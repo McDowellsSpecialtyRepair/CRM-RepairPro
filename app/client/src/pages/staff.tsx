@@ -749,7 +749,11 @@ export function MyWork() {
               <p className="text-xs text-muted-foreground">
                 Scheduled: {j.scheduledDate || "Not scheduled"}
                 {j.vin ? ` · VIN ${j.vin}` : ""}
+                {j.priority && j.priority !== "normal" ? ` · ${j.priority} urgency` : ""}
               </p>
+              {j.address && j.address.replace(/[ ,]/g, "") && <p className="text-sm">Where: {j.address}</p>}
+              {j.phone && <p className="text-sm">Customer phone: <a className="underline" href={`tel:${String(j.phone).replace(/[^0-9+]/g, "")}`}>{j.phone}</a></p>}
+              {j.appointments?.length > 0 && <p className="text-sm" data-testid={`my-work-appointments-${j.id}`}>Your booked times: {j.appointments.map((a: any) => `${a.date} ${a.startTime}–${a.endTime}`).join("; ")}</p>}
             </div>
             <AssignedWorkScope id={j.id} />
             <div className="flex flex-wrap gap-2">

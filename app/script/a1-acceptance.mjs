@@ -342,6 +342,14 @@ try{
   const addedLine=p.getByTestId("estimate-section-3").locator("visible=true").getByText(`${panelName}: reupholster`).first();
   check(`${label}: the marine estimate gets a "reupholster" line for ${panelName}`,await addedLine.waitFor({timeout:15000}).then(()=>true,()=>false));
 
+  // 15. Scheduling: each booking shows the customer, item, service and work, not just a work order number.
+  await nav("Scheduling");
+  const det=p.locator('[data-testid^="slot-details-"]').first();
+  check(`${label}: calendar bookings show the job details`,await det.waitFor({timeout:15000}).then(()=>true,()=>false));
+  const dtext=await det.innerText();
+  check(`${label}: a booking shows the customer name, service and work order number`,/JOB-|WO-|\d/.test(dtext)&&dtext.split("\n").length>=3,dtext);
+  if(shots)await det.locator("xpath=..").screenshot({path:join(shots,`${label}-15-schedule-booking-details.png`)});
+
   // 5. Invoices list and detail: no fake "QB Synced" labels.
   await nav("Invoices");await p.getByText(/INV-2026-/).first().waitFor();
   check(`${label}: the invoices list shows no "QB Synced" / "Not Synced" labels`,await p.getByText(/QB Synced|Not Synced/).count()===0);
