@@ -5,6 +5,7 @@ Prepared for McDowells Specialty Repair on September 28, 2026. This is a portabl
 ## Start here
 
 1. Read `docs/KNOWN-ISSUES.md` before evaluating completion claims.
+   For what remains to be built and in what order, read `docs/planning/MASTER-PLAN.md`, `docs/planning/REQUIREMENTS-REGISTER.md` (every requested change, with its status) and `docs/planning/MANAGEMENT-DECISIONS.md`.
 2. Follow `docs/SETUP.md` to install and run locally.
 3. Run `node handoff/verify.mjs`, `node handoff/fresh-install-check.mjs`, `node handoff/security-check.mjs` and `npx tsx handoff/calculation-check.ts` from `app/` after building (CI runs them on every push).
 4. Read `docs/ARCHITECTURE-AND-DATABASE.md` before changing financial logic or migrations.
