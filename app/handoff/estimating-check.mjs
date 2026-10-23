@@ -409,6 +409,37 @@ try{
   check("The planned item shows the customer, service and work (no prices)",w.details.customer==="Dana Phase-Two"&&/tint/i.test(w.details.service)&&w.details.work.some(t=>/ceramic/.test(t))&&!/"(?:unitPrice|total|price)"/.test(JSON.stringify(w.details)));
   const other=await ok("GET",`/api/capacity?from=${new Date(Date.now()+20*86400000).toLocaleDateString("en-CA",{timeZone:"America/Boise"})}`);
   check("It does not show on other weeks",!(other.planned||[]).some(x=>x.kind==="estimate"&&x.id===pe.id));}
+ check("The calendar can be filtered to one of the five technician groups",(await call("GET",`/api/capacity?department=${encodeURIComponent("ME - Mobile Exterior")}`)).status===200);
+ check("The old service departments are no longer accepted",(await call("GET",`/api/capacity?department=${encodeURIComponent("PDR / Hail")}`)).status===400);
+ // ---- Waiting list and callbacks (RoadFS-style) ----
+ {const types=await ok("GET","/api/callback-types");
+  const ty=n=>types.find(t=>t.name===n);
+  check("Callback types start from the RoadFS list (parts types marked)",ty("Parts To Order")?.parts&&ty("Awaiting Parts")?.parts&&ty("Researching Parts")?.parts&&!!ty("To Be Scheduled (TBS)")&&!ty("Estimate Follow-up").parts);
+  check("Only managers can change callback types",(await call("POST","/api/callback-types",{name:"X"})).status===403&&(await call("POST","/api/callback-types",{name:"Detailing follow-up"},owner)).status===201);
+  const job=await ok("POST","/api/jobs",{customerId:cust.id,serviceType:"window_tint",vehicleId:v2.id,title:"Tint waiting on film",status:"pending",priority:"normal"},owner);
+  let w=await ok("GET","/api/waiting-work");
+  check("An open work order with no booked time is on the waiting list as Ready to schedule",w.find(r=>r.kind==="jobs"&&r.id===job.id)?.state==="ready");
+  const day=new Date(Date.now()+3*86400000).toLocaleDateString("en-CA",{timeZone:"America/Boise"});
+  const advisor=people.find(p=>p.name==="Test advisor");
+  const cb=await ok("POST",`/api/jobs/${job.id}/callbacks`,{typeId:ty("Awaiting Parts").id,dueDate:day,assignedStaffId:advisor.id,note:"Ceramic film ordered"});
+  check("A callback is saved with its type, date, person and note",cb.type==="Awaiting Parts"&&cb.dueDate===day&&cb.assignedTo==="Test advisor"&&cb.note==="Ceramic film ordered");
+  w=await ok("GET","/api/waiting-work");
+  check("With an open parts callback the job moves to Waiting on parts",w.find(r=>r.kind==="jobs"&&r.id===job.id)?.state==="waiting_parts");
+  check("My callbacks lists the advisor's callback",(await ok("GET","/api/callbacks?assigned=me")).some(c=>c.id===cb.id));
+  check("Callbacks can be listed by type",(await ok("GET",`/api/callbacks?assigned=&typeId=${ty("Awaiting Parts").id}`)).every(c=>c.type==="Awaiting Parts"));
+  const bookTry=await call("POST","/api/capacity/reserve",{technicianId:techs[0].id,jobId:job.id,date:day,startTime:"09:00",endTime:"10:00",readinessConfirmed:true,retryKey:"parts-test-1"});
+  check("Booking a job with parts outstanding is stopped with a warning",bookTry.status===409&&/Parts for this job are still outstanding/.test(bookTry.text));
+  const done=await ok("PATCH",`/api/callbacks/${cb.id}`,{done:true,doneNote:"Film arrived"});
+  check("Marking the last parts callback done says the job is Ready to schedule",done.readyToSchedule===true&&done.status==="done"&&done.doneNote==="Film arrived");
+  w=await ok("GET","/api/waiting-work");
+  const row=w.find(r=>r.kind==="jobs"&&r.id===job.id);
+  check("The job is back on Ready to schedule, showing when the parts arrived",row?.state==="ready"&&!!row.partsArrivedAt);
+  const f=await ok("POST",`/api/jobs/${job.id}/callbacks`,{typeId:ty("To Be Scheduled (TBS)").id,dueDate:day,note:"Customer calling after talking with spouse"});
+  check("A non-parts callback puts it under Waiting on customer / other",(await ok("GET","/api/waiting-work")).find(r=>r.id===job.id&&r.kind==="jobs")?.state==="waiting_other");
+  check("Technicians cannot see the waiting list",(await call("GET","/api/waiting-work",undefined,staff.technician)).status===403);
+  const h=await ok("GET",`/api/history/jobs/${job.id}`,undefined,owner);
+  check("Callbacks and parts arriving are in the change history with the login",h.some(e=>e.what==="Callback added"&&e.login==="advisor@example.invalid")&&h.some(e=>/Ready to schedule/.test(e.what)));
+  void f;}
  // ---- A1: logo on printed estimates and invoices ----
  const logoHtml=await ok("GET",`/print/estimate/${tint.id}`);
  check("Printed estimate shows the McDowells logo image",/<img src="data:image\/png;base64,[A-Za-z0-9+/=]{1000,}" alt="McDowells Specialty Repair"/.test(logoHtml));

@@ -27,6 +27,7 @@ import {EstimateCommercial} from "@/components/estimate-commercial";
 import {DiscountEditor} from "@/components/discount-editor";
 import {EstimateMarketing} from "@/components/estimate-marketing";
 import {ChangeHistory} from "@/components/change-history";
+import {CallbacksCard} from "@/components/callbacks-card";
 import {useAuth} from "@/components/auth-provider";
 
 const formatCurrency = (n: number) =>
@@ -519,6 +520,7 @@ export default function EstimateBuilder() {
       </Card>
       <EstimatePeople key={`people-${estimate.id}`} kind="estimates" id={estimate.id} locked={estimate.status === "invoiced"} onDirtyChange={setSalesDirty} />
       <EstimateMarketing key={`marketing-${estimate.id}`} estimateId={estimate.id} customerId={estimate.customerId} locked={estimate.status === "invoiced"} onDirtyChange={setMarketingDirty} />
+      <CallbacksCard key={`callbacks-${estimate.id}`} kind="estimates" id={estimate.id} />
       </section>
 
       {/* 2. Vehicle damage mapping and individual dent details */}

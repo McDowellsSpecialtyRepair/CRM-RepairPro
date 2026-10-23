@@ -9,6 +9,7 @@ export const PERMISSIONS = [
   "pricing.approve", // approve a package price below the calculated individual dent total
   "history.read", // see the change history (who changed what, when) on customers, estimates and work orders
   "referrals.manage", // see the referral thank-you list and mark referrers thanked
+  "callbacks.manage", // change the list of callback types
 ] as const;
 export type Permission = typeof PERMISSIONS[number];
 export const ROLES = {
@@ -26,7 +27,7 @@ export type StaffUser = { id: number; email: string; fullName: string; role: Rol
 export const hasPermission = (role: Role, p: string) => !!ROLES[role] && (ROLES[role].permissions as readonly string[]).includes(p);
 export const PAGE_PERMISSIONS: Record<string, Permission> = {
   customers: "customers.read", vehicles: "customers.read", estimates: "estimates.read", jobs: "jobs.read",
-  invoices: "billing.read", scheduling: "schedule.read", booking: "schedule.read", splat: "pricing.read",
+  invoices: "billing.read", scheduling: "schedule.read", waiting: "schedule.read", booking: "schedule.read", splat: "pricing.read",
   "pricing-matrix": "pricing.read", accounting: "billing.read", marketing: "marketing.read", reports: "reports.read", settings: "settings.manage",operations:"operations.read",
 };
 
@@ -125,6 +126,14 @@ export function routePermission(method: string, path: string): Permission | "aut
     ["GET", /^\/api\/referrals$/, "referrals.manage"],
     ["PATCH", /^\/api\/referrals\/\d+$/, "referrals.manage"],
     ["GET", /^\/api\/history\/(?:customers|estimates|jobs)\/\d+$/, "history.read"],
+    ["GET", /^\/api\/callback-types$/, "schedule.read"],
+    ["POST", /^\/api\/callback-types$/, "callbacks.manage"],
+    ["PATCH", /^\/api\/callback-types\/\d+$/, "callbacks.manage"],
+    ["GET", /^\/api\/callbacks$/, "schedule.read"],
+    ["PATCH", /^\/api\/callbacks\/\d+$/, "schedule.write"],
+    ["GET", /^\/api\/(?:estimates|jobs)\/\d+\/callbacks$/, "schedule.read"],
+    ["POST", /^\/api\/(?:estimates|jobs)\/\d+\/callbacks$/, "schedule.write"],
+    ["GET", /^\/api\/waiting-work$/, "schedule.read"],
     ["PATCH", /^\/api\/estimates\/\d+\/people$/, "estimates.write"],
     ["PATCH", /^\/api\/jobs\/\d+\/people$/, "jobs.write"],
     ["POST", /^\/api\/jobs$/, "jobs.write"],

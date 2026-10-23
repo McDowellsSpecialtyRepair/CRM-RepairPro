@@ -99,10 +99,10 @@ export default function CapacityCalendar() {
       </header>
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <SelectField
-          label="Calendar department"
+          label="Technician group"
           value={department}
           onChange={setDepartment}
-          options={[{ value: "", label: "All departments" }, ...DEPARTMENTS]}
+          options={[{ value: "", label: "All technician groups" }, ...DEPARTMENTS]}
         />
         <Field
           label="Search from date"
@@ -155,7 +155,7 @@ export default function CapacityCalendar() {
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {t.profile.department || "Department not assigned"} ·{" "}
+                    {t.profile.department || "Technician group not assigned"} ·{" "}
                     {t.technicianType === "mobile" ? "Mobile" : "In-shop"}
                   </p>
                   <p className="text-sm">
@@ -264,6 +264,13 @@ export default function CapacityCalendar() {
                     setBooking({ ...booking, readinessConfirmed: v })
                   }
                 />
+                {/Parts for this job are still outstanding/.test(error) && (
+                  <Check
+                    label="Book anyway: I'm sure the parts will be here in time"
+                    value={!!booking.partsOverride}
+                    onChange={(v: boolean) => setBooking({ ...booking, partsOverride: v })}
+                  />
+                )}
                 <Notice error={error} />
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -283,6 +290,7 @@ export default function CapacityCalendar() {
                             : null,
                           readinessConfirmed: booking.readinessConfirmed,
                           retryKey: booking.retryKey,
+                          ...(booking.partsOverride ? { partsOverride: true } : {}),
                         });
                         setBooking(null);
                       })
@@ -356,7 +364,7 @@ export default function CapacityCalendar() {
             </Card>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-semibold">Seven-day department board</h2>
+            <h2 className="font-semibold">Seven-day board by technician group</h2>
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -379,7 +387,7 @@ export default function CapacityCalendar() {
           </div>
           <p className="text-xs text-muted-foreground">
             Scroll horizontally on a phone. Calendar rows are grouped by
-            department; openings above are sorted by earliest available time.
+            technician group (choose one above to see only that group); openings above are sorted by earliest available time.
           </p>
           <div className="overflow-x-auto rounded-xl border bg-card">
             <table className="w-full min-w-[1060px] text-sm">
@@ -434,7 +442,7 @@ export default function CapacityCalendar() {
                   }
                 />
                 <SelectField
-                  label="Resource department"
+                  label="Resource technician group"
                   value={newResource.department}
                   onChange={(v: string) =>
                     setNewResource({ ...newResource, department: v })
@@ -632,7 +640,7 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
           before changes can be saved.
         </p>
         <SelectField
-          label="Technician department"
+          label="Technician group"
           value={department}
           onChange={setDepartment}
           options={DEPARTMENTS}
@@ -709,7 +717,7 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
           </Button>
         </div>
         <Check
-          label="I reviewed these hours and department; use them for availability"
+          label="I reviewed these hours and technician group; use them for availability"
           value={confirmed}
           onChange={setConfirmed}
         />

@@ -20,6 +20,7 @@ import { migrateCapacity } from "./capacity";
 import { migrateWorkOrders } from "./work-orders";
 import { migrateDiscounts } from "./discounts";
 import { migrateMarketing } from "./marketing";
+import { migrateCallbacks } from "./callbacks";
 import { migrateReporting } from "./reporting";
 import { migrateEstimateDents } from "./estimate-dents";
 import { migratePdrPricing } from "./pdr-pricing";
@@ -66,6 +67,7 @@ export function runMigrations(options: { seedDemo?: boolean } = {}) {
   migrateWorkOrders();
   migrateDiscounts();
   migrateMarketing();
+  migrateCallbacks();
   migrateReporting();
   migratePdrPricing();
   migrateEstimateDents();

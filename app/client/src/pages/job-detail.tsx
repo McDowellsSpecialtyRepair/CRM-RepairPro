@@ -7,6 +7,7 @@ import { WorkPlanning } from "@/components/work-planning";
 import { DiscountEditor } from "@/components/discount-editor";
 import { EstimateMarketing } from "@/components/estimate-marketing";
 import { ChangeHistory } from "@/components/change-history";
+import { CallbacksCard } from "@/components/callbacks-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ export default function JobDetail() {
       <EstimateMarketing estimateId={e.id} customerId={e.customerId} locked={!!e.invoiceId || e.status === "invoiced"} />
       <Card><CardContent className="p-4"><DiscountEditor estimate={e} locked={!!e.invoiceId || e.status === "invoiced" || !can("estimates.write")} /></CardContent></Card>
     </div>)}
+    <CallbacksCard kind="jobs" id={id} />
     <WorkPlanning key={id} kind="jobs" id={id} />
     <section className="space-y-3"><h2 className="font-semibold">Estimated repair scope</h2>
       {j.estimates.length === 0 && candidates.length > 0 && can("estimates.write") && can("jobs.write") && !["completed","cancelled"].includes(j.status) && <Card><CardContent className="p-5 space-y-3">

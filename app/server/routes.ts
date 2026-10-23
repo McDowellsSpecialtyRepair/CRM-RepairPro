@@ -4,6 +4,7 @@ const discountLabel = (e: any) => "Discount" + (e.discountNote ? `: ${e.discount
 import { registerDiscounts } from "./discounts";
 import { registerMarketing } from "./marketing";
 import { registerHistory } from "./history";
+import { registerCallbacks } from "./callbacks";
 import { checkPhone, checkEmail } from "@shared/contact-validation";
 import { logoImg, withLogoAttachment } from "./brand-logo";
 import type { Server } from "node:http";
@@ -103,6 +104,7 @@ export async function registerRoutes(
   registerDiscounts(app);
   registerMarketing(app);
   registerHistory(app);
+  registerCallbacks(app);
   registerOperations(app);
   registerCapacity(app);
   registerVin(app);

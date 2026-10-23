@@ -3,9 +3,11 @@ import { sqlite } from "./storage-db";
 import { storage } from "./storage";
 import { fail } from "./billing";
 import { scheduleJobDetails, plannedWork } from "./schedule-details";
+import { partsOutstanding } from "./callbacks";
 import { validDate, integer } from "./operations";
 import {
   DEPARTMENTS,
+  OLD_DEPARTMENT_GROUP,
   localToday,
   addDays,
   timeMinutes,
@@ -32,6 +34,7 @@ function interval(start: any, end: any) {
 }
 const overlap = (s: number, e: number, a: number, b: number) => s < b && e > a;
 export function migrateCapacity() {
+  migrateGroups();
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS ops_profiles (
       id INTEGER PRIMARY KEY,technician_id INTEGER NOT NULL UNIQUE REFERENCES technicians(id),
@@ -410,6 +413,9 @@ export function registerCapacity(app: Express) {
         const job = storage.getJob(b.jobId);
         if (!job || ["completed", "cancelled"].includes(job.status))
           fail("Choose an open work order.");
+        // Parts still outstanding (an open parts callback): booking needs a deliberate override.
+        if (partsOutstanding("jobs", job.id) && b.partsOverride !== true)
+          fail("Parts for this job are still outstanding (an open parts callback). Book anyway only if you are sure the parts will be here; otherwise wait for \"Ready to schedule\".", 409);
         const c = one("SELECT * FROM ops_cases WHERE job_id=?", job.id);
         if (c && (c.hold_reason || !c.parts_ready))
           fail(
@@ -474,4 +480,17 @@ export function registerCapacity(app: Express) {
       .immediate();
     res.status(201).json(out);
   });
+}
+
+// One-time: the earlier service departments become the owner's five technician groups.
+function migrateGroups() {
+  sqlite.exec("CREATE TABLE IF NOT EXISTS app_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
+  if (sqlite.prepare("SELECT 1 FROM app_migrations WHERE version='technician-groups-v1'").get()) return;
+  sqlite.transaction(() => {
+    for (const table of ["ops_profiles", "ops_resources", "ops_cases"]) {
+      if (!sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table)) continue;
+      for (const [from, to] of Object.entries(OLD_DEPARTMENT_GROUP)) sqlite.prepare(`UPDATE ${table} SET department=? WHERE department=?`).run(to, from);
+    }
+    sqlite.prepare("INSERT INTO app_migrations(version,applied_at) VALUES('technician-groups-v1',?)").run(new Date().toISOString());
+  })();
 }

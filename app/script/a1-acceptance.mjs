@@ -46,6 +46,14 @@ async function plannedEstimate(){
  await call("PATCH",`/api/estimates/${e.id}/planning`,{revision:pl.revision,scheduledDate:day,assignedTechId:tech.id});
  return e.id;
 }
+// A demo work order (pending, nothing booked) for Robert Chen (demo data only).
+async function pendingJob(label){
+ const login=await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})})).json();
+ const h={"Content-Type":"application/json",Authorization:`Bearer ${login.token}`};
+ const call=async(m,path,body)=>{const r=await fetch(base+path,{method:m,headers:h,body:body&&JSON.stringify(body)});if(!r.ok)throw Error(`${m} ${path}: ${await r.text()}`);return r.json();};
+ const cust=(await call("GET","/api/customers")).find(c=>c.firstName==="Robert"&&c.lastName==="Chen");
+ return call("POST","/api/jobs",{customerId:cust.id,serviceType:"upholstery",title:`Checklist: waiting on vinyl (${label})`,status:"pending",priority:"normal"});
+}
 // A demo work order in progress with its own linked estimate (made through the API, demo data only).
 async function workOrderInProgress(){
  const login=await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})})).json();
@@ -375,6 +383,37 @@ try{
   check(`${label}: an estimate planned with a date and lead technician (no booked time) shows on that technician's day`,await planned.waitFor({timeout:15000}).then(()=>true,()=>false));
   check(`${label}: it is marked "Planned – no time booked" and shows the customer`,/Planned – no time booked/.test(await planned.innerText())&&/Robert Chen/.test(await planned.innerText()));
   if(shots)await planned.screenshot({path:join(shots,`${label}-15b-planned-estimate.png`)});
+
+  // 16. Callbacks and the waiting list: a parts callback holds the job; marking it done makes it Ready to schedule.
+  const pj=await pendingJob(label);
+  await p.goto(`${base}/#/jobs/${pj.id}`);
+  const cbCard=p.getByTestId("card-callbacks");await cbCard.waitFor();
+  await cbCard.getByTestId("button-add-callback").click();
+  await cbCard.getByLabel("Callback type").selectOption({label:"Awaiting Parts (parts)"});
+  await cbCard.getByLabel("Callback note").fill("Vinyl ordered, due Friday");
+  await cbCard.getByTestId("button-save-callback").click();
+  await cbCard.getByTestId("text-parts-outstanding").waitFor();
+  check(`${label}: a parts callback on a work order shows "Parts outstanding"`,true);
+  await shot(p,`${label}-16a-callback-parts`,false);
+  await nav("Waiting list");
+  const wp=p.getByTestId("waiting-waiting_parts").getByTestId(`waiting-row-${pj.jobNumber}`);
+  check(`${label}: the job is on the Waiting list under "Waiting on parts"`,await wp.waitFor({timeout:15000}).then(()=>true,()=>false));
+  await shot(p,`${label}-16b-waiting-list`,false);
+  await p.goto(`${base}/#/jobs/${pj.id}`);
+  const cb2=p.getByTestId("card-callbacks");await cb2.waitFor();
+  await cb2.locator('[data-testid^="button-callback-done-"]').first().click();
+  await cb2.getByTestId("text-ready-to-schedule").waitFor();
+  check(`${label}: marking the parts received says the job is Ready to schedule`,/Ready to schedule/.test(await cb2.getByTestId("text-ready-to-schedule").innerText()));
+  await nav("Waiting list");
+  const wr=p.getByTestId("waiting-ready").getByTestId(`waiting-row-${pj.jobNumber}`);
+  check(`${label}: the job moved to "Ready to schedule" with the date the parts arrived`,await wr.waitFor({timeout:15000}).then(()=>true,()=>false)&&/All parts in since/.test(await wr.innerText()));
+  await p.getByTestId("tab-callbacks").click();
+  check(`${label}: the Callbacks tab has type, person and date filters`,await p.getByLabel("Filter by callback type").isVisible()&&await p.getByLabel("Filter by person").isVisible());
+  check(`${label}: managers see the editable list of callback types`,await p.getByTestId("card-callback-types").isVisible());
+  // 17. The calendar is set up by technician group.
+  await nav("Scheduling");
+  const groupSel=p.getByLabel("Technician group").first();
+  check(`${label}: the calendar can show one technician group`,(await groupSel.locator("option").allInnerTexts()).join("|").includes("ME - Mobile Exterior"));
 
   // 5. Invoices list and detail: no fake "QB Synced" labels.
   await nav("Invoices");await p.getByText(/INV-2026-/).first().waitFor();

@@ -17,6 +17,8 @@ const EVENT_LABELS: Record<string, string> = {
   "marketing.updated": "Marketing tags (how they heard about us) changed", "referral.thanked": "Referral marked thanked",
   "referral.reopened": "Referral moved back to \"To thank\"", "estimate.sales_team_updated": "Sales team changed",
   "estimate.dents_billed_individually": "Dents added to the estimate",
+  "callback.created": "Callback added", "callback.updated": "Callback changed", "callback.done": "Callback done",
+  "schedule.ready_parts_arrived": "Ready to schedule: all parts are in",
 };
 const TABLE_LABELS: Record<string, string> = {
   customers: "Customer", contacts: "Contact", vehicles: "Vehicle", assets: "Item", estimates: "Estimate", estimate_line_items: "Line item",
@@ -31,7 +33,7 @@ const FIELD_LABELS: Record<string, string> = {
   scheduled_date: "Scheduled date", priority: "Urgency", assigned_tech: "Lead technician", vin: "VIN", year: "Year", make: "Make", model: "Model",
   salesPersonId: "Lead salesperson", estimatorId: "Estimator", followUpId: "Follow-up salesperson", salesTeam: "Salespeople",
   scheduledDate: "Scheduled date", assignedTechId: "Lead technician", source: "Heard about us from", referrer: "Referred by",
-  thankYouStatus: "Thank-you", note: "Note", tags: "Tags",
+  thankYouStatus: "Thank-you", note: "Note", tags: "Tags", type: "Type", dueDate: "Due", assignedTo: "Assigned to", doneNote: "Done note",
 };
 // Bookkeeping fields that change on every save and say nothing to a reader.
 const NOISE = new Set(["updated_at", "created_at", "version", "allocation_version", "subtotal", "tax_amount", "revision", "peopleRevision",

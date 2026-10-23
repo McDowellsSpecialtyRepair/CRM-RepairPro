@@ -283,7 +283,7 @@ export default function OperationsDashboard() {
       </header>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <SelectField
-          label="Department"
+          label="Technician group"
           value={department}
           onChange={setDepartment}
           options={[{ value: "", label: "All departments" }, ...DEPARTMENTS]}
@@ -1012,7 +1012,7 @@ function ProductionEditor({ record: c, refresh }: any) {
             className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3"
           >
             <SelectField
-              label="Production department"
+              label="Production technician group"
               value={draft.department}
               onChange={(v: string) => setDraft({ ...draft, department: v })}
               options={DEPARTMENTS}
