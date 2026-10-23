@@ -53,12 +53,13 @@ export function ReferralThanks() {
   </Card>;
 }
 
-// The choices for "How did the customer hear about us?" Turning a choice off keeps it on older estimates.
+// The marketing tags on every estimate, in four groups. Turning a tag off keeps it on older estimates.
+const TAG_GROUPS = ["How they found us", "Referred by", "How the estimate came in", "Customer"];
 export function MarketingSourcesManager() {
   const { can } = useAuth();
   const qc = useQueryClient();
   const q = useQuery<any[]>({ queryKey: ["/api/marketing-sources"], queryFn: () => apiRequest("GET", "/api/marketing-sources") });
-  const [draft, setDraft] = useState<{ id?: number; name: string; needsReferrer: boolean } | null>(null);
+  const [draft, setDraft] = useState<{ id?: number; name: string; needsReferrer: boolean; group: string } | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const manage = can("marketing.write");
   async function save(id: number | undefined, body: any) {
@@ -66,28 +67,36 @@ export function MarketingSourcesManager() {
     try { await apiRequest(id ? "PATCH" : "POST", id ? `/api/marketing-sources/${id}` : "/api/marketing-sources", body); await qc.invalidateQueries({ queryKey: ["/api/marketing-sources"] }); setDraft(null); }
     catch (e: any) { setError(e.message); } finally { setBusy(false); }
   }
+  const select = "mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
   return <Card data-testid="card-marketing-sources">
-    <CardHeader className="pb-3"><CardTitle className="text-base">"How did you hear about us?" choices</CardTitle></CardHeader>
+    <CardHeader className="pb-3"><CardTitle className="text-base">Marketing tags</CardTitle></CardHeader>
     <CardContent className="space-y-3 text-sm">
-      <p className="text-muted-foreground">These are the choices on every estimate. Choices marked "asks who referred them" also record the referrer and add them to the thank-you list. Turning a choice off keeps it on older estimates.</p>
-      {q.error && <p role="alert" className="text-destructive">The choices could not load.</p>}
-      <ul className="divide-y rounded-md border">{(q.data || []).map(s => <li key={s.id} className="p-2 flex flex-wrap items-center justify-between gap-2" data-testid={`marketing-source-${s.name}`}>
-        <span className={s.active ? "" : "text-muted-foreground line-through"}>{s.name}{s.needsReferrer && <span className="ml-2 text-xs rounded bg-muted px-2 py-0.5">asks who referred them</span>}{!s.active && <span className="ml-2 text-xs no-underline">(turned off)</span>}</span>
-        {manage && <span className="flex gap-1">
-          <Button size="sm" variant="ghost" onClick={() => { setDraft({ id: s.id, name: s.name, needsReferrer: s.needsReferrer }); setError(""); }}>Edit</Button>
-          <Button size="sm" variant="ghost" disabled={busy} onClick={() => save(s.id, { active: !s.active })}>{s.active ? "Turn off" : "Turn on"}</Button>
-        </span>}
-      </li>)}</ul>
-      {manage && !draft && <Button size="sm" variant="outline" onClick={() => { setDraft({ name: "", needsReferrer: false }); setError(""); }} data-testid="button-new-marketing-source">Add a choice</Button>}
+      <p className="text-muted-foreground">These tags appear on every estimate, in four groups; staff tap all that apply. Tags marked "asks who referred them" also record the referrer and add them to the thank-you list. Turning a tag off keeps it on older estimates.</p>
+      {q.error && <p role="alert" className="text-destructive">The tags could not load.</p>}
+      {TAG_GROUPS.map(g => {
+        const tags = (q.data || []).filter(s => (s.group || TAG_GROUPS[0]) === g);
+        return <div key={g}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{g} ({tags.filter(t => t.active).length})</p>
+          <ul className="divide-y rounded-md border">{tags.map(s => <li key={s.id} className="p-2 flex flex-wrap items-center justify-between gap-2" data-testid={`marketing-source-${s.name}`}>
+            <span className={s.active ? "" : "text-muted-foreground line-through"}>{s.name}{s.needsReferrer && <span className="ml-2 text-xs rounded bg-muted px-2 py-0.5">asks who referred them</span>}{!s.active && <span className="ml-2 text-xs no-underline">(turned off)</span>}</span>
+            {manage && <span className="flex gap-1">
+              <Button size="sm" variant="ghost" onClick={() => { setDraft({ id: s.id, name: s.name, needsReferrer: s.needsReferrer, group: s.group || TAG_GROUPS[0] }); setError(""); }}>Edit</Button>
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => save(s.id, { active: !s.active })}>{s.active ? "Turn off" : "Turn on"}</Button>
+            </span>}
+          </li>)}{!tags.length && <li className="p-2 text-muted-foreground">No tags in this group.</li>}</ul>
+        </div>;
+      })}
+      {manage && !draft && <Button size="sm" variant="outline" onClick={() => { setDraft({ name: "", needsReferrer: false, group: TAG_GROUPS[0] }); setError(""); }} data-testid="button-new-marketing-source">Add a tag</Button>}
       {manage && draft && <div className="rounded-md border p-3 space-y-2" data-testid="marketing-source-form">
-        <label className="block">Choice name<Input aria-label="Choice name" className="mt-1" maxLength={80} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} placeholder="For example: KBOI radio" /></label>
+        <label className="block">Tag name<Input aria-label="Choice name" className="mt-1" maxLength={80} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} placeholder="For example: KBOI radio" /></label>
+        <label className="block">Group<select aria-label="Tag group" className={select} value={draft.group} onChange={e => setDraft({ ...draft, group: e.target.value })}>{TAG_GROUPS.map(g => <option key={g}>{g}</option>)}</select></label>
         <label className="flex items-center gap-2"><input type="checkbox" checked={draft.needsReferrer} onChange={e => setDraft({ ...draft, needsReferrer: e.target.checked })} aria-label="Asks who referred them" /> Ask who referred them (adds them to the thank-you list)</label>
         <div className="flex gap-2">
-          <Button size="sm" disabled={busy || !draft.name.trim()} onClick={() => save(draft.id, { name: draft.name, needsReferrer: draft.needsReferrer })} data-testid="button-save-marketing-source">{busy ? "Saving…" : "Save choice"}</Button>
+          <Button size="sm" disabled={busy || !draft.name.trim()} onClick={() => save(draft.id, { name: draft.name, needsReferrer: draft.needsReferrer, group: draft.group })} data-testid="button-save-marketing-source">{busy ? "Saving…" : "Save tag"}</Button>
           <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>Cancel</Button>
         </div>
       </div>}
-      {!manage && <p className="text-muted-foreground">Only staff who manage marketing can change these choices.</p>}
+      {!manage && <p className="text-muted-foreground">Only staff who manage marketing can change these tags.</p>}
       {error && <p role="alert" className="text-destructive">{error}</p>}
     </CardContent>
   </Card>;

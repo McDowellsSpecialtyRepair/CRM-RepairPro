@@ -297,14 +297,16 @@ try{
  // ---- A1: how the customer heard about us, and the referral thank-you list ----
  {const sources=await ok("GET","/api/marketing-sources");
   const src=n=>sources.find(s=>s.name===n);
-  check("The starting choices include Radio, Referral, Repeat customer, Sign and Vans",["Radio","Referral","Repeat customer","Sign","Vans / vehicle lettering"].every(n=>src(n)?.active));
+  check("The starting tags are the RoadFS tags plus Referral and Vans",["Radio","Referral","Repeat Customer","Building Sign","Vans / vehicle lettering","2nd Work Order","Bodyshop Referral","Lobby - In Person","Web Form","Callback Sale"].every(n=>src(n)?.active));
+  check("Tags are in four groups",src("Radio").group==="How they found us"&&src("Dealer Referral").group==="Referred by"&&src("Lobby - In Person").group==="How the estimate came in"&&src("New Customer").group==="Customer");
+  check("Body shop, dealer, furniture store and insurance referrals ask who referred them",["Bodyshop Referral","Dealer Referral","Furniture Store Referral","Insurance Referral"].every(n=>src(n).needsReferrer));
   check("Referral asks who referred them; Radio does not",src("Referral").needsReferrer&&!src("Radio").needsReferrer);
   check("Only marketing managers can change the choices",(await call("POST","/api/marketing-sources",{name:"Billboard"})).status===403);
   const bb=await ok("POST","/api/marketing-sources",{name:"Billboard on Eagle Rd"},owner);
   check("A manager can add a choice",bb.active&&!bb.needsReferrer);
   check("Duplicate choices are refused",(await call("POST","/api/marketing-sources",{name:"billboard on eagle rd"},owner)).status===409);
   const mu=`/api/estimates/${tint.id}/marketing`;
-  check("An estimate starts with no source recorded",(await ok("GET",mu)).sourceId===null);
+  check("An estimate starts with no tags",(await ok("GET",mu)).tags.length===0);
   const radio=await ok("PUT",mu,{sourceId:src("Radio").id});
   check("Radio is saved on the estimate",radio.source==="Radio");
   check("The customer's record gets the source when it had none",(await ok("GET",`/api/customers/${cust.id}`)).referralSource==="Radio");
@@ -325,6 +327,14 @@ try{
   check("A referrer who is not a customer can be typed in, and goes back on the list to thank",byName.referrer.name==="Lee Neighbor"&&byName.thankYouStatus==="to_thank");
   check("A turned-off choice cannot be picked for a new answer",await (async()=>{await ok("PATCH",`/api/marketing-sources/${bb.id}`,{active:false},owner);return (await call("PUT",mu,{sourceId:bb.id})).status===400;})());
   check("The marketing answer is locked once the estimate is invoiced",(await call("PUT",`/api/estimates/${est.id}/marketing`,{sourceId:src("Radio").id})).status===409);
+  const multi=await ok("PUT",mu,{sourceIds:[src("Radio").id,src("Lobby - In Person").id,src("New Customer").id,src("Dealer Referral").id],referrerName:"Boise Ford",referrerPhone:"208-555-0199"});
+  check("Several tags can be saved on one estimate (Radio + Lobby - In Person + New Customer + Dealer Referral)",multi.tags.length===4&&["Radio","Lobby - In Person","New Customer","Dealer Referral"].every(n=>multi.tags.some(t=>t.name===n)));
+  check("A dealer referral records which dealer referred them",multi.referrer.name==="Boise Ford");
+  check("The thank-you list shows the referral tag",(await ok("GET","/api/referrals",undefined,owner)).find(x=>x.estimateId===tint.id)?.source==="Dealer Referral");
+  const noRef=await ok("PUT",mu,{sourceIds:[src("Radio").id,src("Repeat Customer").id]});
+  check("Removing the referral tag takes it off the thank-you list",!noRef.needsReferrer&&!(await ok("GET","/api/referrals",undefined,owner)).some(x=>x.estimateId===tint.id));
+  check("A tag group must be one of the four groups",(await call("POST","/api/marketing-sources",{name:"Odd one",group:"Elsewhere"},owner)).status===400);
+  check("A manager can add a tag to a group",(await ok("POST","/api/marketing-sources",{name:"KBOI radio",group:"How they found us"},owner)).group==="How they found us");
   const dbr=new Database(dbPath,{readonly:true});
   check("Marketing answers and thank-yous are in the audit history",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='marketing.updated' AND record_id=?").get(String(tint.id))&&!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='referral.thanked'").get());dbr.close();}
  // ---- A1: change history shows the login that made each change ----

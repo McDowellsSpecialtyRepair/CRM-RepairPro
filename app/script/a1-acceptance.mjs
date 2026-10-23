@@ -247,10 +247,11 @@ try{
   // 9. How the customer heard about us: a referral by an existing customer, saved on the estimate.
   await p.goto(estUrl);
   const mk=p.getByTestId("card-estimate-marketing");await mk.waitFor();
-  check(`${label}: the estimate asks "How did the customer hear about us?"`,/How did the customer hear about us\?/.test(await mk.innerText()));
-  const srcOpts=await mk.getByTestId("select-marketing-source").locator("option").allInnerTexts();
-  check(`${label}: the choices include Radio, Referral, Repeat customer, Sign and Vans`,["Radio","Referral","Repeat customer","Sign","Vans / vehicle lettering"].every(o=>srcOpts.includes(o)),srcOpts.join(" | "));
-  await mk.getByTestId("select-marketing-source").selectOption({label:"Referral"});
+  check(`${label}: the estimate asks "How did the customer hear about us?"`,/how did the customer hear about us\?/i.test(await mk.innerText()));
+  const tagNames=["Radio","Referral","Repeat Customer","Building Sign","Vans / vehicle lettering","Bodyshop Referral","Lobby - In Person","2nd Work Order"];
+  check(`${label}: the RoadFS tags are offered, in four groups`,(await Promise.all(tagNames.map(n=>mk.getByTestId(`tag-${n}`).isVisible()))).every(Boolean)&&await mk.locator('[data-testid^="tag-group-"]').count()===4);
+  await mk.getByTestId("tag-Radio").click();await mk.getByTestId("tag-Lobby - In Person").click();await mk.getByTestId("tag-Referral").click();
+  check(`${label}: several tags can be picked at once`,(await mk.locator('[data-testid^="tag-"][aria-pressed="true"]').count())===3);
   await mk.getByTestId("referrer-fields").waitFor();
   await mk.getByLabel("Find referring customer").fill("Sarah");
   await mk.getByTestId("referrer-matches").getByRole("button",{name:/Sarah Mitchell/}).click();
@@ -296,7 +297,7 @@ try{
   await woBox.getByTestId("button-apply-discount").click();
   await woBox.getByTestId("text-discount-label").waitFor();
   check(`${label}: on a work order in progress, a discount code can be applied`,/SAMPLE10/.test(await woBox.getByTestId("text-discount-label").innerText()));
-  await woBox.getByTestId("card-estimate-marketing").getByTestId("select-marketing-source").selectOption({label:"Radio"});
+  await woBox.getByTestId("card-estimate-marketing").getByTestId("tag-Radio").click();
   await woBox.getByTestId("button-save-marketing").click();await woBox.getByTestId("card-estimate-marketing").getByText("Saved.",{exact:true}).waitFor();
   check(`${label}: on a work order in progress, "heard about us" can be changed`,true);
   await shot(p,`${label}-11-work-order-in-progress-editing`,true);
@@ -307,7 +308,7 @@ try{
   const entries=hist.getByTestId("history-entries");await entries.locator("li").first().waitFor();
   const htext=await entries.innerText();
   check(`${label}: the work order's change history shows the people change with the login that made it`,/People changed/.test(htext)&&/demo\.owner@example\.invalid/.test(htext),htext.slice(0,300));
-  check(`${label}: the history shows "How they heard about us" changed to Radio`,/Heard about us from:.*Radio/.test(htext));
+  check(`${label}: the history shows the tags changed to include Radio`,/Tags:.*Radio/.test(htext));
   if(shots)await hist.screenshot({path:join(shots,`${label}-12-change-history.png`)});
 
   // 13. New Estimate, new customer: the owner's exact entry (Insurance, no company name, 11-digit phone,
