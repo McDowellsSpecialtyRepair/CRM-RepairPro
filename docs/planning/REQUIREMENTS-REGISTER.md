@@ -989,12 +989,45 @@ One status per work order (top right of the work order screen): **New · Estimat
 
 Proposed mapping to the new CRM (to confirm with the owner): New and Estimate = estimate draft/sent; Estimate - Will Call = sent, customer will call with a date (a "waiting on customer" follow-up); Hold and Waiting on Parts = sold but not schedulable, with the reason and dated follow-up from SCHED-013; Assigned = technician chosen, no time booked (shown on the calendar as "Planned - no time booked"); Scheduled = time booked; In Progress, Completed, Cancelled as today. Invoiced and paid remain separate steps.
 
+
+## Owner answers on scheduling, technician pay, sales commission and billing, 2026-10-23 (source: OWNER-1023)
+
+Answers to the questions about the RoadFS work order screen. **Recorded for design; nothing built yet.** Payroll and commission figures are business rules to confirm with the bookkeeper before any calculation is used for pay.
+
+| ID | Requirement | Current CRM | Status | Stage | Priority | Type |
+|---|---|---|---|---|---|---|
+| SCHED-014 | A job can last **several days** and be spread over **several technicians**. It shows on **each day** with the specific start and stop times each technician works on it that day. | One booking per technician and time; multi-day jobs are separate bookings | Approved; design in the scheduling stage | D1 | P1 | Approved |
+| SCHED-015 | Multi-technician jobs shown the clearest, simplest way (by technician, or grouped by job on that day). The dispatcher must see at a glance whether there is room for more work. | Seven-day board by technician with booked hours / capacity | Approved; design in D1 (with SCHED-012) | D1 | P1 | Approved |
+| SCHED-016 | **"Ready to schedule" alert** when the last outstanding part arrives. | Not available | Approved (with SCHED-013) | D1 | P1 | Approved |
+| SCHED-017 | RoadFS "Repeat": the owner will explain it before the estimating and scheduling design is finished. "Manage Resources" is not used. | Repeat not available; shared resources exist | Awaiting owner explanation | D1 | P2 | Missing info |
+| SCHED-018 | **Technicians** on an estimate/work order: choose which technicians will work and have worked on it. | Lead technician + labor splits per line | Approved (see PAY-006) | D0/D1 | P1 | Approved |
+| COMM-001 | **Appointment reminders and stay-in-touch prompts**: remind the service writer and manager to contact the customer by text or email about a pending appointment; very customizable and flexible (when, who, which customers, what message). Real sending needs separate approval (MKT-011). | Not available | Approved (prompts first; sending later) | D1 / F | P2 | Approved |
+| PAY-001 | Technician pay types: **hourly** (with production bonus) or **straight commission**. **Subcontractors**: straight commission on the total billed **net labor** per invoice. | Labor credit shares only | Approved | G (payroll) | P1 | Approved |
+| PAY-002 | Payroll periods: **1st–15th** and **16th–end of month**. | Not available | Approved | G | P1 | Approved |
+| PAY-003 | **Production** = the technician's share of the invoice's **net labor**. Net labor = labor after sales commissions (all sales commissions reduce the labor side only, and so reduce technician production). The **lobby service writer commission (2.5% or 5%)** also reduces it when it is taken off the gross. **Parts and materials are never commissioned.** | Labor credit on net labor after discount; no commission deduction | Approved; rules to confirm with the bookkeeper | G | P1 | Approved |
+| PAY-004 | Production counts **only invoiced work orders** (not estimates), without waiting for payment. | Credits are created at invoicing | Approved | G | P1 | Approved |
+| PAY-005 | **Jobs that run across a payroll period**: at period end, credit the technician(s) for the percentage of the job completed; subtract that from the whole job when it is completed and invoiced. | Not available | Approved; exception to PAY-004, design with the bookkeeper | G | P1 | Approved |
+| PAY-006 | **Technician splits are decided after the job is finished**, based on actual production, **approved by the operations manager**, and printed on a report for everyone to review (no favoritism). | Labor splits are set per line on the estimate before invoicing | Approved; **changes the current split design** | D0/G | P1 | Approved |
+| PAY-007 | **Payroll production report** per technician per payroll period: completed (invoiced) invoices, work order numbers, description of work, % of labor attributed to the technician, whether the sales commission was taken off the gross, and total net production. | Technician labor sales report (credits only) | Approved | G | P1 | Approved |
+| PAY-008 | **Production bonus (Technician Hybrid Pay Plan 2026)**: after totaling net production, look up the bonus % from the tier table and pay it on the whole amount (example: $6,251.00 at 12% = $750.12), above the hourly rate. The table is maintained by management (dated by year). Tiers: $2,751–3,000 3%; 3,001–3,250 3%; 3,251–3,500 3%; 3,501–3,750 3%; 3,751–4,000 4%; 4,001–4,250 4%; 4,251–4,500 8%; 4,501–4,750 9%; 4,751–5,000 10%; 5,001–5,500 10% ("Floor: AS, FR, MI & UP"); 5,501–6,000 12%; 6,001–6,500 12% ("Floor: ME"); 6,501–7,000 13%; 7,001–7,500 13%; 7,501–8,000 14%; 8,001–8,500 14%; 8,501–9,000 14%; 9,001–16,000 15% (in $1,000 steps). | Not available | Approved; open questions: meaning of the "Floor" rows; below $2,751 and above $16,000; whether the period is the payroll period | G | P1 | Approved |
+| COMM-010 | **Sales commission**: total is normally **5% of the labor sales** of the job. Estimator and salesperson are usually the same person; when different, default split **50/50**. Some jobs have an estimator, salesperson, second salesperson and follow-up person sharing, and the total can be more than 5%. Report per salesperson: work orders and totals. | Up to 3 salespeople with shares; estimator and follow-up recorded without commission | Approved; **extends CRM-024** (people box gets commission rates and shares for every role) | G | P1 | Approved |
+| BILL-010 | **Purchase orders**: P.O. number prints on the invoice; per-customer option **"P.O. required before work begins"**. | Not available | Approved | A2/G | P1 | Approved |
+| BILL-011 | **Terms**: retail Due upon receipt; business customers Net 30 or other terms, set on the customer as the default. | Due date 30 days from issue | Approved | G | P1 | Approved |
+| BILL-012 | **Statements on the 1st of each month**; dealer and fleet statements list their invoices with before and after photos, in digital or print form. **Interest** is calculated from the date the work was performed. | Not available | Approved; interest rate and rules to confirm with the accountant | G | P1 | Approved |
+| WORK-001 | Rename RoadFS "Shipping" to **"Work Location"**. Billing is the customer's address where they receive the bill. All work is recorded by the address where it was performed, with a note that the customer at the billing address is responsible, and it also shows on the paying customer's account. Schedule and technicians use the work location. | Customer address only | Approved | A2/D1 | P1 | Approved |
+| CRM-030 | Business customers have **contact people with titles**. | Contacts exist, no title | Approved | A2 | P2 | Approved |
+| PHOTO-001 | Every estimate and work order can hold **many photos**. Before photos on the estimate carry to the work order; after photos attach to the invoice. | Not available | Approved | later (with U-stage) | P1 | Approved |
+| PORTAL-001 | **Dealer portal**: dealers view their pending estimates from the car lot, with photos, and approve the work. | Not available (IDEA-006) | Approved direction | later | P2 | Approved |
+| MKT-014 | **Customer satisfaction survey** after the work is done. Owner asked for a recommendation. | Not available | Proposal needed | F | P3 | Proposed |
+| EST-006 | "Property" (RoadFS) = what is being worked on, the customer's property. RoadFS item types: **Boat, Motorcycle, Plane, Property (for example a rental home), RV, Furniture, Vehicle.** RoadFS also has a **Fees** section (Add Fee). | Vehicle (auto/RV/marine) and asset (furniture etc.) | Approved; motorcycle, plane and real property to add in the multi-item estimate (U-stage); fees to define | U1 | P1 | Approved |
+
 ---
 
 ## Change log
 
 | Date | Change |
 |---|---|
+| 2026-10-23 | Added the owner's answers on scheduling, technician pay, production bonus, sales commission, billing, work location, photos and the dealer portal (OWNER-1023). |
 | 2026-10-23 | Added the RoadFS work order status list and a proposed mapping. |
 | 2026-10-23 | Added SCHED-013 (waiting / to-be-scheduled work list) and the RoadFS callback types from the owner's screenshots. |
 | 2026-10-22 | Added the A1 testing requests (CRM-021 to CRM-029, MKT-012, SEC-010). CRM-021, checking that phone numbers and emails are real, is planned for later at the owner's request. |
