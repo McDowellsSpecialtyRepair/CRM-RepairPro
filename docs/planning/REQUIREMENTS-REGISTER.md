@@ -972,6 +972,16 @@ The document's own build plan (DOC p.26, §13) is followed: audit → metric dic
 | MKT-012 | "How did the customer hear about us?" on every estimate from a management-maintained list; Referral records the referrer and adds them to a referral thank-you list | Free-text referral source on the customer only | Ready for Testing (PR #8) | A1 | P1 | Approved |
 | CRM-029 | One number follows the repair: the estimate number shows on the work order, invoice, printouts and email, and is stored for the QuickBooks transfer | Separate numbers, not linked on documents | Ready for Testing (PR #8). Making the invoice number equal the estimate number is an open option for the bookkeeper. | A1 | P1 | Approved |
 | SEC-010 | Change history showing who (name and login) changed what and when on customers, estimates and work orders | Audit log only on the Staff access page | Ready for Testing (PR #8) | A1 | P1 | Approved |
+| SCHED-013 | **Waiting / to-be-scheduled work list.** Sold estimates and work orders not yet booked, each with dated follow-ups ("callbacks") of a type management maintains, optionally assigned to a person. Each type is its own queue (for example parts to order, researching parts, awaiting parts, insurance awaiting approval, to be scheduled, salesperson follow-ups, warranty). Parts outstanding warns before booking; "parts received" moves the job to ready to schedule. All changes recorded with the login. | Not available | **Designing**, waiting on the owner's answers (what SB, Frog, TBS and "Book Check out" mean; the work order status list) | later (after A1, with the scheduling stage) | P1 | Approved direction |
+
+
+### Current software reference: RoadFS "Add Callback" types (owner screenshots, 2026-10-23)
+
+RoadFS (McDo.RoadFS.com), the program being replaced, attaches dated **callbacks** to a work order. Each has a type, and each type works as a queue. The complete list of types:
+
+Appointment Reminder · Awaiting Parts (ALL) · Book Check out · Estimate F/U · Furniture Awaiting Parts · HAIL F/U · Insurance Awaiting Approval · Insurance Claims F/U · Jenn Estimate F/U · Jenn In Progress · John Estimate F/U · Josh Estimate F/U · Megan Estimate F/U · Parts To Order (ALL) · Researching Parts · SB & Frog F/U · SB Active W/O & Estimate F/U · SB Parts To Order · SB TBS · Stacy Follow Up · Stacy Warranty · TBS (ALL) · Torson Follow Up
+
+(F/U = follow-up; TBS assumed "to be scheduled", to confirm.) In the new CRM, per-person types (Jenn, John, Josh, Megan, Stacy, Torson) become one type plus an assigned person, so each person has their own list. See SCHED-013. The work order also has a separate status list (top right of the work order screen) still to be captured.
 
 ---
 
@@ -979,6 +989,7 @@ The document's own build plan (DOC p.26, §13) is followed: audit → metric dic
 
 | Date | Change |
 |---|---|
+| 2026-10-23 | Added SCHED-013 (waiting / to-be-scheduled work list) and the RoadFS callback types from the owner's screenshots. |
 | 2026-10-22 | Added the A1 testing requests (CRM-021 to CRM-029, MKT-012, SEC-010). CRM-021, checking that phone numbers and emails are real, is planned for later at the owner's request. |
 | 2026-10-22 | Added SPL-003 (start an estimate from Splats or from the customer) and SPL-004 (repair and reupholster price tables, fully customizable, for every non-PDR splat). Menu "Vehicle Splat" renamed "Splats" in A1. |
 | 2026-10-21 | Final corrections: the owner's tax summary is **not** implemented. The TAX entries stay Blocked / Awaiting Decision pending the accountant's approval of the service-specific tax decision table (ESTIMATING-STRATEGY §7). Authorization policy approved (price increases need new approval). QuickBooks practice recorded as business information to validate. Five line classification fields approved. Split-credit export deferred. Minimum launch scope proposed. |
