@@ -28,6 +28,7 @@ import {DiscountEditor} from "@/components/discount-editor";
 import {EstimateMarketing} from "@/components/estimate-marketing";
 import {ChangeHistory} from "@/components/change-history";
 import {CallbacksCard} from "@/components/callbacks-card";
+import {OldLinesFix} from "@/components/old-lines-fix";
 import {useAuth} from "@/components/auth-provider";
 
 const formatCurrency = (n: number) =>
@@ -590,6 +591,7 @@ export default function EstimateBuilder() {
               </div>
             </CardHeader>
             <CardContent>
+              {estimate.status!=="invoiced"&&<OldLinesFix key={`old-${estimate.id}-${lineItems.length}`} estimate={estimate} lines={lineItems}/>}
               {lineItems.some((l:any)=>!categoryAllowed(estimate.serviceType,l.serviceCategory)||nonLaborCategory(l.serviceCategory)&&l.lineType!=="parts")&&<p role="alert" className="mb-4 text-sm text-destructive">This estimate contains an unrelated service or a non-labor charge classified as labor. Edit the affected lines before approval, sending or invoicing. Historical prices have not been silently changed.</p>}
               <div className="flex flex-wrap gap-2 mb-4"><Button variant="outline" disabled={estimate.status==="invoiced"} onClick={()=>startLine(defaultCategoryFor[estimate.serviceType])}>Add repair</Button><Button variant="outline" disabled={estimate.status==="invoiced"} onClick={()=>startLine("material")}>Add materials</Button><Button variant="outline" disabled={estimate.status==="invoiced"} onClick={()=>startLine("freight_in")}>Add freight</Button></div>
               <div className="overflow-x-auto">

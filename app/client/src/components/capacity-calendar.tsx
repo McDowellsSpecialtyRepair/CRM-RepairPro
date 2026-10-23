@@ -628,6 +628,7 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
     ),
     [windows, setWindows] = useState<any[]>(t.profile.windows),
     [confirmed, setConfirmed] = useState(false),
+    [keepConflicts, setKeepConflicts] = useState(false),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   return (
@@ -721,6 +722,13 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
           value={confirmed}
           onChange={setConfirmed}
         />
+        {/outside working time/.test(error) && (
+          <Check
+            label="Keep these appointments as booked (they will be outside this technician's working hours)"
+            value={keepConflicts}
+            onChange={setKeepConflicts}
+          />
+        )}
         <Notice error={error} />
         <div className="flex gap-2">
           <Button
@@ -733,6 +741,7 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
                   department,
                   windows,
                   confirmed: true,
+                  ...(keepConflicts ? { keepConflicts: true } : {}),
                 });
                 await refresh();
                 close();

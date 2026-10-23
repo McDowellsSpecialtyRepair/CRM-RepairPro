@@ -474,6 +474,41 @@ try{
   const more=await ok("PUT",ip+"/correction",{lines:[...(await ok("GET",ip,undefined,owner)).lineItems.map(l=>({id:l.id,description:l.description,quantity:l.quantity,unitPrice:l.unitPrice,lineType:l.lineType})),{description:"Extra trim",quantity:1,unitPrice:20,lineType:"parts",serviceCategory:"material"}],reason:"Added trim"},owner);
   check("Raising the total after payment leaves it partly paid",more.invoice.status==="partial"&&more.invoice.balanceDue>0);
   void r;}
+ // ---- Working-hours conflicts, moving an appointment, fixing old estimates ----
+ {const slots=await ok("GET","/api/schedule-slots",undefined,owner);
+  const today=new Date().toLocaleDateString("en-CA",{timeZone:"America/Boise"});
+  const jobsNow=await ok("GET","/api/jobs",undefined,owner);
+  const sl=slots.find(x=>x.jobId&&x.status==="scheduled"&&x.date>today&&!["completed","cancelled"].includes(jobsNow.find(j=>j.id===x.jobId)?.status));
+  const cap=await ok("GET",`/api/capacity?from=${sl.date}`,undefined,owner);
+  const tech=cap.technicians.find(t=>t.id===sl.technicianId);
+  const wd=new Date(sl.date+"T12:00:00Z").getUTCDay();
+  const narrow=[0,1,2,3,4,5,6].filter(d=>d!==wd).map(day=>({day,start:"08:00",end:"17:00"}));
+  const r=await call("PUT",`/api/capacity/profiles/${tech.id}`,{version:tech.profile.version,department:"ME - Mobile Exterior",windows:narrow,confirmed:true},owner);
+  const job=await ok("GET",`/api/jobs/${sl.jobId}`,undefined,owner);
+  check("Hours that would leave an appointment outside working time name the appointment (day, time, work order)",r.status===409&&r.text.includes(sl.date)&&r.text.includes(sl.startTime)&&r.text.includes(job.jobNumber));
+  const wide=[0,1,2,3,4,5,6].map(day=>({day,start:"06:00",end:"20:00"}));
+  const kept=await call("PUT",`/api/capacity/profiles/${tech.id}`,{version:tech.profile.version,department:"ME - Mobile Exterior",windows:narrow,confirmed:true,keepConflicts:true},owner);
+  check("The hours can be saved anyway, keeping the appointment",kept.status===200);
+  const cap2=await ok("GET",`/api/capacity?from=${sl.date}`,undefined,owner);
+  await ok("PUT",`/api/capacity/profiles/${tech.id}`,{version:cap2.technicians.find(t=>t.id===tech.id).profile.version,department:"ME - Mobile Exterior",windows:wide,confirmed:true},owner);
+  const newDay=new Date(Date.parse(sl.date+"T12:00:00Z")+86400000).toISOString().slice(0,10);
+  const mv=await call("POST",`/api/capacity/reschedule/${sl.id}`,{technicianId:tech.id,date:newDay,startTime:sl.startTime,endTime:sl.endTime,retryKey:"move-test-1"},owner);
+  check("A booked appointment can be moved to another day in one step",mv.status===201&&JSON.parse(mv.text).date===newDay);
+  const after=await ok("GET","/api/schedule-slots",undefined,owner);
+  check("The old booking is cancelled and the work order shows the new date",after.find(x=>x.id===sl.id)?.status==="cancelled"&&(await ok("GET",`/api/jobs/${sl.jobId}`,undefined,owner)).scheduledDate===newDay);
+  check("Moving is refused when it isn't the scheduler's role",(await call("POST",`/api/capacity/reschedule/${JSON.parse(mv.text).id}`,{technicianId:tech.id,date:newDay,startTime:sl.startTime,endTime:sl.endTime,retryKey:"move-test-2"},staff.technician)).status===403);
+  // An old-system estimate with a negative discount line and unclassified lines.
+  const ests=await ok("GET","/api/estimates",undefined,owner);
+  let old=null;for(const e of ests){const d=await ok("GET",`/api/estimates/${e.id}`,undefined,owner);if(d.status!=="invoiced"&&d.lineItems.some(l=>l.total<0)){old=d;break;}}
+  if(old){
+   const lineEdit=await call("PATCH",`/api/estimates/line-items/${old.lineItems[0].id}`,{description:old.lineItems[0].description,lineType:["material","supplies","freight_in","freight_out"].includes(old.lineItems[0].serviceCategory)?"parts":"labor",expectedVersion:old.lineItems[0].allocationVersion},owner);
+   check("Editing an old estimate with a negative line explains to use Fix old lines",lineEdit.status===409&&/Fix old lines/.test(lineEdit.text));
+   const neg=old.lineItems.filter(l=>l.total<0).reduce((n,l)=>n-l.total,0);
+   const fixed=await ok("POST",`/api/estimates/${old.id}/fix-old-lines`,{lines:old.lineItems.filter(l=>l.lineType==="legacy"&&l.total>=0).map(l=>({id:l.id,lineType:["material","supplies","freight_in","freight_out"].includes(l.serviceCategory)?"parts":"labor"})),negative:"add_to_discount"},owner);
+   const reread=await ok("GET",`/api/estimates/${old.id}`,undefined,owner);
+   check("Fix old lines moves the negative line into the discount and classifies every line",Math.abs(fixed.discount-(old.discount+neg))<0.005&&reread.lineItems.every(l=>l.total>=0&&l.lineType!=="legacy"));
+   check("After the fix the estimate's lines can be edited again",(await call("PATCH",`/api/estimates/line-items/${reread.lineItems[0].id}`,{description:reread.lineItems[0].description+" ",expectedVersion:reread.lineItems[0].allocationVersion},owner)).status===200);
+  } else check("Test data has an old estimate with a negative line",false);}
  // ---- A1: logo on printed estimates and invoices ----
  const logoHtml=await ok("GET",`/print/estimate/${tint.id}`);
  check("Printed estimate shows the McDowells logo image",/<img src="data:image\/png;base64,[A-Za-z0-9+/=]{1000,}" alt="McDowells Specialty Repair"/.test(logoHtml));

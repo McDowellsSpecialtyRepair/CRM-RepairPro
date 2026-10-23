@@ -13,7 +13,7 @@ import { storage } from "./storage";
 import { sqlite } from "./storage-db";
 import { createHash } from "node:crypto";
 import { createEstimateSafe, updateEstimateSafe, addEstimateLines, deleteEstimateLine,
-  convertEstimate, postPayment, updateInvoiceSafe, fail, editableEstimate, recalculateEstimate, updateEstimateLine, validateEstimateServices } from "./billing";
+  convertEstimate, postPayment, updateInvoiceSafe, fail, editableEstimate, recalculateEstimate, updateEstimateLine, fixOldLines, validateEstimateServices } from "./billing";
 import {registerEstimateSales} from "./estimate-sales";
 import {registerEstimateDents} from "./estimate-dents";
 import {registerPdrPricing} from "./pdr-pricing";
@@ -101,6 +101,7 @@ export async function registerRoutes(
   registerEstimateDents(app);
   registerPdrPricing(app);
   app.patch("/api/estimates/line-items/:id",(req,res)=>res.json(updateEstimateLine(Number(req.params.id),req.body)));
+  app.post("/api/estimates/:id/fix-old-lines",(req,res)=>res.json(fixOldLines(Number(req.params.id),req.body)));
   registerWorkOrders(app);
   registerDiscounts(app);
   registerMarketing(app);

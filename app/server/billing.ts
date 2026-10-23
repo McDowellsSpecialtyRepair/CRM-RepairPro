@@ -1,4 +1,5 @@
 import { storage } from "./storage";
+import { audit } from "./security";
 import { sqlite } from "./storage-db";
 import { localToday, addDays } from "../shared/operations";
 import {validDate} from "../shared/reporting";
@@ -46,6 +47,8 @@ export function editableEstimate(id: number) {
 export function recalculateEstimate(id: number) {
   const est = storage.getEstimate(id)!;
   const lines = storage.getEstimateLineItems(id);
+  const negative = lines.find(l => l.total < 0);
+  if (negative) fail(`This estimate came from the old system with a negative line ("${negative.description}", $${negative.total.toFixed(2)}). Click "Fix old lines" above the line items to turn it into the discount, then make your change.`, 409);
   const subtotalCents = lines.reduce((s, i) => s + cents(i.total), 0);
   const rate = number(est.taxRate, "Tax rate", 0, 100);
   const basis = (est as any).discountBasis || "all";
@@ -314,5 +317,42 @@ export function updateInvoiceSafe(id: number, body: any) {
       fail("Record payment to change paid status. Voids and reversals require a separate audited workflow.", 409);
     }
     return Object.keys(body).length ? storage.updateInvoice(id, body)! : inv;
+  }).immediate();
+}
+
+// Estimates from the old system: classify each "Needs classification" line as labor or parts, and turn negative
+// lines (old-style discounts) into the discount field or remove them. Prices are never changed silently: the
+// person chooses, and the before/after is in the change history.
+export function fixOldLines(id: number, body: any) {
+  return sqlite.transaction(() => {
+    const est = editableEstimate(id);
+    const b = body || {};
+    if (Object.keys(b).some(k => !["lines", "negative"].includes(k))) fail("Unexpected fields.");
+    if (!["add_to_discount", "delete"].includes(b.negative)) fail("Choose what to do with the negative line: add it to the discount, or delete it.");
+    const lines = storage.getEstimateLineItems(id);
+    if (lines.some(l => l.lineType === "legacy" || l.total < 0) === false) fail("This estimate has no old lines to fix.");
+    const choice = new Map<number, string>((Array.isArray(b.lines) ? b.lines : []).map((x: any) => [Number(x.id), x.lineType]));
+    const before = { discount: est.discount, lines: lines.map(l => `${l.description}: ${l.lineType} ${l.total}`) };
+    const negatives = lines.filter(l => l.total < 0);
+    for (const l of negatives) {
+      if (sqlite.prepare("SELECT 1 FROM estimate_dents WHERE line_item_id=?").get(l.id)) fail(`"${l.description}" is linked to dent records; remove it from Dent pricing first.`, 409);
+      sqlite.prepare("DELETE FROM estimate_labor_allocations WHERE line_id=?").run(l.id);
+      storage.deleteEstimateLineItem(l.id);
+    }
+    for (const l of lines.filter(x => x.total >= 0 && x.lineType === "legacy")) {
+      const t = choice.get(l.id);
+      if (t !== "labor" && t !== "parts") fail(`Choose labor or parts for "${l.description}".`);
+      if (t === "labor" && nonLaborCategory(l.serviceCategory)) fail(`"${l.description}" is materials, supplies or freight, so it must be parts.`);
+      sqlite.prepare("UPDATE estimate_line_items SET line_type=?,allocation_version=allocation_version+1 WHERE id=?").run(t, l.id);
+    }
+    if (negatives.length && b.negative === "add_to_discount") {
+      const extra = negatives.reduce((s, l) => s + cents(-l.total), 0);
+      const note = [(est as any).discountNote, ...negatives.map(l => l.description)].filter(Boolean).join(" · ").slice(0, 200);
+      storage.updateEstimate(id, { discount: (cents(est.discount || 0) + extra) / 100, discountNote: note, discountPercent: null } as any);
+    }
+    if (est.status === "approved") storage.updateEstimate(id, { status: "draft", approvedDate: null });
+    const after = recalculateEstimate(id);
+    audit("estimate.old_lines_fixed", "estimates", id, before, { discount: after.discount, negative: b.negative, lines: storage.getEstimateLineItems(id).map(l => `${l.description}: ${l.lineType} ${l.total}`) });
+    return after;
   }).immediate();
 }
