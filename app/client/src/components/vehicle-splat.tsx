@@ -184,7 +184,7 @@ export function VehicleSplat({ vehicleType, view, damages, onPanelClick, selecte
 
   return (
     <div className="w-full">
-      <svg viewBox={viewBox} className="w-full h-auto" style={{ maxHeight: "380px" }} data-testid={`svg-splat-${vehicleType}-${view}`}>
+      <svg viewBox={viewBox} className="w-full h-auto" style={{ maxHeight: "300px" }} data-testid={`svg-splat-${vehicleType}-${view}`}>
         {/* Panel shapes */}
         {panels.map((panel) => {
           const severity = getSeverity(panel.id);

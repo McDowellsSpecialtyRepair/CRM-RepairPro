@@ -21,6 +21,7 @@ export function EstimatePeople({ kind, id, locked, onDirtyChange }: { kind: "est
   const staff = useQuery<any[]>({ queryKey: ["/api/people/staff"], queryFn: () => apiRequest("GET", "/api/people/staff") });
   const [draft, setDraft] = useState<{ splits: Split[]; salesPersonId: number | null; estimatorId: number | null; followUpId: number | null } | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [saved, setSaved] = useState(false);
+  const [open, setOpen] = useState(false);
   const editable = can(`${kind}.write`) && !locked;
   // Unsaved people changes block Send, Approve and Convert until saved or cancelled.
   useEffect(() => { onDirtyChange?.(!!draft || busy); }, [draft, busy, onDirtyChange]);
@@ -59,11 +60,20 @@ export function EstimatePeople({ kind, id, locked, onDirtyChange }: { kind: "est
       await qc.invalidateQueries({ queryKey: ["/api/estimates", String(id), "sales-team"] });
       // A linked work order shares these people; refresh its planning box too.
       await qc.invalidateQueries({ predicate: x => typeof x.queryKey[0] === "string" && x.queryKey[0] !== url && x.queryKey[0].endsWith("/planning") });
-      setDraft(null); setSaved(true);
+      setDraft(null); setSaved(true); setOpen(false);
     } catch (e: any) { setError(e.message); } finally { setBusy(false); }
   }
   async function reload() { setDraft(null); setError(""); setSaved(false); await q.refetch(); }
 
+  // Closed: one summary line, so the whole estimate fits on screen. Edit opens the full box.
+  if (!open && !draft) return <Card data-testid="card-estimate-people"><CardContent className="p-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+    <div className="flex items-center gap-2 min-w-0"><Users className="h-4 w-4 shrink-0" /><span className="font-semibold">People</span>
+      <span className="text-muted-foreground break-words" data-testid="text-people-summary">{[
+        kind === "estimates" ? (d.splits.length ? d.splits.map(s => `${nameOf(s.staffId) || "?"} ${s.percent}%`).join(", ") : "No salesperson") : (nameOf(d.salesPersonId) ? `Salesperson ${nameOf(d.salesPersonId)}` : "No salesperson"),
+        `Estimator ${nameOf(d.estimatorId) || "not set"}`, `Follow-up ${nameOf(d.followUpId) || "not set"}`].join(" · ")}</span></div>
+    {saved && <span role="status" className="text-xs text-primary">People saved.</span>}
+    {editable && <Button size="sm" variant="outline" onClick={() => setOpen(true)} data-testid="button-edit-people">Edit people</Button>}
+  </CardContent></Card>;
   return <Card data-testid="card-estimate-people"><CardContent className="p-4 space-y-4">
     <div className="flex items-center gap-2"><Users className="h-4 w-4" /><h2 className="font-semibold text-sm">People on this {kind === "jobs" ? "work order" : "estimate"}</h2></div>
     <fieldset disabled={!editable || busy} className="space-y-4">
@@ -103,9 +113,10 @@ export function EstimatePeople({ kind, id, locked, onDirtyChange }: { kind: "est
     {error && <div role="alert" className="text-sm text-destructive space-y-2"><p>{error}</p>
       {/someone else changed/i.test(error) && <Button type="button" size="sm" variant="outline" onClick={reload}>Reload people (discard my changes)</Button>}</div>}
     {saved && !draft && <p role="status" className="text-sm text-primary">People saved.</p>}
+    {editable && !draft && <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>}
     {editable && draft && <div className="flex flex-wrap gap-2">
       <Button size="sm" onClick={save} disabled={busy} data-testid="button-save-people">{busy ? "Saving…" : "Save people"}</Button>
-      <Button size="sm" variant="outline" disabled={busy} onClick={() => { setDraft(null); setError(""); }} data-testid="button-cancel-people">Cancel</Button>
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => { setDraft(null); setError(""); setOpen(false); }} data-testid="button-cancel-people">Cancel</Button>
     </div>}
   </CardContent></Card>;
 }

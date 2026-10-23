@@ -110,6 +110,8 @@ export default function EstimateBuilder() {
   const [notesDraft, setNotesDraft] = useState("");
   const [editingDiscount, setEditingDiscount] = useState(false);
   const [marketingDirty, setMarketingDirty] = useState(false);
+  // The line form opens only when adding or editing a line, so the estimate fits on screen.
+  const [lineFormOpen, setLineFormOpen] = useState(false);
   const [assignOpen,setAssignOpen] = useState(false);
   const [editingLine,setEditingLine]=useState<any>(null);
   const [taxDraft,setTaxDraft]=useState("");
@@ -121,7 +123,7 @@ export default function EstimateBuilder() {
 
   useEffect(() => {
     const cat = estimate?.serviceType ? defaultCategoryFor[estimate.serviceType] : undefined;
-    if (cat) {setEditingLine(null);setShowTemplateMenu(false);setNewItem({lineType:"labor",serviceCategory:cat,description:"",quantity:1,unit:cat==="pdr_hail"?"panel":"each",unitPrice:0,panelLocation:"",damageSize:"",damageSeverity:"moderate",unitCost:0,useTaxRate:0,taxNote:"",repairAction:"repair"});}
+    if (cat) {setEditingLine(null);setLineFormOpen(true);setShowTemplateMenu(false);setNewItem({lineType:"labor",serviceCategory:cat,description:"",quantity:1,unit:cat==="pdr_hail"?"panel":"each",unitPrice:0,panelLocation:"",damageSize:"",damageSeverity:"moderate",unitCost:0,useTaxRate:0,taxNote:"",repairAction:"repair"});}
   }, [estimate?.serviceType,id]);
 
   const { data: linkedVehicleData } = useQuery({
@@ -165,7 +167,7 @@ export default function EstimateBuilder() {
         damageSize: "",
         damageSeverity: "moderate",
       });
-      setEditingLine(null);
+      setEditingLine(null);setLineFormOpen(false);
     },
   });
 
@@ -242,7 +244,7 @@ export default function EstimateBuilder() {
     setNewItem(prev => ({ ...prev, serviceCategory: v, unit: cat?.defaultUnit || "each",lineType:nonLaborCategory(v)?"parts":"labor",useTaxRate:0,taxNote:"",damageSize:"",repairAction:v==="fabrication"?"fabricate":"repair" }));
   };
   const startLine=(category:string)=>{
-    setEditingLine(null);
+    setEditingLine(null);setLineFormOpen(true);
     setNewItem({lineType:nonLaborCategory(category)?"parts":"labor",serviceCategory:category,description:"",quantity:1,unit:allowedCategories.find(c=>c.value===category)?.defaultUnit||"each",unitPrice:0,panelLocation:"",damageSize:"",damageSeverity:"moderate",unitCost:0,useTaxRate:0,taxNote:"",repairAction:"repair"});
     document.getElementById("estimate-line-editor")?.scrollIntoView({block:"start"});
   };
@@ -621,7 +623,7 @@ export default function EstimateBuilder() {
                         <td className="py-2.5 pr-3 text-right tabular-nums">{formatCurrency(item.unitPrice)}</td>
                         <td className="py-2.5 pr-3 text-right font-medium tabular-nums">{formatCurrency(item.total)}</td>
                         <td className="py-2.5">
-                          <button type="button" disabled={estimate.status==="invoiced"} className="text-primary underline mr-3" onClick={()=>{setEditingLine(item);setNewItem({lineType:item.lineType==="legacy"?(nonLaborCategory(item.serviceCategory)?"parts":"labor"):item.lineType,serviceCategory:item.serviceCategory,description:item.description,quantity:item.quantity,unit:item.unit,unitPrice:item.unitPrice,panelLocation:item.panelLocation||"",damageSize:item.damageSize||"",damageSeverity:item.damageSeverity||"moderate",unitCost:item.unitCost||0,useTaxRate:item.useTaxRate||0,taxNote:item.taxNote||"",repairAction:item.repairAction||"repair"});document.getElementById("estimate-line-editor")?.scrollIntoView({block:"start"});}}>Edit</button>
+                          <button type="button" disabled={estimate.status==="invoiced"} className="text-primary underline mr-3" onClick={()=>{setLineFormOpen(true);setEditingLine(item);setNewItem({lineType:item.lineType==="legacy"?(nonLaborCategory(item.serviceCategory)?"parts":"labor"):item.lineType,serviceCategory:item.serviceCategory,description:item.description,quantity:item.quantity,unit:item.unit,unitPrice:item.unitPrice,panelLocation:item.panelLocation||"",damageSize:item.damageSize||"",damageSeverity:item.damageSeverity||"moderate",unitCost:item.unitCost||0,useTaxRate:item.useTaxRate||0,taxNote:item.taxNote||"",repairAction:item.repairAction||"repair"});document.getElementById("estimate-line-editor")?.scrollIntoView({block:"start"});}}>Edit</button>
                           <button
                             disabled={!can("estimates.write")||estimate.status === "invoiced"}
                             onClick={() => deleteLineItem.mutate(item.id)}
@@ -644,16 +646,18 @@ export default function EstimateBuilder() {
                 </table>
               </div>
 
-              <div className="mt-4"><EstimateLabor id={id!} locked={estimate.status === "invoiced"} onDirtyChange={setLaborDirty}/></div>
-              <div className="mt-4"><EstimateCommercial estimate={estimate}/></div>
-              {/* Add line item form */}
-              <fieldset id="estimate-line-editor" disabled={estimate.status === "invoiced"||addLineItem.isPending||!can("estimates.write")} className="mt-4 rounded-lg border border-border p-4 space-y-3">
+              <details className="mt-4 rounded-lg border px-3 py-2" open={lineItems.some((l:any)=>l.lineType==="legacy")} data-testid="details-labor"><summary className="cursor-pointer text-sm font-medium py-1">Technician labor splits (who did the labor)</summary>
+                <div className="mt-2"><EstimateLabor id={id!} locked={estimate.status === "invoiced"} onDirtyChange={setLaborDirty}/></div></details>
+              <details className="mt-2 rounded-lg border px-3 py-2" data-testid="details-material-costs"><summary className="cursor-pointer text-sm font-medium py-1">Material costs & use tax (internal)</summary>
+                <div className="mt-2"><EstimateCommercial estimate={estimate}/></div></details>
+              {/* Add / edit line item form, shown only while adding or editing */}
+              {(lineFormOpen||!!editingLine||!!newItem.description)&&<fieldset id="estimate-line-editor" disabled={estimate.status === "invoiced"||addLineItem.isPending||!can("estimates.write")} className="mt-4 rounded-lg border border-border p-4 space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <Plus className="h-4 w-4" /> {editingLine?"Edit Line Item":"Add Line Item"}
                 </div>
                 <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={()=>handleCategoryChange(defaultCategoryFor[estimate.serviceType])}>Repair labor</Button><Button variant="outline" onClick={()=>handleCategoryChange("material")}>Materials</Button><Button variant="outline" onClick={()=>handleCategoryChange("freight_in")}>Freight</Button></div>
                 <p className="text-xs text-muted-foreground">Customer unit price is what you charge. Purchase unit cost is internal. Materials and freight do not receive technician labor credit. Current sales-tax treatment: {categoryTaxable(newItem.serviceCategory,newItem.lineType)?"taxable unless customer exempt":"not taxable"}.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                   <label className="text-xs">Charge type<select aria-label="New line charge type" className="mt-1 h-10 w-full border rounded bg-background px-2" value={newItem.lineType} onChange={e=>handleCategoryChange(e.target.value==="parts"?"material":defaultCategoryFor[estimate.serviceType])}><option value="labor">Labor</option><option value="parts">Materials / freight / supplies</option></select></label>
                   <div className="space-y-1">
                     <Label className="text-[10px] text-muted-foreground">Category</Label>
@@ -752,8 +756,9 @@ export default function EstimateBuilder() {
                   </Button>
                   {editingLine&&<Button variant="ghost" onClick={()=>{setEditingLine(null);setNewItem({...newItem,description:"",unitCost:0,useTaxRate:0,taxNote:"",unitPrice:0});}}>Cancel edit</Button>}
                   {!editingLine&&newItem.description&&<Button variant="ghost" onClick={()=>startLine(defaultCategoryFor[estimate.serviceType])}>Clear unsaved line</Button>}
+                  {!editingLine&&!newItem.description&&<Button variant="ghost" onClick={()=>setLineFormOpen(false)}>Close</Button>}
                 </div>
-              </fieldset>
+              </fieldset>}
             </CardContent>
           </Card>
         </div>

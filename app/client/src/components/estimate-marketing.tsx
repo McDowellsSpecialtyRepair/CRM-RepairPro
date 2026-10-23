@@ -22,6 +22,7 @@ export function EstimateMarketing({ estimateId, customerId, locked, onDirtyChang
   const [draft, setDraft] = useState<Draft | null>(null);
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [saved, setSaved] = useState(false);
+  const [open, setOpen] = useState(false);
   const editable = can("estimates.write") && !locked;
   const customers = useQuery<any[]>({ queryKey: ["/api/customers"], enabled: !!draft && can("customers.read") });
   useEffect(() => { onDirtyChange?.(!!draft || busy); }, [draft, busy, onDirtyChange]);
@@ -49,10 +50,18 @@ export function EstimateMarketing({ estimateId, customerId, locked, onDirtyChang
       const result = await apiRequest("PUT", url, body);
       qc.setQueryData([url], result);
       await qc.invalidateQueries({ queryKey: ["/api/referrals"] });
-      setDraft(null); setSearch(""); setSaved(true);
+      setDraft(null); setSearch(""); setSaved(true); setOpen(false);
     } catch (e: any) { setError(e.message); } finally { setBusy(false); }
   }
 
+  // Closed: the chosen tags in one line. "Edit tags" opens every tag.
+  if (!open && !draft) return <Card data-testid="card-estimate-marketing"><CardContent className="p-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+    <div className="flex flex-wrap items-center gap-2 min-w-0"><Megaphone className="h-4 w-4 shrink-0" /><span className="font-semibold">Marketing tags</span>
+      {(m.tags || []).length ? (m.tags || []).map((t: any) => <span key={t.id} className="rounded-full border px-2 py-0.5 text-xs">{t.name}</span>) : <span className="text-amber-700 dark:text-amber-300">No tags yet: how did the customer hear about us?</span>}
+      {m.referrer?.name && <span className="text-xs text-muted-foreground">Referred by {m.referrer.name}{m.thankYouStatus === "thanked" ? " (thanked)" : m.thankYouStatus === "to_thank" ? " (to thank)" : ""}</span>}</div>
+    {saved && <span role="status" className="text-xs text-primary">Saved.</span>}
+    {editable && <Button size="sm" variant="outline" onClick={() => setOpen(true)} data-testid="button-edit-tags">Edit tags</Button>}
+  </CardContent></Card>;
   return <Card data-testid="card-estimate-marketing"><CardContent className="p-4 space-y-3">
     <div className="flex items-center gap-2"><Megaphone className="h-4 w-4" /><h2 className="font-semibold text-sm">Marketing tags: how did the customer hear about us?</h2></div>
     <p className="text-xs text-muted-foreground">Tap every tag that applies (for example Radio + Lobby - In Person + New Customer). Tap again to remove it.</p>
@@ -96,9 +105,10 @@ export function EstimateMarketing({ estimateId, customerId, locked, onDirtyChang
     {sources.error && <p role="alert" className="text-sm text-destructive">The list of tags could not load.</p>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {saved && !draft && <p role="status" className="text-sm text-primary">Saved.</p>}
+    {!draft && <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>}
     {editable && draft && <div className="flex flex-wrap gap-2">
       <Button size="sm" onClick={save} disabled={busy} data-testid="button-save-marketing">{busy ? "Saving…" : "Save tags"}</Button>
-      <Button size="sm" variant="outline" disabled={busy} onClick={() => { setDraft(null); setError(""); setSearch(""); }}>Cancel</Button>
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => { setDraft(null); setError(""); setSearch(""); setOpen(false); }}>Cancel</Button>
     </div>}
   </CardContent></Card>;
 }

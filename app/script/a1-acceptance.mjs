@@ -139,8 +139,11 @@ try{
   check(`${label}: the estimate opens, linked to a new item named "Chair"`,chairShown);
   check(`${label}: a furniture estimate's section 2 says "damage details", not dents`,/damage details/.test(await p.getByTestId("estimate-section-2").locator("h2").first().innerText()));
 
+  const openBox=async(box,id)=>{const b=box.getByTestId(id);if(await b.isVisible().catch(()=>false))await b.click();};
   // 3. One People box: 2 salespeople split 60/40, an estimator and a follow-up salesperson, saved with one button.
   const card=p.getByTestId("card-estimate-people");await card.waitFor();
+  check(`${label}: the People box starts closed, as a one-line summary`,await card.getByTestId("text-people-summary").isVisible());
+  await openBox(card,"button-edit-people");
   check(`${label}: there is no second salesperson editor further down the estimate`,await p.getByText("Sales team",{exact:true}).count()===0);
   await card.getByTestId("button-add-salesperson").click();
   const opts=await card.getByLabel("Salesperson 1",{exact:true}).locator("option").allInnerTexts();
@@ -162,12 +165,16 @@ try{
   await card.getByTestId("button-save-people").click();
   await card.getByText("People saved.").waitFor();
   check(`${label}: Save people works (no "record changed" message)`,await p.getByText(/changed while you were editing/).count()===0);
+  check(`${label}: after saving, the People box closes to a summary of who is on the estimate`,/Sam Rivera[^,]*60%/.test(await card.getByTestId("text-people-summary").innerText()),await card.getByTestId("text-people-summary").innerText());
   // Cancel throws away an unsaved change.
+  await openBox(card,"button-edit-people");
   await card.getByLabel("Estimator",{exact:true}).selectOption({label:"Morgan Lee (manager)"});
   await card.getByTestId("button-cancel-people").click();
+  await openBox(card,"button-edit-people");
   check(`${label}: Cancel puts the estimator back`,await card.getByLabel("Estimator",{exact:true}).evaluate(s=>s.options[s.selectedIndex].text)==="Kelly Brooks (service advisor)");
   await p.reload();await signIn();await p.goto(estUrl);
   const card2=p.getByTestId("card-estimate-people");await card2.waitFor();
+  await openBox(card2,"button-edit-people");
   await card2.getByLabel("Salesperson 2",{exact:true}).waitFor();
   const chosen=async l=>card2.getByLabel(l,{exact:true}).evaluate(s=>s.options[s.selectedIndex].text);
   check(`${label}: both salespeople with 60/40, the estimator and follow-up are still there after signing out and in`,
@@ -203,6 +210,7 @@ try{
   await urgency.selectOption("high");await planSave.click();
   await p.getByText("Planning changes saved.").waitFor();
   check(`${label}: Save planning changes works after adding line items (no "record changed" message)`,await p.getByText(/changed while you were editing/).count()===0);
+  await openBox(card2,"button-edit-people");
   await card2.getByLabel("Follow-up salesperson",{exact:true}).selectOption({label:"Sam Rivera (service writer)"});
   await card2.getByTestId("button-save-people").click();await card2.getByText("People saved.").waitFor();
   await urgency.selectOption("urgent");await planSave.click();await p.getByText("Planning changes saved.").waitFor();
@@ -271,6 +279,7 @@ try{
   // 9. How the customer heard about us: a referral by an existing customer, saved on the estimate.
   await p.goto(estUrl);
   const mk=p.getByTestId("card-estimate-marketing");await mk.waitFor();
+  await openBox(mk,"button-edit-tags");
   check(`${label}: the estimate asks "How did the customer hear about us?"`,/how did the customer hear about us\?/i.test(await mk.innerText()));
   const tagNames=["Radio","Referral","Repeat Customer","Building Sign","Vans / vehicle lettering","Bodyshop Referral","Lobby - In Person","2nd Work Order"];
   check(`${label}: the RoadFS tags are offered, in four groups`,(await Promise.all(tagNames.map(n=>mk.getByTestId(`tag-${n}`).isVisible()))).every(Boolean)&&await mk.locator('[data-testid^="tag-group-"]').count()===4);
@@ -283,7 +292,7 @@ try{
   await shot(p,`${label}-9-heard-about-us-referral`,false);
   await mk.getByTestId("button-save-marketing").click();
   await mk.getByText("Saved.").waitFor();
-  check(`${label}: the referral is saved and waiting for a thank-you`,/waiting for a thank-you/.test(await mk.getByTestId("text-thank-you-status").innerText()));
+  check(`${label}: the referral is saved and waiting for a thank-you`,/Referred by Sarah Mitchell \(to thank\)/.test(await mk.innerText()),await mk.innerText());
   const estNumber=(await p.getByText(/^EST-\d{4}-\d+$/).first().innerText()).trim();
 
   // 10. Marketing page: the referral thank-you list and the editable list of choices.
@@ -311,6 +320,7 @@ try{
   const woBox=p.getByTestId(`work-order-estimate-${wo.estimateNumber}`);await woBox.waitFor();
   check(`${label}: the work order shows its estimate number at the top`,(await p.getByTestId("text-job-estimate-numbers").innerText()).includes(wo.estimateNumber));
   const woPeople=woBox.getByTestId("card-estimate-people");
+  await openBox(woPeople,"button-edit-people");
   await woPeople.getByTestId("button-add-salesperson").click();
   await woPeople.getByLabel("Salesperson 1",{exact:true}).selectOption({label:"Kelly Brooks (service advisor)"});
   await woPeople.getByLabel("Estimator",{exact:true}).selectOption({label:"Sam Rivera (service writer)"});
@@ -321,6 +331,7 @@ try{
   await woBox.getByTestId("button-apply-discount").click();
   await woBox.getByTestId("text-discount-label").waitFor();
   check(`${label}: on a work order in progress, a discount code can be applied`,/SAMPLE10/.test(await woBox.getByTestId("text-discount-label").innerText()));
+  await openBox(woBox.getByTestId("card-estimate-marketing"),"button-edit-tags");
   await woBox.getByTestId("card-estimate-marketing").getByTestId("tag-Radio").click();
   await woBox.getByTestId("button-save-marketing").click();await woBox.getByTestId("card-estimate-marketing").getByText("Saved.",{exact:true}).waitFor();
   check(`${label}: on a work order in progress, "heard about us" can be changed`,true);
