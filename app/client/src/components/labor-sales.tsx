@@ -20,7 +20,7 @@ function LaborEditor({line,techs,estimateId,disabled,onDirtyChange}: any) {
   useEffect(()=>()=>onDirtyChange?.(line.id,false),[line.id,onDirtyChange]);
   return <fieldset disabled={disabled || busy} className="rounded-lg border p-4 space-y-3">
     <div className="flex flex-wrap gap-3 justify-between items-center"><div><p className="font-medium text-sm">{line.description}</p><p className="text-sm text-muted-foreground">{money(Math.round(line.total*100))} before discount</p></div>
-      <select aria-label={`Type for ${line.description}`} className={select} value={type} onChange={e => {setType(e.target.value);setSaved(false);if(e.target.value==="parts")setSplits([]);}}>
+      <select aria-label={`Type for ${line.description}`} className={`${select} w-full sm:w-auto max-w-full`} value={type} onChange={e => {setType(e.target.value);setSaved(false);if(e.target.value==="parts")setSplits([]);}}>
         <option value="legacy" disabled>Needs classification</option><option value="parts" disabled={line.serviceCategory==="fabrication"}>Non-labor: materials / freight / supplies</option><option value="labor" disabled={nonLaborCategory(line.serviceCategory)}>Labor</option>
       </select></div>
     {type==="labor" && <div className="space-y-2">{splits.map((s,i) => <div key={i} className="flex flex-wrap gap-2 items-center">

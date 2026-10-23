@@ -123,7 +123,7 @@ export default function EstimateBuilder() {
 
   useEffect(() => {
     const cat = estimate?.serviceType ? defaultCategoryFor[estimate.serviceType] : undefined;
-    if (cat) {setEditingLine(null);setLineFormOpen(true);setShowTemplateMenu(false);setNewItem({lineType:"labor",serviceCategory:cat,description:"",quantity:1,unit:cat==="pdr_hail"?"panel":"each",unitPrice:0,panelLocation:"",damageSize:"",damageSeverity:"moderate",unitCost:0,useTaxRate:0,taxNote:"",repairAction:"repair"});}
+    if (cat) {setEditingLine(null);setShowTemplateMenu(false);setNewItem({lineType:"labor",serviceCategory:cat,description:"",quantity:1,unit:cat==="pdr_hail"?"panel":"each",unitPrice:0,panelLocation:"",damageSize:"",damageSeverity:"moderate",unitCost:0,useTaxRate:0,taxNote:"",repairAction:"repair"});}
   }, [estimate?.serviceType,id]);
 
   const { data: linkedVehicleData } = useQuery({
@@ -600,12 +600,12 @@ export default function EstimateBuilder() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-xs text-muted-foreground">
-                      <th className="text-left font-medium pb-2 pr-3">Category</th>
+                      <th className="hidden sm:table-cell text-left font-medium pb-2 pr-3">Category</th>
                       <th className="text-left font-medium pb-2 pr-3">Description</th>
-                      <th className="text-left font-medium pb-2 pr-3">Repair area</th>
-                      {["pdr","hail"].includes(estimate.serviceType)&&<th className="text-left font-medium pb-2 pr-3">Dent size</th>}
+                      <th className="hidden sm:table-cell text-left font-medium pb-2 pr-3">Repair area</th>
+                      {["pdr","hail"].includes(estimate.serviceType)&&<th className="hidden sm:table-cell text-left font-medium pb-2 pr-3">Dent size</th>}
                       <th className="text-right font-medium pb-2 pr-3">Qty</th>
-                      <th className="text-right font-medium pb-2 pr-3">Unit Price</th>
+                      <th className="hidden sm:table-cell text-right font-medium pb-2 pr-3">Unit Price</th>
                       <th className="text-right font-medium pb-2 pr-3">Total</th>
                       <th className="pb-2"></th>
                     </tr>
@@ -613,16 +613,18 @@ export default function EstimateBuilder() {
                   <tbody>
                     {lineItems.map((item: any) => (
                       <tr key={item.id} className="border-b border-border/50" data-testid={`row-line-item-${item.id}`}>
-                        <td className="py-2.5 pr-3">
+                        <td className="hidden sm:table-cell py-2.5 pr-3">
                           <Badge variant="secondary" className="text-xs">{customerLineLabel(item)}</Badge>
                         </td>
-                        <td className="py-2.5 pr-3 text-sm">{item.description}</td>
-                        <td className="py-2.5 pr-3 text-xs text-muted-foreground">{item.panelLocation || "-"}</td>
-                        {["pdr","hail"].includes(estimate.serviceType)&&<td className="py-2.5 pr-3 text-xs text-muted-foreground">{item.damageSize || "-"}</td>}
+                        <td className="py-2.5 pr-3 text-sm"><span>{item.description}</span>
+                          {/* On a phone the category, area and unit price show under the description instead of in their own columns */}
+                          <div className="sm:hidden mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground"><Badge variant="secondary" className="text-xs">{customerLineLabel(item)}</Badge>{item.panelLocation&&<span>{item.panelLocation}</span>}{item.damageSize&&<span>· {item.damageSize}</span>}<span>· {formatCurrency(item.unitPrice)} each</span></div></td>
+                        <td className="hidden sm:table-cell py-2.5 pr-3 text-xs text-muted-foreground">{item.panelLocation || "-"}</td>
+                        {["pdr","hail"].includes(estimate.serviceType)&&<td className="hidden sm:table-cell py-2.5 pr-3 text-xs text-muted-foreground">{item.damageSize || "-"}</td>}
                         <td className="py-2.5 pr-3 text-right tabular-nums whitespace-nowrap">{item.quantity} {item.unit}</td>
-                        <td className="py-2.5 pr-3 text-right tabular-nums">{formatCurrency(item.unitPrice)}</td>
+                        <td className="hidden sm:table-cell py-2.5 pr-3 text-right tabular-nums">{formatCurrency(item.unitPrice)}</td>
                         <td className="py-2.5 pr-3 text-right font-medium tabular-nums">{formatCurrency(item.total)}</td>
-                        <td className="py-2.5">
+                        <td className="py-2.5 whitespace-nowrap">
                           <button type="button" disabled={estimate.status==="invoiced"} className="text-primary underline mr-3" onClick={()=>{setLineFormOpen(true);setEditingLine(item);setNewItem({lineType:item.lineType==="legacy"?(nonLaborCategory(item.serviceCategory)?"parts":"labor"):item.lineType,serviceCategory:item.serviceCategory,description:item.description,quantity:item.quantity,unit:item.unit,unitPrice:item.unitPrice,panelLocation:item.panelLocation||"",damageSize:item.damageSize||"",damageSeverity:item.damageSeverity||"moderate",unitCost:item.unitCost||0,useTaxRate:item.useTaxRate||0,taxNote:item.taxNote||"",repairAction:item.repairAction||"repair"});document.getElementById("estimate-line-editor")?.scrollIntoView({block:"start"});}}>Edit</button>
                           <button
                             disabled={!can("estimates.write")||estimate.status === "invoiced"}

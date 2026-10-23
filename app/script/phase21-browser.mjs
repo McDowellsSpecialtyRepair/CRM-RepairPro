@@ -119,8 +119,8 @@ try{
   await billing.getByText(/Entered price by .*No matrix price available/).waitFor();
   await billing.getByRole("button",{name:"Select all not billed"}).click();
   await billing.getByTestId("button-bill-individually").click();
-  await p.getByTestId("estimate-section-3").getByRole("cell",{name:/^Hood: crease #\d$/}).waitFor();
-  check(`${label}: individual billing adds one line per dent in section 3`,await p.getByTestId("estimate-section-3").getByRole("cell",{name:/^Hood: (Dime dent|crease) #\d$/}).count()===2);
+  await p.getByTestId("estimate-section-3").getByText(/^Hood: crease #\d$/).filter({visible:true}).first().waitFor();
+  check(`${label}: individual billing adds one line per dent in section 3`,await p.getByTestId("estimate-section-3").getByText(/^Hood: (Dime dent|crease) #\d$/).filter({visible:true}).count()===2);
   check(`${label}: dent records remain after billing`,await p.getByTestId("text-dent-summary").getByText("2 billed").isVisible());
   if(label==="desktop"){
    // Panel package below the calculated total needs management approval.
