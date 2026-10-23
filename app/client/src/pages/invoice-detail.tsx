@@ -5,6 +5,7 @@ import { InvoiceLabor, DeliveryStatus } from "@/components/labor-sales";
 import {InvoiceCommercial} from "@/components/estimate-commercial";
 import {customerLineLabel,documentBreakdown} from "@shared/estimate-rules";
 import {DocumentBreakdown} from "@/components/document-breakdown";
+import { InvoiceCorrection } from "@/components/invoice-correction";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -146,6 +147,7 @@ export default function InvoiceDetail() {
       </Card>
 
       <DeliveryStatus type="invoice" id={id!} />
+      <InvoiceCorrection invoice={invoice} />
       <InvoiceLabor id={id} lines={lineItems} />
       <InvoiceCommercial id={id}/>
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">

@@ -21,6 +21,7 @@ import { migrateWorkOrders } from "./work-orders";
 import { migrateDiscounts } from "./discounts";
 import { migrateMarketing } from "./marketing";
 import { migrateCallbacks } from "./callbacks";
+import { migrateInvoiceCorrections } from "./invoice-corrections";
 import { migrateReporting } from "./reporting";
 import { migrateEstimateDents } from "./estimate-dents";
 import { migratePdrPricing } from "./pdr-pricing";
@@ -71,6 +72,7 @@ export function runMigrations(options: { seedDemo?: boolean } = {}) {
   migrateReporting();
   migratePdrPricing();
   migrateEstimateDents();
+  migrateInvoiceCorrections(); // after the labor, sales and dent tables whose guards it adjusts
   initializeSecurity(); // Include report definitions, ops_* tables, dent records, packages and PDR pricing in row-level auditing.
   correctFalseSentEstimate23();
 

@@ -25,7 +25,7 @@ async function session(viewport,label){
 }
 // A demo marine interior estimate for Robert Chen with a boat (demo data only).
 async function marineEstimate(){
- const login=await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})})).json();
+ const login={token:await apiToken()};
  const h={"Content-Type":"application/json",Authorization:`Bearer ${login.token}`};
  const call=async(m,path,body)=>{const r=await fetch(base+path,{method:m,headers:h,body:body&&JSON.stringify(body)});if(!r.ok)throw Error(`${m} ${path}: ${await r.text()}`);return r.json();};
  const cust=(await call("GET","/api/customers")).find(c=>c.firstName==="Robert"&&c.lastName==="Chen");
@@ -34,7 +34,7 @@ async function marineEstimate(){
 }
 // A demo estimate planned two days out for the first technician, with no booked time (demo data only).
 async function plannedEstimate(){
- const login=await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})})).json();
+ const login={token:await apiToken()};
  const h={"Content-Type":"application/json",Authorization:`Bearer ${login.token}`};
  const call=async(m,path,body)=>{const r=await fetch(base+path,{method:m,headers:h,body:body&&JSON.stringify(body)});if(!r.ok)throw Error(`${m} ${path}: ${await r.text()}`);return r.json();};
  const cust=(await call("GET","/api/customers")).find(c=>c.firstName==="Robert"&&c.lastName==="Chen");
@@ -48,15 +48,31 @@ async function plannedEstimate(){
 }
 // A demo work order (pending, nothing booked) for Robert Chen (demo data only).
 async function pendingJob(label){
- const login=await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})})).json();
+ const login={token:await apiToken()};
  const h={"Content-Type":"application/json",Authorization:`Bearer ${login.token}`};
  const call=async(m,path,body)=>{const r=await fetch(base+path,{method:m,headers:h,body:body&&JSON.stringify(body)});if(!r.ok)throw Error(`${m} ${path}: ${await r.text()}`);return r.json();};
  const cust=(await call("GET","/api/customers")).find(c=>c.firstName==="Robert"&&c.lastName==="Chen");
  return call("POST","/api/jobs",{customerId:cust.id,serviceType:"upholstery",title:`Checklist: waiting on vinyl (${label})`,status:"pending",priority:"normal"});
 }
+// One back-door API session for the set-up helpers (the CRM limits how many sessions one login may hold, so
+// logging in again for each helper would sign the browser out).
+let cachedToken;
+async function apiToken(){
+ if(!cachedToken)cachedToken=(await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})})).json()).token;
+ return cachedToken;
+}
+// The invoice id for a demo estimate number (demo data only).
+async function invoiceFor(estimateNumber){
+ const login={token:await apiToken()};
+ const h={Authorization:`Bearer ${login.token}`};
+ const e=(await (await fetch(base+"/api/estimates",{headers:h})).json()).find(x=>x.estimateNumber===estimateNumber);
+ const i=(await (await fetch(base+"/api/invoices",{headers:h})).json()).find(x=>x.estimateId===e.id||x.id===e.invoiceId);
+ if(!i)throw Error(`No invoice found for ${estimateNumber}`);
+ return i.id;
+}
 // A demo work order in progress with its own linked estimate (made through the API, demo data only).
 async function workOrderInProgress(){
- const login=await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})})).json();
+ const login={token:await apiToken()};
  const h={"Content-Type":"application/json",Authorization:`Bearer ${login.token}`};
  const call=async(m,path,body)=>{const r=await fetch(base+path,{method:m,headers:h,body:body&&JSON.stringify(body)});if(!r.ok)throw Error(`${m} ${path}: ${await r.text()}`);return r.json();};
  const cust=(await call("GET","/api/customers")).find(c=>c.firstName==="Robert"&&c.lastName==="Chen");
@@ -415,6 +431,34 @@ try{
   const groupSel=p.getByLabel("Technician group").first();
   check(`${label}: the calendar can show one technician group`,(await groupSel.locator("option").allInnerTexts()).join("|").includes("ME - Mobile Exterior"));
 
+  // 18. Invoiced estimates have their own list; a bookkeeper or manager can correct the invoice until it is
+  // marked entered in QuickBooks (the owner's EST-2026-003 case).
+  await nav("Estimates");
+  await p.getByTestId("button-filter-open").waitFor();
+  const openList=await p.locator("main").innerText();
+  check(`${label}: the default Estimates list ("Open") leaves out invoiced estimates`,/Open \(not invoiced\)/.test(openList)&&!/EST-2026-003\b/.test(openList));
+  await p.getByTestId("button-filter-invoiced").click();
+  await p.getByText("EST-2026-003",{exact:true}).first().waitFor();
+  check(`${label}: EST-2026-003 is under "Invoiced (completed)"`,true);
+  if(label==="desktop"){
+   const invId=await invoiceFor("EST-2026-003");
+   await p.goto(`${base}/#/invoices/${invId}`);
+   const cc=p.getByTestId("card-invoice-correction");await cc.waitFor();
+   await cc.getByTestId("button-correct-invoice").click();
+   const f=cc.getByTestId("invoice-correction-form");
+   const price=f.getByLabel("Line 1 unit price");const was=Number(await price.inputValue());
+   await price.fill(String(was+25));
+   await f.getByLabel("Correction reason").fill("Checklist: price agreed with customer");
+   await shot(p,`${label}-18a-invoice-correction`,false);
+   await f.getByTestId("button-save-correction").click();
+   await cc.getByTestId("text-correction-notice").waitFor();
+   check(`${label}: a manager can correct an invoice that is not yet in QuickBooks`,/Invoice corrected/.test(await cc.getByTestId("text-correction-notice").innerText()));
+   await cc.getByTestId("button-mark-qb").click();
+   await p.waitForFunction(()=>/Entered in QuickBooks on/.test(document.querySelector('[data-testid="text-qb-state"]')?.textContent||""));
+   check(`${label}: after "Mark as entered in QuickBooks" the invoice is locked (no Correct button)`,await cc.getByTestId("button-correct-invoice").count()===0);
+   await shot(p,`${label}-18b-invoice-entered-in-qb`,false);
+  }
+
   // 5. Invoices list and detail: no fake "QB Synced" labels.
   await nav("Invoices");await p.getByText(/INV-2026-/).first().waitFor();
   check(`${label}: the invoices list shows no "QB Synced" / "Not Synced" labels`,await p.getByText(/QB Synced|Not Synced/).count()===0);
@@ -425,7 +469,7 @@ try{
  }
 
  // 6. Printed estimate and invoice carry the logo (checked from the printable document itself).
- const login=await (await fetch(base+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})})).json();
+ const login={token:await apiToken()};
  const auth={headers:{Authorization:`Bearer ${login.token}`}};
  const ests=await (await fetch(base+"/api/estimates",auth)).json();
  const est=ests.find(e=>e.estimateNumber==="EST-2026-001")||ests[0];

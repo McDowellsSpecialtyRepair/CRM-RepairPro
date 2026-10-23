@@ -440,6 +440,40 @@ try{
   const h=await ok("GET",`/api/history/jobs/${job.id}`,undefined,owner);
   check("Callbacks and parts arriving are in the change history with the login",h.some(e=>e.what==="Callback added"&&e.login==="advisor@example.invalid")&&h.some(e=>/Ready to schedule/.test(e.what)));
   void f;}
+ // ---- Invoice corrections until "Entered in QuickBooks" ----
+ {const ip=`/api/invoices/${inv.id}`;
+  let I=await ok("GET",ip,undefined,owner);
+  const lines=I.lineItems.map(l=>({id:l.id,description:l.description,quantity:l.quantity,unitPrice:l.unitPrice,lineType:l.lineType,serviceCategory:l.serviceCategory}));
+  check("Service advisors cannot correct an invoice",(await call("PUT",ip+"/correction",{lines,reason:"x"})).status===403);
+  check("A correction needs a reason",(await call("PUT",ip+"/correction",{lines},owner)).status===400);
+  const labor=lines.find(l=>l.lineType==="labor");
+  const changed=lines.map(l=>l===labor?{...l,unitPrice:l.unitPrice+100,description:l.description+" (corrected)"}:l);
+  const r=await ok("PUT",ip+"/correction",{lines:[...changed,{description:"Clips",quantity:2,unitPrice:5,lineType:"parts",serviceCategory:"material"}],reason:"Customer approved more work on site"},owner);
+  const after=await ok("GET",ip,undefined,owner);
+  const sub=after.lineItems.reduce((n,l)=>n+l.total,0);
+  check("The corrected invoice has the changed and added lines",after.lineItems.length===lines.length+1&&after.lineItems.some(l=>/\(corrected\)/.test(l.description))&&after.lineItems.some(l=>l.description==="Clips"));
+  check("Subtotal, tax and total are recalculated",Math.abs(after.subtotal-sub)<0.005&&Math.abs(after.total-(after.subtotal+after.taxAmount-after.discount))<0.005&&after.total>I.total);
+  check("The balance due follows the new total",Math.abs(after.balanceDue-(after.total-after.amountPaid))<0.005);
+  const labCredits=await ok("GET",ip+"/labor",undefined,owner);
+  const laborNet=after.lineItems.filter(l=>l.lineType==="labor").reduce((n,l)=>n+Math.round(l.total*100),0)-Math.round(after.discount*100);
+  check("Technician production is rebuilt from the corrected labor",labCredits.reduce((n,c)=>n+c.net_labor_cents,0)===laborNet);
+  check("The invoice number and estimate stay the same",after.invoiceNumber===I.invoiceNumber&&after.estimateId===I.estimateId);
+  const h=await ok("GET",`/api/history/customers/${after.customerId}`,undefined,owner);void h;
+  const dbr=new Database(dbPath,{readonly:true});
+  check("The correction is in the audit history with the login and reason",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='invoice.corrected' AND record_id=? AND actor_label='Owner' AND after_json LIKE '%Customer approved more work%'").get(String(inv.id)));dbr.close();
+  check("Plain invoice edits still cannot change money",(await call("PATCH",ip,{total:1},owner)).status===409);
+  const qbAdv=await ok("POST",ip+"/quickbooks",{entered:true});
+  check("Marking an invoice entered in QuickBooks records who and when",!!qbAdv.enteredAt&&qbAdv.enteredBy==="Test advisor");
+  check("Once entered in QuickBooks the invoice can't be corrected",(await call("PUT",ip+"/correction",{lines:changed,reason:"late"},owner)).status===409);
+  check("A service advisor can't undo the QuickBooks mark",(await call("POST",ip+"/quickbooks",{entered:false})).status===403);
+  check("A manager or owner can undo it",(await ok("POST",ip+"/quickbooks",{entered:false},owner)).enteredAt===null);
+  const today=new Date().toLocaleDateString("en-CA",{timeZone:"America/Boise"});
+  await ok("POST","/api/payments",{invoiceId:inv.id,customerId:after.customerId,amount:after.total,paymentMethod:"cash",paymentDate:today,idempotencyKey:"corr-pay-1"},owner);
+  const lower=await call("PUT",ip+"/correction",{lines:changed,reason:"Remove clips"},owner);
+  check("A correction can't take the total below what was already paid",lower.status===400&&/already paid/.test(lower.text));
+  const more=await ok("PUT",ip+"/correction",{lines:[...(await ok("GET",ip,undefined,owner)).lineItems.map(l=>({id:l.id,description:l.description,quantity:l.quantity,unitPrice:l.unitPrice,lineType:l.lineType})),{description:"Extra trim",quantity:1,unitPrice:20,lineType:"parts",serviceCategory:"material"}],reason:"Added trim"},owner);
+  check("Raising the total after payment leaves it partly paid",more.invoice.status==="partial"&&more.invoice.balanceDue>0);
+  void r;}
  // ---- A1: logo on printed estimates and invoices ----
  const logoHtml=await ok("GET",`/print/estimate/${tint.id}`);
  check("Printed estimate shows the McDowells logo image",/<img src="data:image\/png;base64,[A-Za-z0-9+/=]{1000,}" alt="McDowells Specialty Repair"/.test(logoHtml));

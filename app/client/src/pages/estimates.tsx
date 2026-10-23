@@ -30,7 +30,7 @@ const statusColors: Record<string, string> = {
 export default function Estimates() {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState("open");
   const [sort, setSort] = useState<{field: WorkSort; direction: SortDirection}>({field:"number", direction:"asc"});
   const [newOpen, setNewOpen] = useState(false);
   const { data: estimates, isLoading } = useQuery({
@@ -61,8 +61,12 @@ export default function Estimates() {
     },
   });
 
-  const filtered = sortWork<any>((estimates || []).filter((e: any) => filter === "all" || e.status === filter), sort.field, sort.direction);
-  const statuses = ["all", "draft", "sent", "approved", "invoiced", "rejected", "expired"];
+  // Invoiced estimates move to their own "Invoiced (completed)" list; the default list is open work only.
+  const OPEN = ["draft", "sent", "approved"];
+  const matches = (e: any, f: string) => f === "all" || (f === "open" ? OPEN.includes(e.status) : e.status === f);
+  const filtered = sortWork<any>((estimates || []).filter((e: any) => matches(e, filter)), sort.field, sort.direction);
+  const statuses = ["open", "draft", "sent", "approved", "invoiced", "rejected", "expired", "all"];
+  const labels: Record<string, string> = { open: "Open (not invoiced)", invoiced: "Invoiced (completed)", all: "All" };
 
   return (
     <div className="space-y-6">
@@ -89,7 +93,7 @@ export default function Estimates() {
               filter === s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
             }`}
           >
-            {s.charAt(0).toUpperCase() + s.slice(1)}
+            {labels[s] || s.charAt(0).toUpperCase() + s.slice(1)} ({(estimates || []).filter((e: any) => matches(e, s)).length})
           </button>
         ))}
       </div>

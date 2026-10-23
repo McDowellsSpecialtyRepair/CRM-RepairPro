@@ -10,6 +10,7 @@ export const PERMISSIONS = [
   "history.read", // see the change history (who changed what, when) on customers, estimates and work orders
   "referrals.manage", // see the referral thank-you list and mark referrers thanked
   "callbacks.manage", // change the list of callback types
+  "invoices.correct", // correct an issued invoice until it is marked entered in QuickBooks
 ] as const;
 export type Permission = typeof PERMISSIONS[number];
 export const ROLES = {
@@ -19,7 +20,7 @@ export const ROLES = {
   advisor: { label: "Service advisor", description: "Customers, estimates, work orders, scheduling, operational queues and payment recording. No merges or shop-wide reports.", permissions: ["marketing.read","referrals.manage","customers.read","customers.write","jobs.read","jobs.write","estimates.read","estimates.write","billing.read","billing.write","payments.record","schedule.read","schedule.write","pricing.read","activity.read","activity.write","operations.read","operations.write"] },
   technician: { label: "Technician", description: "Assigned work only. No other customers, billing, estimates or shop-wide reports.", permissions: ["mywork"] },
   support: { label: "Support / dispatcher", description: "Customer contact details, jobs and scheduling. No financial documents, marketing or reports.", permissions: ["customers.read","customers.write","jobs.read","jobs.write","schedule.read","schedule.write"] },
-  accountant: { label: "Accounting", description: "Read operational records; issue invoices, record payments, manage direct costs, customer tax terms and run reports. No estimate editing or staff administration.", permissions: ["dashboard.read","customers.read","jobs.read","estimates.read","billing.read","billing.write","payments.record","reports.read","reports.write","pricing.read","activity.read","schedule.read","operations.read","costs.read","costs.write","customers.tax_terms"] },
+  accountant: { label: "Accounting", description: "Read operational records; issue invoices, record payments, manage direct costs, customer tax terms and run reports. No estimate editing or staff administration.", permissions: ["invoices.correct","dashboard.read","customers.read","jobs.read","estimates.read","billing.read","billing.write","payments.record","reports.read","reports.write","pricing.read","activity.read","schedule.read","operations.read","costs.read","costs.write","customers.tax_terms"] },
   auditor: { label: "Read-only auditor", description: "Read records, reports and audit history. No business or staff changes.", permissions: ["history.read","dashboard.read","customers.read","jobs.read","estimates.read","billing.read","reports.read","pricing.read","activity.read","schedule.read","marketing.read","audit.read","operations.read","costs.read"] },
 } satisfies Record<string, { label: string; description: string; permissions: readonly string[] }>;
 export type Role = keyof typeof ROLES;
@@ -134,6 +135,9 @@ export function routePermission(method: string, path: string): Permission | "aut
     ["GET", /^\/api\/(?:estimates|jobs)\/\d+\/callbacks$/, "schedule.read"],
     ["POST", /^\/api\/(?:estimates|jobs)\/\d+\/callbacks$/, "schedule.write"],
     ["GET", /^\/api\/waiting-work$/, "schedule.read"],
+    ["GET", /^\/api\/invoices\/\d+\/quickbooks$/, "billing.read"],
+    ["POST", /^\/api\/invoices\/\d+\/quickbooks$/, "billing.write"],
+    ["PUT", /^\/api\/invoices\/\d+\/correction$/, "invoices.correct"],
     ["PATCH", /^\/api\/estimates\/\d+\/people$/, "estimates.write"],
     ["PATCH", /^\/api\/jobs\/\d+\/people$/, "jobs.write"],
     ["POST", /^\/api\/jobs$/, "jobs.write"],

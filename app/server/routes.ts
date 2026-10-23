@@ -5,6 +5,7 @@ import { registerDiscounts } from "./discounts";
 import { registerMarketing } from "./marketing";
 import { registerHistory } from "./history";
 import { registerCallbacks } from "./callbacks";
+import { registerInvoiceCorrections } from "./invoice-corrections";
 import { checkPhone, checkEmail } from "@shared/contact-validation";
 import { logoImg, withLogoAttachment } from "./brand-logo";
 import type { Server } from "node:http";
@@ -105,6 +106,7 @@ export async function registerRoutes(
   registerMarketing(app);
   registerHistory(app);
   registerCallbacks(app);
+  registerInvoiceCorrections(app);
   registerOperations(app);
   registerCapacity(app);
   registerVin(app);
