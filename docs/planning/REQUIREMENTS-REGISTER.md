@@ -981,7 +981,13 @@ RoadFS (McDo.RoadFS.com), the program being replaced, attaches dated **callbacks
 
 Appointment Reminder · Awaiting Parts (ALL) · Book Check out · Estimate F/U · Furniture Awaiting Parts · HAIL F/U · Insurance Awaiting Approval · Insurance Claims F/U · Jenn Estimate F/U · Jenn In Progress · John Estimate F/U · Josh Estimate F/U · Megan Estimate F/U · Parts To Order (ALL) · Researching Parts · SB & Frog F/U · SB Active W/O & Estimate F/U · SB Parts To Order · SB TBS · Stacy Follow Up · Stacy Warranty · TBS (ALL) · Torson Follow Up
 
-(F/U = follow-up; TBS assumed "to be scheduled", to confirm.) In the new CRM, per-person types (Jenn, John, Josh, Megan, Stacy, Torson) become one type plus an assigned person, so each person has their own list. See SCHED-013. The work order also has a separate status list (top right of the work order screen) still to be captured.
+(F/U = follow-up; TBS assumed "to be scheduled", to confirm.) In the new CRM, per-person types (Jenn, John, Josh, Megan, Stacy, Torson) become one type plus an assigned person, so each person has their own list. See SCHED-013.
+
+### Current software reference: RoadFS work order status (owner screenshot, 2026-10-23)
+
+One status per work order (top right of the work order screen): **New · Estimate · Estimate - Will Call · Hold · Waiting on Parts · Assigned · Scheduled · In Progress · Completed · Cancelled.**
+
+Proposed mapping to the new CRM (to confirm with the owner): New and Estimate = estimate draft/sent; Estimate - Will Call = sent, customer will call with a date (a "waiting on customer" follow-up); Hold and Waiting on Parts = sold but not schedulable, with the reason and dated follow-up from SCHED-013; Assigned = technician chosen, no time booked (shown on the calendar as "Planned - no time booked"); Scheduled = time booked; In Progress, Completed, Cancelled as today. Invoiced and paid remain separate steps.
 
 ---
 
@@ -989,6 +995,7 @@ Appointment Reminder · Awaiting Parts (ALL) · Book Check out · Estimate F/U �
 
 | Date | Change |
 |---|---|
+| 2026-10-23 | Added the RoadFS work order status list and a proposed mapping. |
 | 2026-10-23 | Added SCHED-013 (waiting / to-be-scheduled work list) and the RoadFS callback types from the owner's screenshots. |
 | 2026-10-22 | Added the A1 testing requests (CRM-021 to CRM-029, MKT-012, SEC-010). CRM-021, checking that phone numbers and emails are real, is planned for later at the owner's request. |
 | 2026-10-22 | Added SPL-003 (start an estimate from Splats or from the customer) and SPL-004 (repair and reupholster price tables, fully customizable, for every non-PDR splat). Menu "Vehicle Splat" renamed "Splats" in A1. |
