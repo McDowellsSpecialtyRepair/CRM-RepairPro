@@ -40,7 +40,7 @@ function Waiting() {
       <h2 className="font-semibold">{s.label} ({rows.length})</h2>
       <p className="text-xs text-muted-foreground">{s.help}</p>
       {rows.length === 0 && <p className="text-sm text-muted-foreground">Nothing here.</p>}
-      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{rows.map(r => <Card key={`${r.kind}-${r.id}`} data-testid={`waiting-row-${r.number}`}><CardContent className="p-3 text-sm space-y-1">
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{rows.map(r => <Card key={`${r.kind}-${r.id}`} data-testid={`waiting-row-${r.number}`}><CardContent className="p-3 text-sm space-y-1">
         <div className="flex justify-between gap-2"><Link href={`/${r.kind}/${r.id}`} className="font-semibold underline">{r.number}</Link><span className="text-xs text-muted-foreground">{r.daysWaiting != null ? `waiting ${r.daysWaiting} day${r.daysWaiting === 1 ? "" : "s"}` : ""}</span></div>
         <p className="font-medium">{r.details?.customer}</p>
         <p>{r.details?.service}{r.details?.item ? ` · ${r.details.item}` : ""}</p>
@@ -91,10 +91,10 @@ function CallbackTypes() {
   return <Card data-testid="card-callback-types"><CardHeader className="pb-3"><CardTitle className="text-base">Callback types</CardTitle></CardHeader>
     <CardContent className="space-y-3 text-sm">
       <p className="text-muted-foreground">The list of callback types (from RoadFS). Instead of a type per person, assign each callback to someone. "Parts" types keep a job off Ready to schedule until they are done.</p>
-      <ul className="divide-y rounded-md border">{(q.data || []).map(t => <li key={t.id} className="p-2 flex flex-wrap justify-between gap-2">
+      <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-x-3 rounded-md border px-2">{(q.data || []).map(t => <li key={t.id} className="py-0.5 flex items-center justify-between gap-2 border-b">
         <span className={t.active ? "" : "line-through text-muted-foreground"}>{t.name}{t.parts && <span className="ml-2 text-xs rounded bg-muted px-2">parts</span>}</span>
-        <span className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setDraft({ id: t.id, name: t.name, parts: t.parts })}>Edit</Button>
-          <Button size="sm" variant="ghost" disabled={busy} onClick={() => save(t.id, { active: !t.active })}>{t.active ? "Turn off" : "Turn on"}</Button></span>
+        <span className="flex gap-1"><Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setDraft({ id: t.id, name: t.name, parts: t.parts })}>Edit</Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2" disabled={busy} onClick={() => save(t.id, { active: !t.active })}>{t.active ? "Turn off" : "Turn on"}</Button></span>
       </li>)}</ul>
       {!draft && <Button size="sm" variant="outline" onClick={() => setDraft({ name: "", parts: false })} data-testid="button-new-callback-type">Add a callback type</Button>}
       {draft && <div className="rounded-md border p-3 space-y-2">

@@ -77,11 +77,11 @@ export function MarketingSourcesManager() {
         const tags = (q.data || []).filter(s => (s.group || TAG_GROUPS[0]) === g);
         return <div key={g}>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{g} ({tags.filter(t => t.active).length})</p>
-          <ul className="divide-y rounded-md border">{tags.map(s => <li key={s.id} className="p-2 flex flex-wrap items-center justify-between gap-2" data-testid={`marketing-source-${s.name}`}>
-            <span className={s.active ? "" : "text-muted-foreground line-through"}>{s.name}{s.needsReferrer && <span className="ml-2 text-xs rounded bg-muted px-2 py-0.5">asks who referred them</span>}{!s.active && <span className="ml-2 text-xs no-underline">(turned off)</span>}</span>
+          <ul className="grid sm:grid-cols-2 gap-x-3 rounded-md border px-2">{tags.map(s => <li key={s.id} className="py-0.5 flex items-center justify-between gap-2 border-b" data-testid={`marketing-source-${s.name}`}>
+            <span className={s.active ? "" : "text-muted-foreground line-through"}>{s.name}{s.needsReferrer && <span className="ml-2 text-[11px] rounded bg-muted px-1.5 py-0.5">asks who referred them</span>}{!s.active && <span className="ml-2 text-xs no-underline">(turned off)</span>}</span>
             {manage && <span className="flex gap-1">
-              <Button size="sm" variant="ghost" onClick={() => { setDraft({ id: s.id, name: s.name, needsReferrer: s.needsReferrer, group: s.group || TAG_GROUPS[0] }); setError(""); }}>Edit</Button>
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => save(s.id, { active: !s.active })}>{s.active ? "Turn off" : "Turn on"}</Button>
+              <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setDraft({ id: s.id, name: s.name, needsReferrer: s.needsReferrer, group: s.group || TAG_GROUPS[0] }); setError(""); }}>Edit</Button>
+              <Button size="sm" variant="ghost" className="h-7 px-2" disabled={busy} onClick={() => save(s.id, { active: !s.active })}>{s.active ? "Turn off" : "Turn on"}</Button>
             </span>}
           </li>)}{!tags.length && <li className="p-2 text-muted-foreground">No tags in this group.</li>}</ul>
         </div>;

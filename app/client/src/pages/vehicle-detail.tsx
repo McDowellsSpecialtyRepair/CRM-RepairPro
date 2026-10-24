@@ -105,7 +105,7 @@ export default function VehicleDetail() {
       </Card>
 
       {/* Vehicle Specs Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-6 gap-2">
         {vehicle.bodyClass && (
           <Card><CardContent className="p-4"><div className="flex items-center gap-2 text-muted-foreground mb-1"><Car className="h-4 w-4" /><span className="text-[10px] uppercase">Body Class</span></div><p className="text-sm font-medium">{vehicle.bodyClass}</p></CardContent></Card>
         )}

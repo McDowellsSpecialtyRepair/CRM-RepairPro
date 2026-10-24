@@ -349,7 +349,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto overscroll-contain bg-background p-3 sm:p-6">
+        <main className="flex-1 overflow-y-auto overscroll-contain bg-background p-3 sm:p-4 xl:p-5">
           {children}
         </main>
       </div>

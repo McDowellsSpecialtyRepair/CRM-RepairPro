@@ -114,25 +114,24 @@ export default function Estimates() {
           {filtered.map((est: any) => (
             <Link key={est.id} href={`/estimates/${est.id}`} data-testid={`link-estimate-${est.id}`}>
               <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium">{est.estimateNumber}</span>
-                      <Badge variant="secondary" className={`text-[10px] ${statusColors[est.status] || ""}`}>
-                        {est.status}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1 truncate">
-                      {est.notes || "No description"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1 break-words">{est.priority || "normal"} urgency · {est.assignedTech || "Unassigned"} · {est.scheduledDate || "Date not planned"}</p>
-                    <div className="text-[10px] text-muted-foreground mt-1">
-                      Created {formatDate(est.createdAt)} • Valid until {formatDate(est.validUntil)}
-                    </div>
+                {/* One line per estimate on a wide screen; stacked on a phone */}
+                <CardContent className="grid grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[13.5rem_minmax(0,1fr)_minmax(0,15rem)_12rem_8rem] items-center gap-x-4 gap-y-0.5 px-3 py-2 sm:px-3 sm:py-2">
+                  <div className="flex items-center gap-2 lg:col-start-1 lg:row-start-1">
+                    <span className="text-sm font-medium whitespace-nowrap">{est.estimateNumber}</span>
+                    <Badge variant="secondary" className={`text-[10px] ${statusColors[est.status] || ""}`}>
+                      {est.status}
+                    </Badge>
                   </div>
-                  <div className="text-right ml-4">
-                    <div className="text-base font-bold tabular-nums">{formatCurrency(est.total)}</div>
+                  <div className="text-right lg:col-start-5 lg:row-start-1">
+                    <div className="text-sm font-bold tabular-nums">{formatCurrency(est.total)}</div>
                     <div className="text-[10px] text-muted-foreground">{est.serviceType.replace(/_/g, " ")}</div>
+                  </div>
+                  <p className="col-span-2 lg:col-span-1 lg:col-start-2 lg:row-start-1 text-xs text-muted-foreground truncate">
+                    {est.notes || "No description"}
+                  </p>
+                  <p className="col-span-2 lg:col-span-1 lg:col-start-3 lg:row-start-1 text-xs text-muted-foreground break-words">{est.priority || "normal"} urgency · {est.assignedTech || "Unassigned"} · {est.scheduledDate || "Date not planned"}</p>
+                  <div className="col-span-2 lg:col-span-1 lg:col-start-4 lg:row-start-1 text-[10px] text-muted-foreground">
+                    Created {formatDate(est.createdAt)} • Valid until {formatDate(est.validUntil)}
                   </div>
                 </CardContent>
               </Card>

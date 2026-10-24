@@ -263,7 +263,7 @@ export default function StaffAccess() {
                 <Button
                   type="submit"
                   disabled={busy}
-                  className="field-full field-full min-h-11"
+                  className="field-auto min-h-11 px-6"
                 >
                   Create invitation
                 </Button>

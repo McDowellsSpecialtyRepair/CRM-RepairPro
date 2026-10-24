@@ -328,7 +328,7 @@ export default function Customers() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {filtered.map((c: any) => {
             const name = c.companyName || `${c.firstName || ""} ${c.lastName || ""}`.trim();
             const initials = c.companyName
@@ -341,7 +341,7 @@ export default function Customers() {
                 data-testid={`link-customer-${c.id}`}
               >
                 <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-                  <CardContent className="p-4">
+                  <CardContent className="p-3">
                     <div className="flex items-start gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-sm font-semibold shrink-0">
                         {initials}

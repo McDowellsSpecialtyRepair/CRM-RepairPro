@@ -223,6 +223,17 @@
     .field-row > :is(.field-full, :has(textarea)) { flex: 1 1 100%; max-width: 60rem; }
     .field-row > .field-auto { width: auto; min-width: 0; max-width: none; }
   }
+  /* Everywhere else on a computer or tablet: no list, date or number box stretches across the screen.
+     Zero specificity, so a page can still give a field its own max-w-* width. */
+  @media (min-width: 640px) {
+    :where(main) :where(select, button[role="combobox"]) { max-width: 20rem; }
+    :where(main) :where(input[type="date"], input[type="time"], input[type="datetime-local"]) { max-width: 12rem; }
+    :where(main) :where(input[inputmode="decimal"], input[inputmode="numeric"], input[type="number"]) { max-width: 10rem; }
+    :where(main) :where(input[type="tel"]) { max-width: 14rem; }
+    :where(main) :where(input:not([type]), input[type="text"], input[type="email"], input[type="search"]) { max-width: 32rem; }
+    :where(main) :where(textarea) { max-width: 60rem; }
+    :where(main table) :where(input, select, button[role="combobox"]) { max-width: none; }
+  }
 }
 
 /**

@@ -167,7 +167,7 @@ export default function Jobs() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((job: any) => (
             <Card key={job.id} className="relative hover:shadow-md hover:border-primary/50 transition-shadow" data-testid={`card-job-${job.id}`}>
               <CardContent className="p-4">

@@ -64,7 +64,7 @@ export default function Invoices() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-6 gap-2">
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">Total Collected</div>

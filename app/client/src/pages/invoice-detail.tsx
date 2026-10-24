@@ -146,10 +146,13 @@ export default function InvoiceDetail() {
         </CardContent>
       </Card>
 
-      <DeliveryStatus type="invoice" id={id!} />
       <InvoiceCorrection invoice={invoice} />
+      {/* Wide screens: delivery, labor credit and sales attribution side by side */}
+      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3 items-start">
+      <DeliveryStatus type="invoice" id={id!} />
       <InvoiceLabor id={id} lines={lineItems} />
       <InvoiceCommercial id={id}/>
+      </div>
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="details" data-testid="tab-details">Invoice Details</TabsTrigger>
