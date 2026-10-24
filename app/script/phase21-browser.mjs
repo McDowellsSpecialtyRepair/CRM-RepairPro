@@ -184,6 +184,8 @@ try{
     if(!est)continue;
     await p.goto(`${base}/#/estimates/${est.id}`);
     await p.getByTestId("estimate-section-4").waitFor();
+    // The damage tool appears once its price lists load; wait for it rather than checking at the first paint.
+    await p.getByTestId("estimate-section-2").getByTestId(card).waitFor({timeout:10000}).catch(()=>{});
     const tops=await p.evaluate(()=>[1,2,3,4].map(n=>document.querySelector(`[data-testid="estimate-section-${n}"]`)?.getBoundingClientRect().top??-1));
     check(`${label}: ${service} estimate keeps its own damage tool in the four-section order`,tops.every((t,i)=>t>=0&&(i===0||t>tops[i-1]))&&await p.getByTestId("estimate-section-2").getByTestId(card).isVisible());
    }

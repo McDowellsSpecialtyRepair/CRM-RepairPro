@@ -31,9 +31,11 @@ export function CallbacksCard({ kind, id }: { kind: "estimates" | "jobs"; id: nu
   }
   const list = q.data?.callbacks || [];
   const open = list.filter((c: any) => c.status === "open"), done = list.filter((c: any) => c.status === "done");
-  return <Card data-testid="card-callbacks"><CardContent className="p-4 space-y-3 text-sm">
+  // One line when there is nothing open: "Callbacks  No open callbacks.  [Add callback]".
+  return <Card data-testid="card-callbacks"><CardContent className="p-3 sm:p-3 space-y-2 text-sm">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex items-center gap-2"><PhoneCall className="h-4 w-4" /><h2 className="font-semibold">Callbacks</h2></div>
+      <div className="flex items-center gap-2"><PhoneCall className="h-4 w-4" /><h2 className="font-semibold">Callbacks</h2>
+        {open.length === 0 && !form && <span className="text-muted-foreground">No open callbacks.</span>}</div>
       {write && !form && <Button size="sm" variant="outline" onClick={() => setForm({ typeId: "", dueDate: today(), assignedStaffId: "", note: "" })} data-testid="button-add-callback">Add callback</Button>}
     </div>
     {q.data?.partsOutstanding
@@ -54,8 +56,7 @@ export function CallbacksCard({ kind, id }: { kind: "estimates" | "jobs"; id: nu
         <Button size="sm" variant="ghost" onClick={() => setForm(null)}>Cancel</Button>
       </div>
     </div>}
-    {open.length === 0 && !form && <p className="text-muted-foreground">No open callbacks.</p>}
-    <ul className="divide-y rounded-md border" data-testid="callbacks-open">{open.map((c: any) => <li key={c.id} className="p-2 space-y-1" data-testid={`callback-${c.id}`}>
+    {open.length > 0 && <ul className="divide-y rounded-md border" data-testid="callbacks-open">{open.map((c: any) => <li key={c.id} className="p-2 space-y-1" data-testid={`callback-${c.id}`}>
       <div className="flex flex-wrap justify-between gap-2">
         <span><strong>{c.type}</strong>{c.parts && <span className="ml-1 text-xs rounded bg-amber-100 dark:bg-amber-900/40 px-1.5">parts</span>} · {c.assignedTo || "Anyone"}</span>
         <span className={c.overdue ? "text-destructive font-medium" : "text-muted-foreground"}>{c.overdue ? "Overdue · " : "Due "}{c.dueDate}</span>
@@ -69,7 +70,7 @@ export function CallbacksCard({ kind, id }: { kind: "estimates" | "jobs"; id: nu
           if (r.readyToSchedule) setNotice("All parts are in. This job is now Ready to schedule.");
         })}>{c.parts ? "Mark done / parts received" : "Mark done"}</Button>
       </div>}
-    </li>)}</ul>
+    </li>)}</ul>}
     {done.length > 0 && <details><summary className="cursor-pointer text-muted-foreground">Done callbacks ({done.length})</summary>
       <ul className="mt-2 space-y-1">{done.map((c: any) => <li key={c.id} className="text-xs text-muted-foreground">{c.type} · due {c.dueDate} · done {String(c.doneAt || "").slice(0, 10)}{c.doneBy ? ` by ${c.doneBy}` : ""}{c.doneNote ? ` · ${c.doneNote}` : ""}</li>)}</ul>
     </details>}

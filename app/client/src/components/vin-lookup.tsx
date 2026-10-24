@@ -25,8 +25,8 @@ export function useVinAutofill<T extends Record<string,any>>(setFields:Dispatch<
   });
 }
 
-export function VinLookup({vin,customerId,enabled=true,onDecoded,onUseVehicle,excludeEstimateId}:{
- vin:string;customerId?:number;enabled?:boolean;onDecoded?:(data:any,force?:boolean)=>void;onUseVehicle?:(v:any)=>void;excludeEstimateId?:number;
+export function VinLookup({vin,customerId,enabled=true,onDecoded,onUseVehicle,excludeEstimateId,compact}:{
+ vin:string;customerId?:number;enabled?:boolean;onDecoded?:(data:any,force?:boolean)=>void;onUseVehicle?:(v:any)=>void;excludeEstimateId?:number;compact?:boolean;
 }){
   const normalized=normalizeVin(vin),[settled,setSettled]=useState("");
   const cb=useRef(onDecoded);cb.current=onDecoded;
@@ -58,17 +58,21 @@ export function VinLookup({vin,customerId,enabled=true,onDecoded,onUseVehicle,ex
        d?.clean?<><p><strong>NHTSA match: {vehicleDescription(d)}</strong></p><p className="text-xs text-muted-foreground">{d.bodyClass} · {d.engineInfo} · {d.driveType}</p><p className="text-xs">Available fields filled automatically. Existing manual entries are preserved. Verify trim and equipment; color and upholstery are not inferred.</p><Button type="button" size="sm" variant="outline" onClick={()=>cb.current?.(d,true)}>Use decoded details</Button><a className="ml-3 underline text-xs" href={d.sourceUrl} target="_blank" rel="noreferrer">NHTSA details</a></>:
        d?<><p role="alert">VIN needs review: {d.errorText||"Not enough vehicle data returned."} No fields were automatically filled.</p>{d.suggestedVin&&<p>Provider suggestion: {d.suggestedVin}. Verify it on the vehicle; it was not substituted.</p>}</>:null}
     </div>}
-    {normalized.length>=5&&<div className={`rounded-md border p-3 space-y-2 ${hasPrior?"border-amber-600/40 bg-amber-500/5":"bg-card"}`} aria-live="polite">
+    {normalized.length>=5&&<div className={`rounded-md border ${compact?"px-3 py-1.5":"p-3"} space-y-2 ${hasPrior?"border-amber-600/40 bg-amber-500/5":"bg-card"}`} aria-live="polite">
       {history.isFetching||settled!==normalized?<p>Checking this VIN across shop customer records…</p>:
        history.isError?<><p role="alert">Shop history could not be checked. Do not assume there is no prior work.</p><Button type="button" size="sm" variant="outline" onClick={()=>void history.refetch()}>Retry history lookup</Button></>:
-       h?<><h3 className="font-semibold">{hasPrior?"Prior shop work found for this VIN":h.vehicles.length?"This VIN is already in the shop database":"No matching shop vehicle history found"}</h3>
-        <p>{estimates.length} estimates · {h.invoices.length} invoices · {h.jobs.length} work orders{h.limited?" visible to your role":""}. Exact VIN matches only.</p>
+       h?(()=>{const title=hasPrior?"Prior shop work found for this VIN":h.vehicles.length?"This VIN is already in the shop database":"No matching shop vehicle history found";
+        const counts=`${estimates.length} estimates · ${h.invoices.length} invoices · ${h.jobs.length} work orders${h.limited?" visible to your role":""}. Exact VIN matches only.`;
+        const body=<>
         {h.vehicles.map((v:any)=><div key={v.id} className="border-t pt-2"><p>{v.customer} · <strong>{v.sameCustomer?"Same customer":"Different customer"}</strong></p><p className="text-xs text-muted-foreground">{vehicleDescription(v)}</p>{v.sameCustomer&&onUseVehicle&&<Button type="button" size="sm" variant="outline" className="mt-2" onClick={()=>onUseVehicle(v)}>Use this customer's existing vehicle</Button>}</div>)}
         {(h.vehicles.some((v:any)=>!v.sameCustomer))&&<p className="text-xs">A previous record may belong to a prior owner or dealer. Verify with the customer. No accounts, vehicles or history are merged or transferred automatically.</p>}
         {[["estimates",estimates],["invoices",h.invoices],["jobs",h.jobs]].map(([type,rows]:any)=>(rows as any[]).map(r=><Link key={`${type}-${r.id}`} href={`/${type}/${r.id}`} className="block rounded border p-2 hover:bg-muted"><strong>{r.number}</strong> · {r.status==="sent"&&type==="invoices"?"issued":r.status}<span className="block text-xs">{r.date?.slice(0,10)} · {r.customer} · {r.sameCustomer?"Same customer":"Different customer"} · {r.serviceType?.replace(/_/g," ")}</span></Link>))}
         {h.limited&&<p className="text-xs">Some document history is restricted by your role. Ask a service advisor to review estimates and invoices.</p>}
         <Button type="button" size="sm" variant="ghost" onClick={()=>void history.refetch()}>Recheck shop history</Button>
-       </>:null}
+       </>;
+        // On the estimate page the history is one line; tap it to see the records.
+        return compact?<details><summary className="cursor-pointer"><strong>{title}</strong> <span className="text-xs">{counts}</span></summary><div className="space-y-2 pt-2">{body}</div></details>
+          :<><h3 className="font-semibold">{title}</h3><p>{counts}</p>{body}</>;})():null}
     </div>}
   </div>;
 }

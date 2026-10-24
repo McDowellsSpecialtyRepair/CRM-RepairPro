@@ -18,9 +18,9 @@ function LaborEditor({line,techs,estimateId,disabled,onDirtyChange}: any) {
   const dirty=type!==line.lineType||JSON.stringify(splits)!==JSON.stringify(original);
   useEffect(()=>{onDirtyChange?.(line.id,dirty||busy);},[line.id,dirty,busy,onDirtyChange]);
   useEffect(()=>()=>onDirtyChange?.(line.id,false),[line.id,onDirtyChange]);
-  return <fieldset disabled={disabled || busy} className="rounded-lg border p-4 space-y-3">
-    <div className="flex flex-wrap gap-3 justify-between items-center"><div><p className="font-medium text-sm">{line.description}</p><p className="text-sm text-muted-foreground">{money(Math.round(line.total*100))} before discount</p></div>
-      <select aria-label={`Type for ${line.description}`} className={`${select} w-full sm:w-auto max-w-full`} value={type} onChange={e => {setType(e.target.value);setSaved(false);if(e.target.value==="parts")setSplits([]);}}>
+  return <fieldset disabled={disabled || busy} className="rounded-md border px-3 py-2 space-y-2">
+    <div className="flex flex-wrap gap-x-3 gap-y-2 justify-between items-center"><p className="text-sm min-w-0"><span className="font-medium">{line.description}</span> <span className="text-muted-foreground whitespace-nowrap">· {money(Math.round(line.total*100))} before discount</span></p>
+      <select aria-label={`Type for ${line.description}`} className={`${select} h-11 sm:h-9 w-full sm:w-auto max-w-full`} value={type} onChange={e => {setType(e.target.value);setSaved(false);if(e.target.value==="parts")setSplits([]);}}>
         <option value="legacy" disabled>Needs classification</option><option value="parts" disabled={line.serviceCategory==="fabrication"}>Non-labor: materials / freight / supplies</option><option value="labor" disabled={nonLaborCategory(line.serviceCategory)}>Labor</option>
       </select></div>
     {type==="labor" && <div className="space-y-2">{splits.map((s,i) => <div key={i} className="flex flex-wrap gap-2 items-center">
@@ -44,7 +44,7 @@ export function EstimateLabor({id,locked,onDirtyChange}: {id:string;locked:boole
   const setLineDirty=useCallback((lineId:number,dirty:boolean)=>setDirtyLines(prev=>prev[lineId]===dirty?prev:{...prev,[lineId]:dirty}),[]);
   const dirty=Object.values(dirtyLines).some(Boolean);
   useEffect(()=>{onDirtyChange?.(dirty);},[dirty,onDirtyChange]);
-  return <Card><CardContent className="pt-5 space-y-4"><h2 className="font-semibold">Labor & multiple technicians</h2><p className="text-sm text-muted-foreground">Split each labor line among the technicians who produced it. Labor credit excludes materials, freight, supplies and customer tax. Category determines sales tax: repair labor is separate from taxable new fabrication. Lead technician in planning does not allocate labor sales automatically.</p>
+  return <Card><CardContent className="p-3 sm:p-3 space-y-2"><h2 className="font-semibold text-sm">Labor & multiple technicians</h2><p className="text-xs text-muted-foreground">Split each labor line among the technicians who produced it. Labor credit excludes materials, freight, supplies and customer tax. Category determines sales tax: repair labor is separate from taxable new fabrication. Lead technician in planning does not allocate labor sales automatically.</p>
     {(data.error||techs.error) && <p role="alert">Could not load labor assignments. Try reopening this estimate.</p>}
     {data.data?.some(l=>l.lineType==="legacy") && <p className="text-sm text-amber-700 dark:text-amber-400">Existing lines require classification before this estimate can be reapproved or invoiced. Previously issued invoices remain unchanged.</p>}
     {data.data?.filter(l=>l.lineType!=="parts").map(l=><LaborEditor key={`${l.id}-${l.allocationVersion}`} line={l} techs={(techs.data||[]).filter(t=>t.status==="active")} estimateId={id} disabled={locked||!can("estimates.write")} onDirtyChange={setLineDirty}/>)}
@@ -65,15 +65,15 @@ export function DeliveryStatus({type,id}: {type:"estimate"|"invoice";id:string})
   const {can} = useAuth();
   const [notice,setNotice] = useState(""),[busy,setBusy] = useState(false);
   const data=useQuery<any>({queryKey:["/api/delivery",type,id],queryFn:()=>apiRequest("GET",`/api/delivery/${type}/${id}`)});
-  return <Card><CardContent className="pt-5 space-y-3"><h2 className="font-semibold">Delivery status</h2>
-    <p className="text-sm">Test email is restricted to <strong>service@mcdowellsrepair.com</strong>. Issued or approved does not mean delivered.</p>
-    <div className="flex flex-wrap gap-2"><span className="text-sm border rounded px-3 py-2">Email: {data.data?.emailConfigured?"configured":"not configured"}</span><Button variant="outline" disabled>Text / SMS: not connected</Button><Button variant="outline" disabled>WhatsApp: setup paused</Button></div>
+  return <Card><CardContent className="p-3 sm:p-3 space-y-2"><h2 className="font-semibold text-sm">Delivery status</h2>
+    <p className="text-xs">Test email is restricted to <strong>service@mcdowellsrepair.com</strong>. Issued or approved does not mean delivered.</p>
+    <div className="flex flex-wrap gap-1.5 [&>button]:h-8 [&>button]:px-2 [&>button]:text-xs"><span className="text-xs border rounded px-2 py-1.5">Email: {data.data?.emailConfigured?"configured":"not configured"}</span><Button variant="outline" disabled>Text / SMS: not connected</Button><Button variant="outline" disabled>WhatsApp: setup paused</Button></div>
     <p className="text-xs text-muted-foreground">No automatic text or WhatsApp messages will be attempted. Setup can resume after your social media team restores access.</p>
     {type==="invoice" && can("billing.write") && data.data && !data.data.emailConfigured && <Button variant="outline" disabled={busy} onClick={async()=>{setBusy(true);try{const r=await apiRequest("POST",`/api/invoices/${id}/email`,{});setNotice(r.message);await data.refetch();}catch(e:any){setNotice(e.message);}finally{setBusy(false);}}}>{busy?"Preparing…":"Prepare test email (not sent)"}</Button>}
     {notice && <p role="status" className="text-sm">{notice}</p>}
     {data.isError && <p role="alert">Could not load delivery history.</p>}
     {data.data?.attempts.map((a:any)=><div key={a.id} className="text-sm border-t pt-2"><p>{a.channel} · {a.state.replace(/_/g," ")} · {a.recipient}</p><p className="text-xs text-muted-foreground">{a.detail} {new Date(a.created_at).toLocaleString()}</p></div>)}
-    {data.data?.attempts.length===0 && <p className="text-sm text-muted-foreground">No provider delivery record exists. Do not assume this document has been sent.</p>}
+    {data.data?.attempts.length===0 && <p className="text-xs text-muted-foreground">No provider delivery record exists. Do not assume this document has been sent.</p>}
   </CardContent></Card>;
 }
 export default function TechnicianLaborReport() {

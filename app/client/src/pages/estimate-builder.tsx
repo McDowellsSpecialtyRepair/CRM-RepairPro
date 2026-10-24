@@ -431,20 +431,26 @@ export default function EstimateBuilder() {
       {/* Wide screens: estimate details on the left, people, marketing tags and callbacks beside them */}
       <div className="grid gap-2 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-start">
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-4">
           <div className="flex items-start justify-between flex-wrap gap-4">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
+            <div className="space-y-2 min-w-0 w-full">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <h1 className="text-xl font-bold" style={{ fontFamily: "'Satoshi', sans-serif" }}>
                   {estimate.estimateNumber}
                 </h1>
                 <Badge variant="secondary" className={statusColors[estimate.status] || ""}>
                   {estimate.status}
                 </Badge>
+                {/* Service type & dates, on the same line as the estimate number */}
+                <span className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>Service: <span className="font-medium text-foreground">{SERVICE_LABELS[estimate.serviceType] || estimate.serviceType?.replace(/_/g, " ") || "N/A"}</span></span>
+                  <span>Created: <span className="font-medium text-foreground">{new Date(estimate.createdAt).toLocaleDateString()}</span></span>
+                  <span>Valid until: <span className="font-medium text-foreground">{estimate.validUntil || "N/A"}</span></span>
+                </span>
               </div>
 
               {/* Customer info */}
-              <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
                 <div className="flex items-center gap-1.5">
                   <User className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="font-medium">{customerName}</span>
@@ -465,16 +471,10 @@ export default function EstimateBuilder() {
                     {linkedVehicle.vin && <span className="text-xs text-muted-foreground font-mono">VIN: {linkedVehicle.vin}</span>}
                   </div>
                 )}
+                {estimate.status!=="invoiced" && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" data-testid="button-assign-estimate-item" onClick={()=>setAssignOpen(true)}>{estimate.assetId||estimate.vehicleId?"Change linked item":"Assign vehicle / item"}</Button>}
               </div>
 
-              {linkedVehicle?.vin&&<VinLookup vin={linkedVehicle.vin} customerId={estimate.customerId} excludeEstimateId={estimate.id}/>}
-              {estimate.status!=="invoiced" && <Button variant="outline" size="sm" data-testid="button-assign-estimate-item" onClick={()=>setAssignOpen(true)}>{estimate.assetId||estimate.vehicleId?"Change linked item":"Assign vehicle / item"}</Button>}
-              {/* Service type & dates */}
-              <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
-                <span>Service: <span className="font-medium text-foreground">{SERVICE_LABELS[estimate.serviceType] || estimate.serviceType?.replace(/_/g, " ") || "N/A"}</span></span>
-                <span>Created: <span className="font-medium text-foreground">{new Date(estimate.createdAt).toLocaleDateString()}</span></span>
-                <span>Valid until: <span className="font-medium text-foreground">{estimate.validUntil || "N/A"}</span></span>
-              </div>
+              {linkedVehicle?.vin&&<VinLookup compact vin={linkedVehicle.vin} customerId={estimate.customerId} excludeEstimateId={estimate.id}/>}
 
               {/* Insurance info */}
               {(estimate.insuranceClaim || estimate.insuranceAdjuster) && (
@@ -653,7 +653,7 @@ export default function EstimateBuilder() {
                 </table>
               </div>
 
-              <details className="mt-4 rounded-lg border px-3 py-2" open={lineItems.some((l:any)=>l.lineType==="legacy")} data-testid="details-labor"><summary className="cursor-pointer text-sm font-medium py-1">Technician labor splits (who did the labor)</summary>
+              <details className="mt-4 rounded-lg border px-3 py-2" open={estimate.status==="invoiced"&&lineItems.some((l:any)=>l.lineType==="legacy")} data-testid="details-labor"><summary className="cursor-pointer text-sm font-medium py-1">Technician labor splits (who did the labor)</summary>
                 <div className="mt-2"><EstimateLabor id={id!} locked={estimate.status === "invoiced"} onDirtyChange={setLaborDirty}/></div></details>
               <details className="mt-2 rounded-lg border px-3 py-2" data-testid="details-material-costs"><summary className="cursor-pointer text-sm font-medium py-1">Material costs & use tax (internal)</summary>
                 <div className="mt-2"><EstimateCommercial estimate={estimate}/></div></details>
@@ -813,8 +813,9 @@ export default function EstimateBuilder() {
           </Card>
           {/* Estimate actions and delivery */}
           <Card data-testid="card-estimate-actions">
-            <CardHeader className="pb-3"><CardTitle className="text-base">Approval and delivery</CardTitle></CardHeader>
-            <CardContent className="flex flex-col gap-2">
+            <CardHeader className="p-3 pb-2 sm:p-3 sm:pb-2"><CardTitle className="text-sm">Approval and delivery</CardTitle></CardHeader>
+            {/* Two buttons per row instead of one long stack */}
+            <CardContent className="p-3 pt-0 sm:p-3 sm:pt-0 grid grid-cols-2 gap-2 [&>*:last-child]:col-span-2 [&>p]:col-span-2 [&>div]:col-span-2">
               {estimate.status !== "invoiced" && estimate.status !== "rejected" && (
                 <Button
                   variant="outline"
