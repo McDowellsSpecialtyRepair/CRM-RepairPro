@@ -199,7 +199,7 @@ export default function StaffAccess() {
             <CardContent className="pt-5">
               <h2 className="font-semibold mb-3">Invite a staff member</h2>
               <form
-                className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3"
+                className="field-row"
                 onSubmit={(e) => {
                   e.preventDefault();
                   void action(async () => {
@@ -263,7 +263,7 @@ export default function StaffAccess() {
                 <Button
                   type="submit"
                   disabled={busy}
-                  className="sm:col-span-2 xl:col-span-4 min-h-11"
+                  className="field-auto min-h-11 px-6"
                 >
                   Create invitation
                 </Button>
@@ -279,7 +279,7 @@ export default function StaffAccess() {
             <Card>
               <CardContent className="pt-5 space-y-3">
                 <h2 className="font-semibold">Manage {editing.fullName}</h2>
-                <div className="grid sm:grid-cols-3 gap-3">
+                <div className="field-row">
                   <label className="text-sm">
                     Role
                     {roleSelect(editing.role, (role) =>
@@ -465,7 +465,7 @@ export default function StaffAccess() {
             feature's installation; earlier history is not invented. Audit dates
             below are UTC.
           </p>
-          <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-3">
+          <div className="field-row">
             {(["actor", "entity", "event", "from", "to"] as const).map((k) => (
               <label key={k} className="text-xs capitalize">
                 {k === "actor" ? "Staff ID" : k}
@@ -749,7 +749,11 @@ export function MyWork() {
               <p className="text-xs text-muted-foreground">
                 Scheduled: {j.scheduledDate || "Not scheduled"}
                 {j.vin ? ` · VIN ${j.vin}` : ""}
+                {j.priority && j.priority !== "normal" ? ` · ${j.priority} urgency` : ""}
               </p>
+              {j.address && j.address.replace(/[ ,]/g, "") && <p className="text-sm">Where: {j.address}</p>}
+              {j.phone && <p className="text-sm">Customer phone: <a className="underline" href={`tel:${String(j.phone).replace(/[^0-9+]/g, "")}`}>{j.phone}</a></p>}
+              {j.appointments?.length > 0 && <p className="text-sm" data-testid={`my-work-appointments-${j.id}`}>Your booked times: {j.appointments.map((a: any) => `${a.date} ${a.startTime}–${a.endTime}`).join("; ")}</p>}
             </div>
             <AssignedWorkScope id={j.id} />
             <div className="flex flex-wrap gap-2">

@@ -167,13 +167,13 @@ export default function Jobs() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((job: any) => (
             <Card key={job.id} className="relative hover:shadow-md hover:border-primary/50 transition-shadow" data-testid={`card-job-${job.id}`}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-2">
                   <Link href={`/jobs/${job.id}`} className="min-w-0 after:absolute after:inset-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" data-testid={`link-job-${job.id}`}>
-                    <div className="text-xs text-muted-foreground">{job.jobNumber}</div>
+                    <div className="text-xs text-muted-foreground">{job.jobNumber}{job.estimateNumbers?.length ? ` · Estimate ${job.estimateNumbers.join(", ")}` : ""}</div>
                     <div className="text-sm font-medium truncate">{job.title}</div>
                     {job.customerId && (
                       <div className="text-[10px] text-muted-foreground mt-0.5">{customerName(job.customerId)}</div>

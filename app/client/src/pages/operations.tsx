@@ -281,19 +281,19 @@ export default function OperationsDashboard() {
           </Button>
         </div>
       </header>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="field-row items-end">
         <SelectField
-          label="Department"
+          label="Technician group"
           value={department}
           onChange={setDepartment}
-          options={[{ value: "", label: "All departments" }, ...DEPARTMENTS]}
+          options={[{ value: "", label: "All technician groups" }, ...DEPARTMENTS]}
         />
         <Field
           label="Find customer, estimate or technician"
           value={search}
           onChange={setSearch}
         />
-        <p className="text-xs text-muted-foreground self-end py-2">
+        <p className="field-auto text-xs text-muted-foreground self-end py-2">
           {d
             ? `As of ${d.today} · Boise time. Current queues, not a monthly sales report.`
             : "Loading current operations…"}
@@ -307,21 +307,22 @@ export default function OperationsDashboard() {
       )}
       {d && (
         <>
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+          {/* Small summary tiles: up to 8 across on a wide screen, 4 on a tablet, 2 on a phone */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 2xl:grid-cols-8 gap-2">
             {cards.map((c) => (
               <button
                 key={c.label}
                 onClick={c.action}
-                className="text-left rounded-xl border bg-card p-4 hover:border-primary/60 focus-visible:outline-primary"
+                className="text-left rounded-lg border bg-card px-3 py-2 hover:border-primary/60 focus-visible:outline-primary"
               >
-                <div className="flex gap-2 justify-between text-sm text-muted-foreground">
+                <div className="flex gap-1 justify-between text-xs text-muted-foreground">
                   {c.label}
-                  <ArrowUpRight className="h-4 w-4 shrink-0" />
+                  <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
                 </div>
-                <div className="text-xl font-bold tabular-nums mt-3">
+                <div className="text-lg font-bold tabular-nums leading-tight mt-0.5">
                   {c.value}
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">{c.sub}</p>
+                <p className="text-[11px] leading-tight text-muted-foreground mt-0.5">{c.sub}</p>
               </button>
             ))}
           </div>
@@ -640,7 +641,7 @@ export default function OperationsDashboard() {
                 {d.period.label}. Do not use the full-history approval rate as a
                 monthly advisor score.
               </p>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-6 gap-2">
                 {[
                   [
                     "Presented estimate conversion",
@@ -821,7 +822,7 @@ function FollowupEditor({ estimate: e, owners, onClose, canEdit }: any) {
         <Link className="text-sm underline" href={`/estimates/${e.id}`}>Open full estimate & assignments</Link>
         <fieldset
           disabled={!canEdit || busy}
-          className="grid sm:grid-cols-2 gap-3"
+          className="field-row"
         >
           <SelectField
             label="Responsible advisor"
@@ -1009,10 +1010,10 @@ function ProductionEditor({ record: c, refresh }: any) {
           <h2 className="font-semibold">Production, readiness & promise</h2>
           <fieldset
             disabled={!edit || busy}
-            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3"
+            className="field-row"
           >
             <SelectField
-              label="Production department"
+              label="Production technician group"
               value={draft.department}
               onChange={(v: string) => setDraft({ ...draft, department: v })}
               options={DEPARTMENTS}
@@ -1189,7 +1190,7 @@ function ProductionEditor({ record: c, refresh }: any) {
                       .map((t) => ({ value: t.id, label: t.name })),
                   ]}
                 />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="field-row">
                   <Field
                     label="Work date"
                     type="date"
@@ -1335,7 +1336,7 @@ function TaskEditor({ task: t, disabled, refresh }: any) {
           {t.completed_at ? "Completed" : "Unfinished"}
         </span>
       </div>
-      <div className="grid sm:grid-cols-2 gap-3">
+      <div className="field-row">
         <Field
           label={`Estimated minutes: ${t.description}`}
           type="number"

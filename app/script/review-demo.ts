@@ -26,7 +26,7 @@ for(const scenario of scenarios){
    examples.push({...scenario,customerId:c.id,estimateId:e.id});continue;
  }
  await api("PATCH",`/api/estimates/${e.id}`,{status:"approved"});
- let p=await api("POST","/api/operations/start",{estimateId:e.id,department:"Interior Repair"});
+ let p=await api("POST","/api/operations/start",{estimateId:e.id,department:"MI - Mobile Interior"});
  const patch=(p:any,more:any={})=>({version:p.version,department:p.department,promisedDate:addDays(localToday(),2),forecastDate:addDays(localToday(),1),holdReason:p.hold_reason,partsReady:true,qc:p.qc,costComplete:!!p.cost_complete,notes:"Synthetic example, not actual customer activity",action:"save",...more});
  p=await api("PATCH",`/api/operations/cases/${p.id}`,patch(p,scenario.stage==="in_progress"?{action:"start"}:scenario.stage==="on_hold"?{holdReason:"Parts / materials",partsReady:false}:{}));
  if(scenario.stage==="completed"){

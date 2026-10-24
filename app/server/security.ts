@@ -27,6 +27,17 @@ sqlite.function("staff_actor_id", () => securityContext.getStore()?.userId || nu
 sqlite.function("staff_actor_label", () => actorLabel());
 sqlite.function("staff_request_id", () => securityContext.getStore()?.requestId || "system");
 
+// Private Codespaces demo only: the sign-in screen offers a one-click demo sign-in. All three must hold: the
+// server was started by .devcontainer/demo.sh (which passes the login), the database is a demo-data database,
+// and the account exists. A real database never qualifies, so this can't expose a real login.
+function demoSignIn() {
+  const raw = process.env.REPAIRPRO_DEMO_SIGNIN || "";
+  const [email, password] = raw.split(" ");
+  if (!email || !password || !process.argv.some(a => a.startsWith("--repairpro-demo-port="))) return {};
+  const demo = !!sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='app_migrations'").get() && !!sqlite.prepare("SELECT 1 FROM app_migrations WHERE version='demo-data-v1'").get();
+  if (!demo || !row("SELECT id FROM staff_accounts WHERE email=? AND status='active'", email)) return {};
+  return { demoSignIn: { email, password } };
+}
 export function initializeSecurity() {
   sqlite.transaction(() => {
     sqlite.exec(`
@@ -252,7 +263,7 @@ export function registerSecurity(app: Express) {
   const handle = (fn: (req: Request, res: Response) => any) => async (req: Request, res: Response) => {
     try { await fn(req, res); } catch (e: any) { res.status(e.status || 400).json({ error: String(e.message || "Request failed.") }); }
   };
-  app.get("/api/auth/status", (_req, res) => res.json({ authenticationRequired: true, setupRequired:row("SELECT COUNT(*) n FROM staff_accounts").n===0, selfRegistration: false, idleMinutes: 30, sessionHours: 8 }));
+  app.get("/api/auth/status", (_req, res) => res.json({ authenticationRequired: true, setupRequired:row("SELECT COUNT(*) n FROM staff_accounts").n===0, selfRegistration: false, idleMinutes: 30, sessionHours: 8, ...demoSignIn() }));
   app.post("/api/auth/login", handle(async (req, res) => {
     fields(req.body, ["email","password"]);
     // Lockout is per email *and* network address, so another client cannot lock a staff member
@@ -399,10 +410,13 @@ export function registerSecurity(app: Express) {
     const id = res.locals.staff.technician_id;
     if (!id) return res.json([]);
     // No invoices, pricing, private customer notes or unrelated records.
-    res.json(rows(`SELECT j.id,j.job_number AS jobNumber,j.title,j.service_type AS serviceType,j.status,j.scheduled_date AS scheduledDate,j.completed_date AS completedDate,
-      c.company_name AS companyName,c.first_name AS firstName,c.last_name AS lastName,
-      v.year,v.make,v.model,v.vin FROM jobs j JOIN customers c ON c.id=j.customer_id LEFT JOIN vehicles v ON v.id=j.vehicle_id
-      WHERE j.assigned_tech_id=? ORDER BY j.scheduled_date,j.id`, id));
+    // Includes where to go and whom to call (address and phone) and this technician's booked times.
+    const jobs = rows(`SELECT j.id,j.job_number AS jobNumber,j.title,j.service_type AS serviceType,j.status,j.priority,j.scheduled_date AS scheduledDate,j.completed_date AS completedDate,
+      c.company_name AS companyName,c.first_name AS firstName,c.last_name AS lastName,coalesce(nullif(c.mobile,''),c.phone) AS phone,
+      trim(coalesce(c.address,'')||', '||coalesce(c.city,'')||' '||coalesce(c.state,'')||' '||coalesce(c.zip,''),', ') AS address,
+      v.year,v.make,v.model,v.color,v.vin FROM jobs j JOIN customers c ON c.id=j.customer_id LEFT JOIN vehicles v ON v.id=j.vehicle_id
+      WHERE j.assigned_tech_id=? ORDER BY j.scheduled_date,j.id`, id);
+    res.json(jobs.map((j: any) => ({ ...j, appointments: rows("SELECT date,start_time AS startTime,end_time AS endTime,status FROM schedule_slots WHERE job_id=? AND technician_id=? AND status NOT IN ('cancelled') ORDER BY date,start_time", j.id, id) })));
   });
   app.post("/api/my-work/:id/:action", handle((req, res) => {
     const job = row("SELECT * FROM jobs WHERE id=? AND assigned_tech_id=?", Number(req.params.id), res.locals.staff.technician_id || -1);

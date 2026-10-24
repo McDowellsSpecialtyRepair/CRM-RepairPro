@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { EstimatePeople } from "@/components/estimate-people";
+import { NumberInput } from "@/components/ui/number-input";
 import { SERVICE_LABELS, ASSET_TYPE_LABELS } from "@/lib/services";
 import { apiRequest, printDocument } from "@/lib/queryClient";
 import { EstimateLabor, DeliveryStatus } from "@/components/labor-sales";
@@ -22,6 +24,11 @@ import {NewEstimateDialog} from "@/components/new-estimate-dialog";
 import {categoriesFor,categoryAllowed,templateAllowed,nonLaborCategory,categoryTaxable,repairActionsFor,customerLineLabel,documentBreakdown} from "@shared/estimate-rules";
 import {DocumentBreakdown} from "@/components/document-breakdown";
 import {EstimateCommercial} from "@/components/estimate-commercial";
+import {DiscountEditor} from "@/components/discount-editor";
+import {EstimateMarketing} from "@/components/estimate-marketing";
+import {ChangeHistory} from "@/components/change-history";
+import {CallbacksCard} from "@/components/callbacks-card";
+import {OldLinesFix} from "@/components/old-lines-fix";
 import {useAuth} from "@/components/auth-provider";
 
 const formatCurrency = (n: number) =>
@@ -102,12 +109,14 @@ export default function EstimateBuilder() {
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");
   const [editingDiscount, setEditingDiscount] = useState(false);
-  const [discountDraft, setDiscountDraft] = useState("0");
+  const [marketingDirty, setMarketingDirty] = useState(false);
+  // The line form opens only when adding or editing a line, so the estimate fits on screen.
+  const [lineFormOpen, setLineFormOpen] = useState(false);
   const [assignOpen,setAssignOpen] = useState(false);
   const [editingLine,setEditingLine]=useState<any>(null);
   const [taxDraft,setTaxDraft]=useState("");
   const [salesDirty,setSalesDirty]=useState(false),[laborDirty,setLaborDirty]=useState(false);
-  const unsavedEdits=salesDirty||laborDirty||!!editingLine||!!newItem.description.trim()||editingDiscount||editingNotes;
+  const unsavedEdits=salesDirty||marketingDirty||laborDirty||!!editingLine||!!newItem.description.trim()||editingDiscount||editingNotes;
   useEffect(()=>setTaxDraft(String(estimate?.taxRate??0)),[estimate?.taxRate,id]);
   const allowedCategories=categoriesFor(estimate?.serviceType||"");
   const allowedTemplates=(serviceTemplates||[]).filter((t:any)=>templateAllowed(estimate?.serviceType,t));
@@ -158,7 +167,7 @@ export default function EstimateBuilder() {
         damageSize: "",
         damageSeverity: "moderate",
       });
-      setEditingLine(null);
+      setEditingLine(null);setLineFormOpen(false);
     },
   });
 
@@ -235,7 +244,7 @@ export default function EstimateBuilder() {
     setNewItem(prev => ({ ...prev, serviceCategory: v, unit: cat?.defaultUnit || "each",lineType:nonLaborCategory(v)?"parts":"labor",useTaxRate:0,taxNote:"",damageSize:"",repairAction:v==="fabrication"?"fabricate":"repair" }));
   };
   const startLine=(category:string)=>{
-    setEditingLine(null);
+    setEditingLine(null);setLineFormOpen(true);
     setNewItem({lineType:nonLaborCategory(category)?"parts":"labor",serviceCategory:category,description:"",quantity:1,unit:allowedCategories.find(c=>c.value===category)?.defaultUnit||"each",unitPrice:0,panelLocation:"",damageSize:"",damageSeverity:"moderate",unitCost:0,useTaxRate:0,taxNote:"",repairAction:"repair"});
     document.getElementById("estimate-line-editor")?.scrollIntoView({block:"start"});
   };
@@ -288,10 +297,6 @@ export default function EstimateBuilder() {
 
   const handleSaveNotes = () => {
     updateEstimate.mutate({ notes: notesDraft },{onSuccess:()=>setEditingNotes(false)});
-  };
-
-  const handleSaveDiscount = () => {
-    updateEstimate.mutate({ discount: Number(discountDraft) || 0 },{onSuccess:()=>setEditingDiscount(false)});
   };
 
   if (isLoading || !estimate) {
@@ -423,21 +428,29 @@ export default function EstimateBuilder() {
       {/* 1. Estimate information, customer and vehicle */}
       <section aria-labelledby="estimate-section-1" className="space-y-2" data-testid="estimate-section-1">
       <SectionHeading id="estimate-section-1" n={1}>Estimate information, customer and vehicle</SectionHeading>
+      {/* Wide screens: estimate details on the left, people, marketing tags and callbacks beside them */}
+      <div className="grid gap-2 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-start">
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-4">
           <div className="flex items-start justify-between flex-wrap gap-4">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
+            <div className="space-y-2 min-w-0 w-full">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <h1 className="text-xl font-bold" style={{ fontFamily: "'Satoshi', sans-serif" }}>
                   {estimate.estimateNumber}
                 </h1>
                 <Badge variant="secondary" className={statusColors[estimate.status] || ""}>
                   {estimate.status}
                 </Badge>
+                {/* Service type & dates, on the same line as the estimate number */}
+                <span className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>Service: <span className="font-medium text-foreground">{SERVICE_LABELS[estimate.serviceType] || estimate.serviceType?.replace(/_/g, " ") || "N/A"}</span></span>
+                  <span>Created: <span className="font-medium text-foreground">{new Date(estimate.createdAt).toLocaleDateString()}</span></span>
+                  <span>Valid until: <span className="font-medium text-foreground">{estimate.validUntil || "N/A"}</span></span>
+                </span>
               </div>
 
               {/* Customer info */}
-              <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
                 <div className="flex items-center gap-1.5">
                   <User className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="font-medium">{customerName}</span>
@@ -458,16 +471,10 @@ export default function EstimateBuilder() {
                     {linkedVehicle.vin && <span className="text-xs text-muted-foreground font-mono">VIN: {linkedVehicle.vin}</span>}
                   </div>
                 )}
+                {estimate.status!=="invoiced" && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" data-testid="button-assign-estimate-item" onClick={()=>setAssignOpen(true)}>{estimate.assetId||estimate.vehicleId?"Change linked item":"Assign vehicle / item"}</Button>}
               </div>
 
-              {linkedVehicle?.vin&&<VinLookup vin={linkedVehicle.vin} customerId={estimate.customerId} excludeEstimateId={estimate.id}/>}
-              {estimate.status!=="invoiced" && <Button variant="outline" size="sm" data-testid="button-assign-estimate-item" onClick={()=>setAssignOpen(true)}>{estimate.assetId||estimate.vehicleId?"Change linked item":"Assign vehicle / item"}</Button>}
-              {/* Service type & dates */}
-              <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
-                <span>Service: <span className="font-medium text-foreground">{SERVICE_LABELS[estimate.serviceType] || estimate.serviceType?.replace(/_/g, " ") || "N/A"}</span></span>
-                <span>Created: <span className="font-medium text-foreground">{new Date(estimate.createdAt).toLocaleDateString()}</span></span>
-                <span>Valid until: <span className="font-medium text-foreground">{estimate.validUntil || "N/A"}</span></span>
-              </div>
+              {linkedVehicle?.vin&&<VinLookup compact vin={linkedVehicle.vin} customerId={estimate.customerId} excludeEstimateId={estimate.id}/>}
 
               {/* Insurance info */}
               {(estimate.insuranceClaim || estimate.insuranceAdjuster) && (
@@ -516,6 +523,12 @@ export default function EstimateBuilder() {
           </div>
         </CardContent>
       </Card>
+      <div className="space-y-2 min-w-0">
+      <EstimatePeople key={`people-${estimate.id}`} kind="estimates" id={estimate.id} locked={estimate.status === "invoiced"} onDirtyChange={setSalesDirty} />
+      <EstimateMarketing key={`marketing-${estimate.id}`} estimateId={estimate.id} customerId={estimate.customerId} locked={estimate.status === "invoiced"} onDirtyChange={setMarketingDirty} />
+      <CallbacksCard key={`callbacks-${estimate.id}`} kind="estimates" id={estimate.id} />
+      </div>
+      </div>
       </section>
 
       {/* 2. Vehicle damage mapping and individual dent details */}
@@ -539,7 +552,7 @@ export default function EstimateBuilder() {
       <section aria-labelledby="estimate-section-3" className="space-y-4" data-testid="estimate-section-3">
       <SectionHeading id="estimate-section-3" n={3}>Pricing, line items, totals and delivery</SectionHeading>
       {estimate.serviceType === "pdr" && <DentBillingPanel estimate={estimate} readOnly={!can("estimates.write") || estimate.status === "invoiced"} />}
-      {unsavedEdits&&<p role="status" className="rounded-md border p-3 text-sm">Unsaved estimate changes. Save or cancel the line, notes, discount or staff assignments before approving, sending or invoicing.</p>}
+      {unsavedEdits&&<p role="status" className="rounded-md border p-3 text-sm">Unsaved estimate changes. Save or cancel the line, notes, discount, marketing source or staff assignments before approving, sending or invoicing.</p>}
       {(addLineItem.error || deleteLineItem.error || updateEstimate.error || convertToInvoice.error) && (
         <p role="alert" className="rounded-md border border-destructive/30 p-3 text-sm text-destructive">
           {(addLineItem.error || deleteLineItem.error || updateEstimate.error || convertToInvoice.error)?.message}
@@ -585,18 +598,19 @@ export default function EstimateBuilder() {
               </div>
             </CardHeader>
             <CardContent>
+              {estimate.status!=="invoiced"&&<OldLinesFix key={`old-${estimate.id}-${lineItems.length}`} estimate={estimate} lines={lineItems}/>}
               {lineItems.some((l:any)=>!categoryAllowed(estimate.serviceType,l.serviceCategory)||nonLaborCategory(l.serviceCategory)&&l.lineType!=="parts")&&<p role="alert" className="mb-4 text-sm text-destructive">This estimate contains an unrelated service or a non-labor charge classified as labor. Edit the affected lines before approval, sending or invoicing. Historical prices have not been silently changed.</p>}
               <div className="flex flex-wrap gap-2 mb-4"><Button variant="outline" disabled={estimate.status==="invoiced"} onClick={()=>startLine(defaultCategoryFor[estimate.serviceType])}>Add repair</Button><Button variant="outline" disabled={estimate.status==="invoiced"} onClick={()=>startLine("material")}>Add materials</Button><Button variant="outline" disabled={estimate.status==="invoiced"} onClick={()=>startLine("freight_in")}>Add freight</Button></div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-xs text-muted-foreground">
-                      <th className="text-left font-medium pb-2 pr-3">Category</th>
+                      <th className="hidden sm:table-cell text-left font-medium pb-2 pr-3">Category</th>
                       <th className="text-left font-medium pb-2 pr-3">Description</th>
-                      <th className="text-left font-medium pb-2 pr-3">Repair area</th>
-                      {["pdr","hail"].includes(estimate.serviceType)&&<th className="text-left font-medium pb-2 pr-3">Dent size</th>}
+                      <th className="hidden sm:table-cell text-left font-medium pb-2 pr-3">Repair area</th>
+                      {["pdr","hail"].includes(estimate.serviceType)&&<th className="hidden sm:table-cell text-left font-medium pb-2 pr-3">Dent size</th>}
                       <th className="text-right font-medium pb-2 pr-3">Qty</th>
-                      <th className="text-right font-medium pb-2 pr-3">Unit Price</th>
+                      <th className="hidden sm:table-cell text-right font-medium pb-2 pr-3">Unit Price</th>
                       <th className="text-right font-medium pb-2 pr-3">Total</th>
                       <th className="pb-2"></th>
                     </tr>
@@ -604,17 +618,19 @@ export default function EstimateBuilder() {
                   <tbody>
                     {lineItems.map((item: any) => (
                       <tr key={item.id} className="border-b border-border/50" data-testid={`row-line-item-${item.id}`}>
-                        <td className="py-2.5 pr-3">
+                        <td className="hidden sm:table-cell py-2.5 pr-3">
                           <Badge variant="secondary" className="text-xs">{customerLineLabel(item)}</Badge>
                         </td>
-                        <td className="py-2.5 pr-3 text-sm">{item.description}</td>
-                        <td className="py-2.5 pr-3 text-xs text-muted-foreground">{item.panelLocation || "-"}</td>
-                        {["pdr","hail"].includes(estimate.serviceType)&&<td className="py-2.5 pr-3 text-xs text-muted-foreground">{item.damageSize || "-"}</td>}
+                        <td className="py-2.5 pr-3 text-sm"><span>{item.description}</span>
+                          {/* On a phone the category, area and unit price show under the description instead of in their own columns */}
+                          <div className="sm:hidden mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground"><Badge variant="secondary" className="text-xs">{customerLineLabel(item)}</Badge>{item.panelLocation&&<span>{item.panelLocation}</span>}{item.damageSize&&<span>· {item.damageSize}</span>}<span>· {formatCurrency(item.unitPrice)} each</span></div></td>
+                        <td className="hidden sm:table-cell py-2.5 pr-3 text-xs text-muted-foreground">{item.panelLocation || "-"}</td>
+                        {["pdr","hail"].includes(estimate.serviceType)&&<td className="hidden sm:table-cell py-2.5 pr-3 text-xs text-muted-foreground">{item.damageSize || "-"}</td>}
                         <td className="py-2.5 pr-3 text-right tabular-nums whitespace-nowrap">{item.quantity} {item.unit}</td>
-                        <td className="py-2.5 pr-3 text-right tabular-nums">{formatCurrency(item.unitPrice)}</td>
+                        <td className="hidden sm:table-cell py-2.5 pr-3 text-right tabular-nums">{formatCurrency(item.unitPrice)}</td>
                         <td className="py-2.5 pr-3 text-right font-medium tabular-nums">{formatCurrency(item.total)}</td>
-                        <td className="py-2.5">
-                          <button type="button" disabled={estimate.status==="invoiced"} className="text-primary underline mr-3" onClick={()=>{setEditingLine(item);setNewItem({lineType:item.lineType==="legacy"?(nonLaborCategory(item.serviceCategory)?"parts":"labor"):item.lineType,serviceCategory:item.serviceCategory,description:item.description,quantity:item.quantity,unit:item.unit,unitPrice:item.unitPrice,panelLocation:item.panelLocation||"",damageSize:item.damageSize||"",damageSeverity:item.damageSeverity||"moderate",unitCost:item.unitCost||0,useTaxRate:item.useTaxRate||0,taxNote:item.taxNote||"",repairAction:item.repairAction||"repair"});document.getElementById("estimate-line-editor")?.scrollIntoView({block:"start"});}}>Edit</button>
+                        <td className="py-2.5 whitespace-nowrap">
+                          <button type="button" disabled={estimate.status==="invoiced"} className="text-primary underline mr-3" onClick={()=>{setLineFormOpen(true);setEditingLine(item);setNewItem({lineType:item.lineType==="legacy"?(nonLaborCategory(item.serviceCategory)?"parts":"labor"):item.lineType,serviceCategory:item.serviceCategory,description:item.description,quantity:item.quantity,unit:item.unit,unitPrice:item.unitPrice,panelLocation:item.panelLocation||"",damageSize:item.damageSize||"",damageSeverity:item.damageSeverity||"moderate",unitCost:item.unitCost||0,useTaxRate:item.useTaxRate||0,taxNote:item.taxNote||"",repairAction:item.repairAction||"repair"});document.getElementById("estimate-line-editor")?.scrollIntoView({block:"start"});}}>Edit</button>
                           <button
                             disabled={!can("estimates.write")||estimate.status === "invoiced"}
                             onClick={() => deleteLineItem.mutate(item.id)}
@@ -637,16 +653,18 @@ export default function EstimateBuilder() {
                 </table>
               </div>
 
-              <div className="mt-4"><EstimateLabor id={id!} locked={estimate.status === "invoiced"} onDirtyChange={setLaborDirty}/></div>
-              <div className="mt-4"><EstimateCommercial estimate={estimate} onDirtyChange={setSalesDirty}/></div>
-              {/* Add line item form */}
-              <fieldset id="estimate-line-editor" disabled={estimate.status === "invoiced"||addLineItem.isPending||!can("estimates.write")} className="mt-4 rounded-lg border border-border p-4 space-y-3">
+              <details className="mt-4 rounded-lg border px-3 py-2" open={estimate.status==="invoiced"&&lineItems.some((l:any)=>l.lineType==="legacy")} data-testid="details-labor"><summary className="cursor-pointer text-sm font-medium py-1">Technician labor splits (who did the labor)</summary>
+                <div className="mt-2"><EstimateLabor id={id!} locked={estimate.status === "invoiced"} onDirtyChange={setLaborDirty}/></div></details>
+              <details className="mt-2 rounded-lg border px-3 py-2" data-testid="details-material-costs"><summary className="cursor-pointer text-sm font-medium py-1">Material costs & use tax (internal)</summary>
+                <div className="mt-2"><EstimateCommercial estimate={estimate}/></div></details>
+              {/* Add / edit line item form, shown only while adding or editing */}
+              {(lineFormOpen||!!editingLine||!!newItem.description)&&<fieldset id="estimate-line-editor" disabled={estimate.status === "invoiced"||addLineItem.isPending||!can("estimates.write")} className="mt-4 rounded-lg border border-border p-4 space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <Plus className="h-4 w-4" /> {editingLine?"Edit Line Item":"Add Line Item"}
                 </div>
                 <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={()=>handleCategoryChange(defaultCategoryFor[estimate.serviceType])}>Repair labor</Button><Button variant="outline" onClick={()=>handleCategoryChange("material")}>Materials</Button><Button variant="outline" onClick={()=>handleCategoryChange("freight_in")}>Freight</Button></div>
                 <p className="text-xs text-muted-foreground">Customer unit price is what you charge. Purchase unit cost is internal. Materials and freight do not receive technician labor credit. Current sales-tax treatment: {categoryTaxable(newItem.serviceCategory,newItem.lineType)?"taxable unless customer exempt":"not taxable"}.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="field-row">
                   <label className="text-xs">Charge type<select aria-label="New line charge type" className="mt-1 h-10 w-full border rounded bg-background px-2" value={newItem.lineType} onChange={e=>handleCategoryChange(e.target.value==="parts"?"material":defaultCategoryFor[estimate.serviceType])}><option value="labor">Labor</option><option value="parts">Materials / freight / supplies</option></select></label>
                   <div className="space-y-1">
                     <Label className="text-[10px] text-muted-foreground">Category</Label>
@@ -701,10 +719,10 @@ export default function EstimateBuilder() {
                   </div>}
                   <div className="space-y-1">
                     <Label className="text-[10px] text-muted-foreground">Qty</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
+                      aria-label="Quantity"
                       value={newItem.quantity}
-                      onChange={(e) => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
+                      onValueChange={(n) => setNewItem({ ...newItem, quantity: n })}
                       data-testid="input-quantity"
                     />
                   </div>
@@ -721,16 +739,17 @@ export default function EstimateBuilder() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-[10px] text-muted-foreground">Customer Unit Price</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
+                      aria-label="Customer unit price"
+                      placeholder="0.00"
                       value={newItem.unitPrice}
-                      onChange={(e) => setNewItem({ ...newItem, unitPrice: Number(e.target.value) })}
+                      onValueChange={(n) => setNewItem({ ...newItem, unitPrice: n })}
                       data-testid="input-unit-price"
                     />
                   </div>
-                  {can("costs.write")&&<label className="text-xs">Purchase unit cost (internal)<Input aria-label="Purchase unit cost" type="number" min="0" step=".01" value={newItem.unitCost} onChange={e=>setNewItem({...newItem,unitCost:Number(e.target.value)})}/></label>}
+                  {can("costs.write")&&<label className="text-xs">Purchase unit cost (internal)<NumberInput aria-label="Purchase unit cost" placeholder="0.00" value={newItem.unitCost} onValueChange={n=>setNewItem({...newItem,unitCost:n})}/></label>}
                   {can("costs.write")&&newItem.serviceCategory==="supplies"&&<>
-                    <label className="text-xs">Use tax still owed on purchase (%)<Input aria-label="Use tax rate" type="number" min="0" max="100" step=".01" value={newItem.useTaxRate} onChange={e=>setNewItem({...newItem,useTaxRate:Number(e.target.value)})}/></label>
+                    <label className="text-xs">Use tax still owed on purchase (%)<NumberInput aria-label="Use tax rate" value={newItem.useTaxRate} onValueChange={n=>setNewItem({...newItem,useTaxRate:n})}/></label>
                     <label className="text-xs">Use-tax basis / vendor-tax note<Input aria-label="Use tax note" value={newItem.taxNote} onChange={e=>setNewItem({...newItem,taxNote:e.target.value})}/></label>
                   </>}
                 </div>
@@ -744,8 +763,9 @@ export default function EstimateBuilder() {
                   </Button>
                   {editingLine&&<Button variant="ghost" onClick={()=>{setEditingLine(null);setNewItem({...newItem,description:"",unitCost:0,useTaxRate:0,taxNote:"",unitPrice:0});}}>Cancel edit</Button>}
                   {!editingLine&&newItem.description&&<Button variant="ghost" onClick={()=>startLine(defaultCategoryFor[estimate.serviceType])}>Clear unsaved line</Button>}
+                  {!editingLine&&!newItem.description&&<Button variant="ghost" onClick={()=>setLineFormOpen(false)}>Close</Button>}
                 </div>
-              </fieldset>
+              </fieldset>}
             </CardContent>
           </Card>
         </div>
@@ -783,31 +803,7 @@ export default function EstimateBuilder() {
                   <span className="text-muted-foreground">{documentBreakdown(lineItems,subtotal).taxLabel}</span>
                   <span className="tabular-nums">{formatCurrency(taxAmount)}</span>
                 </div>
-                {/* Discount - editable */}
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Discount</span>
-                  {editingDiscount ? (
-                    <div className="flex items-center gap-1">
-                      <Input
-                        type="number"
-                        value={discountDraft}
-                        onChange={(e) => setDiscountDraft(e.target.value)}
-                        className="w-20 h-7 text-xs text-right"
-                        step="0.01"
-                      />
-                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={handleSaveDiscount}>OK</Button>
-                    </div>
-                  ) : (
-                    <button
-                      className="tabular-nums text-destructive hover:underline"
-                      onClick={() => { setDiscountDraft(String(discount)); setEditingDiscount(true); }}
-                      data-testid="button-edit-discount"
-                      disabled={estimate.status === "invoiced"}
-                    >
-                      -{formatCurrency(discount)}
-                    </button>
-                  )}
-                </div>
+                <DiscountEditor estimate={estimate} locked={estimate.status === "invoiced"} onEditingChange={setEditingDiscount} />
               </div>
               <div className="flex justify-between border-t border-border pt-2 text-base font-bold">
                 <span>Total</span>
@@ -817,8 +813,9 @@ export default function EstimateBuilder() {
           </Card>
           {/* Estimate actions and delivery */}
           <Card data-testid="card-estimate-actions">
-            <CardHeader className="pb-3"><CardTitle className="text-base">Approval and delivery</CardTitle></CardHeader>
-            <CardContent className="flex flex-col gap-2">
+            <CardHeader className="p-3 pb-2 sm:p-3 sm:pb-2"><CardTitle className="text-sm">Approval and delivery</CardTitle></CardHeader>
+            {/* Two buttons per row instead of one long stack */}
+            <CardContent className="p-3 pt-0 sm:p-3 sm:pt-0 grid grid-cols-2 gap-2 [&>*:last-child]:col-span-2 [&>p]:col-span-2 [&>div]:col-span-2">
               {estimate.status !== "invoiced" && estimate.status !== "rejected" && (
                 <Button
                   variant="outline"
@@ -899,6 +896,7 @@ export default function EstimateBuilder() {
       <section aria-labelledby="estimate-section-4" className="space-y-2" data-testid="estimate-section-4">
         <SectionHeading id="estimate-section-4" n={4}>Scheduling, work planning and technicians</SectionHeading>
         <WorkPlanning key={estimate.id} kind="estimates" id={estimate.id} />
+        <ChangeHistory kind="estimates" id={estimate.id} />
       </section>
     </div>
   );

@@ -8,17 +8,18 @@ const orders: Record<WorkSort, [string, string]> = {
 export function WorkSortControls({ field, direction, onChange, count }: {
   field: WorkSort; direction: SortDirection; onChange: (field: WorkSort, direction: SortDirection) => void; count: number;
 }) {
-  const cls = "mt-1 h-11 w-full rounded-md border border-input bg-background px-3 text-sm";
-  return <section aria-label="List sorting" className="rounded-lg border p-3">
-    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-      <label className="text-sm">Sort by<select aria-label="Sort by" value={field} className={cls} onChange={e => { const f = e.target.value as WorkSort; onChange(f, f === "priority" ? "desc" : "asc"); }}>
+  const cls = "h-11 sm:h-9 rounded-md border border-input bg-background px-2 text-sm";
+  // One compact line: "Sort by [list] [order]  4 records shown".
+  return <section aria-label="List sorting" className="text-sm">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <label className="flex items-center gap-2">Sort by<select aria-label="Sort by" value={field} className={cls} onChange={e => { const f = e.target.value as WorkSort; onChange(f, f === "priority" ? "desc" : "asc"); }}>
         <option value="number">Record number</option><option value="priority">Repair urgency</option><option value="assignedTech">Lead technician</option><option value="scheduledDate">Planned schedule date</option>
       </select></label>
-      <label className="text-sm">Sort order<select aria-label="Sort order" value={direction} className={cls} onChange={e => onChange(field, e.target.value as SortDirection)}>
+      <label className="flex items-center gap-2"><span className="sr-only">Sort order</span><select aria-label="Sort order" value={direction} className={cls} onChange={e => onChange(field, e.target.value as SortDirection)}>
         <option value="asc">{orders[field][0]}</option><option value="desc">{orders[field][1]}</option>
       </select></label>
-      <p role="status" className="text-xs text-muted-foreground pb-2">{count} records shown</p>
+      <p role="status" className="text-xs text-muted-foreground">{count} records shown</p>
     </div>
-    <p className="mt-2 text-xs text-muted-foreground">Unassigned or undated records stay at the bottom. Ties use record number. Sorting changes this view only.</p>
+    <p className="mt-1 text-[11px] text-muted-foreground">Unassigned or undated records stay at the bottom. Ties use record number. Sorting changes this view only.</p>
   </section>;
 }

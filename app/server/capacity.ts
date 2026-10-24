@@ -2,9 +2,13 @@ import type { Express } from "express";
 import { sqlite } from "./storage-db";
 import { storage } from "./storage";
 import { fail } from "./billing";
+import { audit } from "./security";
+import { scheduleJobDetails, plannedWork } from "./schedule-details";
+import { partsOutstanding } from "./callbacks";
 import { validDate, integer } from "./operations";
 import {
   DEPARTMENTS,
+  OLD_DEPARTMENT_GROUP,
   localToday,
   addDays,
   timeMinutes,
@@ -31,6 +35,7 @@ function interval(start: any, end: any) {
 }
 const overlap = (s: number, e: number, a: number, b: number) => s < b && e > a;
 export function migrateCapacity() {
+  migrateGroups();
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS ops_profiles (
       id INTEGER PRIMARY KEY,technician_id INTEGER NOT NULL UNIQUE REFERENCES technicians(id),
@@ -222,9 +227,18 @@ export function capacity(
           b.next ? `${b.next.date} ${b.next.startTime}` : "9999",
         ),
       ),
-    slots: storage
-      .getScheduleSlots()
-      .filter((s) => s.date >= start && s.date < addDays(start, 7)),
+    // Each booking carries the customer, place, item and work, so the calendar can be read without opening jobs.
+    slots: (() => {
+      const cache = new Map<number, any>();
+      return storage
+        .getScheduleSlots()
+        .filter((s) => s.date >= start && s.date < addDays(start, 7))
+        .map((s) => {
+          if (s.jobId && !cache.has(s.jobId)) cache.set(s.jobId, scheduleJobDetails(s.jobId));
+          return { ...s, details: s.jobId ? cache.get(s.jobId) : null };
+        });
+    })(),
+    planned: plannedWork(start, addDays(start, 7)),
     absences: all(
       "SELECT * FROM ops_absences WHERE date>=? AND date<? ORDER BY date,start_time",
       start,
@@ -284,21 +298,31 @@ export function registerCapacity(app: Express) {
               s.date >= localToday() &&
               s.status !== "cancelled",
           );
-        for (const s of future) {
+        // Appointments the new hours would leave outside working time. Listed in plain words; the person can
+        // reschedule them first, or deliberately keep them (recorded in the history).
+        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const outside = future.filter((s) => {
           const wd = new Date(s.date + "T12:00:00Z").getUTCDay();
-          if (
-            !b.windows.some(
-              (w: any) =>
-                w.day === wd &&
-                clock(s.startTime) >= clock(w.start) &&
-                clock(s.endTime) <= clock(w.end),
-            )
-          )
-            fail(
-              `New hours conflict with appointment on ${s.date}. Reschedule it first.`,
-              409,
-            );
+          return !b.windows.some(
+            (w: any) =>
+              w.day === wd &&
+              clock(s.startTime) >= clock(w.start) &&
+              clock(s.endTime) <= clock(w.end),
+          );
+        });
+        if (outside.length && b.keepConflicts !== true) {
+          const list = outside.map((s) => {
+            const job = s.jobId ? storage.getJob(s.jobId) : null;
+            const c = job ? storage.getCustomer(job.customerId) : null;
+            const who = c ? c.companyName || [c.firstName, c.lastName].filter(Boolean).join(" ") : null;
+            return `${days[new Date(s.date + "T12:00:00Z").getUTCDay()]} ${s.date} ${s.startTime}–${s.endTime}${job ? ` (${job.jobNumber}${who ? ", " + who : ""})` : " (" + (s.slotType || "appointment") + ", no work order)"}`;
+          });
+          fail(
+            `The new hours would leave ${outside.length === 1 ? "this appointment" : `these ${outside.length} appointments`} outside working time: ${list.join("; ")}. Move ${outside.length === 1 ? "it" : "them"} in Scheduling first, or tick "Keep these appointments" and save again.`,
+            409,
+          );
         }
+        if (outside.length) audit("capacity.hours_saved_outside_appointments", "technicians", id, null, { appointments: outside.map((s) => ({ id: s.id, date: s.date, start: s.startTime, end: s.endTime })) });
         run(
           "INSERT INTO ops_profiles(technician_id,department,windows,confirmed) VALUES(?,?,?,1) ON CONFLICT(technician_id) DO UPDATE SET department=excluded.department,windows=excluded.windows,confirmed=1,version=version+1",
           id,
@@ -356,8 +380,8 @@ export function registerCapacity(app: Express) {
     ).lastInsertRowid;
     res.status(201).json(one("SELECT * FROM ops_resources WHERE id=?", id));
   });
-  app.post("/api/capacity/reserve", (req, res) => {
-    const b = req.body;
+  // Book a work order on a technician's calendar (also used to move an existing booking).
+  function reserveSlot(b: any) {
     if (b.readinessConfirmed !== true)
       fail("Confirm that approval, skills and parts have been checked.");
     if (
@@ -400,6 +424,9 @@ export function registerCapacity(app: Express) {
         const job = storage.getJob(b.jobId);
         if (!job || ["completed", "cancelled"].includes(job.status))
           fail("Choose an open work order.");
+        // Parts still outstanding (an open parts callback): booking needs a deliberate override.
+        if (partsOutstanding("jobs", job.id) && b.partsOverride !== true)
+          fail("Parts for this job are still outstanding (an open parts callback). Book anyway only if you are sure the parts will be here; otherwise wait for \"Ready to schedule\".", 409);
         const c = one("SELECT * FROM ops_cases WHERE job_id=?", job.id);
         if (c && (c.hold_reason || !c.parts_ready))
           fail(
@@ -409,7 +436,8 @@ export function registerCapacity(app: Express) {
         const tech = storage.getTechnician(b.technicianId);
         if (
           !tech ||
-          !tech.skillAreas
+          // Moving a booking without changing the technician keeps the person already booked on the job.
+          (b.keepTechnicianId !== tech.id) && !tech.skillAreas
             .split(",")
             .map((s) => s.trim())
             .includes(job.serviceType)
@@ -462,6 +490,39 @@ export function registerCapacity(app: Express) {
         return created;
       })
       .immediate();
-    res.status(201).json(out);
+    return out;
+  }
+  app.post("/api/capacity/reserve", (req, res) => res.status(201).json(reserveSlot(req.body)));
+  // Move a booked appointment to another day, time or technician in one step: the old booking is cancelled and
+  // the new one is checked exactly like a new booking (working hours, conflicts, skills). Nothing changes if the
+  // new time is not available.
+  app.post("/api/capacity/reschedule/:slotId", (req, res) => {
+    const b = req.body || {}, oldSlot = storage.getScheduleSlot(Number(req.params.slotId));
+    if (!oldSlot || !oldSlot.jobId) fail("Appointment not found.", 404);
+    if (["cancelled", "completed"].includes(oldSlot.status)) fail("This appointment is already cancelled or completed.", 409);
+    const reservation = one("SELECT * FROM ops_reservations WHERE slot_id=?", oldSlot.id);
+    const moved = sqlite.transaction(() => {
+      storage.updateScheduleSlot(oldSlot.id, { status: "cancelled" });
+      return reserveSlot({ technicianId: b.technicianId, jobId: oldSlot.jobId, date: b.date, startTime: b.startTime, endTime: b.endTime,
+        resourceId: reservation?.resource_id || null, readinessConfirmed: true, retryKey: b.retryKey, partsOverride: b.partsOverride === true,
+        keepTechnicianId: b.technicianId === oldSlot.technicianId ? oldSlot.technicianId : undefined });
+    }).immediate();
+    if (!moved) fail("The appointment could not be moved.", 409);
+    audit("schedule.moved", "jobs", oldSlot.jobId, { date: oldSlot.date, start: oldSlot.startTime, end: oldSlot.endTime, technicianId: oldSlot.technicianId },
+      { date: moved.date, start: moved.startTime, end: moved.endTime, technicianId: moved.technicianId });
+    res.status(201).json(moved);
   });
+}
+
+// One-time: the earlier service departments become the owner's five technician groups.
+function migrateGroups() {
+  sqlite.exec("CREATE TABLE IF NOT EXISTS app_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
+  if (sqlite.prepare("SELECT 1 FROM app_migrations WHERE version='technician-groups-v1'").get()) return;
+  sqlite.transaction(() => {
+    for (const table of ["ops_profiles", "ops_resources", "ops_cases"]) {
+      if (!sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table)) continue;
+      for (const [from, to] of Object.entries(OLD_DEPARTMENT_GROUP)) sqlite.prepare(`UPDATE ${table} SET department=? WHERE department=?`).run(to, from);
+    }
+    sqlite.prepare("INSERT INTO app_migrations(version,applied_at) VALUES('technician-groups-v1',?)").run(new Date().toISOString());
+  })();
 }

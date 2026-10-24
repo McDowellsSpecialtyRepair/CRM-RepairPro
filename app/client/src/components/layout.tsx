@@ -21,8 +21,9 @@ import {
   Grid3x3,
   Menu,
   X,
-  Car,
+  Map as MapIcon,
   Calendar,
+  ListChecks,
   User,
   Briefcase,
   DollarSign,
@@ -40,7 +41,8 @@ const navItems = [
   { path: "/operations", label: "Operations", icon: ClipboardList },
   { path: "/invoices", label: "Invoices", icon: Receipt },
   { path: "/scheduling", label: "Scheduling", icon: Calendar },
-  { path: "/splat", label: "Vehicle Splat", icon: Car },
+  { path: "/waiting", label: "Waiting list", icon: ListChecks },
+  { path: "/splat", label: "Splats", icon: MapIcon },
   { path: "/pricing-matrix", label: "Pricing Matrix", icon: Grid3x3 },
   { path: "/accounting", label: "Accounting", icon: Calculator },
   { path: "/marketing", label: "Marketing", icon: Megaphone },
@@ -347,7 +349,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto overscroll-contain bg-background p-3 sm:p-6">
+        <main className="flex-1 overflow-y-auto overscroll-contain bg-background p-3 sm:p-4 xl:p-5">
           {children}
         </main>
       </div>

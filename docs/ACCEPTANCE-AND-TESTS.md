@@ -52,6 +52,17 @@ These run in CI on every push (`.github/workflows/ci.yml`).
 
 It is local only, because it needs Playwright and Chromium.
 
+`script/a1-acceptance.mjs` runs the A1 owner checklist through the real screens at desktop and phone widths, against a server started with `.devcontainer/demo.sh` (which creates sample staff logins). It checks:
+- sample-price warnings on the non-PDR Pricing Matrix tabs, and "QuickBooks is not connected" in place of the old sample sync log
+- New Estimate: the new item's Name box is optional and a blank name is saved as the chosen type
+- Salesperson, Estimator and Follow-up salesperson on an estimate: the service writer and service advisor are offered, choices are saved and still there after signing in again, and the planning section shows the same salesperson
+- no leading zero when typing a price, quantity or cost, and the line total
+- no "QB Synced" labels on invoices
+- the logo on the printed estimate and invoice
+- no sideways scrolling and no page errors
+
+It is local only, because it needs Playwright and Chromium.
+
 `script/phase21-browser.mjs` is a local-only browser check; it needs Playwright and Chromium, which CI does not install. It runs the New Estimate and dent workflow at desktop (1366 px) and phone (390 px) widths. It checks:
 - an inline customer and a VIN-only vehicle
 - the four page sections in order

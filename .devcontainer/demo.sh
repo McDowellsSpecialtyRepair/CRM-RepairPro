@@ -3,7 +3,8 @@
 #
 #   bash .devcontainer/demo.sh setup     install, build, create the demo database and login (first start)
 #   bash .devcontainer/demo.sh start     start the demo server (every start of the codespace)
-#   bash .devcontainer/demo.sh reset     throw away all demo changes and start again with fresh sample data
+#   bash .devcontainer/demo.sh update    get the newest version of this branch and restart, KEEPING your demo data
+#   bash .devcontainer/demo.sh reset     ERASE all demo changes and start again with fresh sample data (asks first)
 #   bash .devcontainer/demo.sh selftest  setup + start + sign-in check, then stop (used by CI)
 #   bash .devcontainer/demo.sh status    which code version is checked out, built and running
 #   bash .devcontainer/demo.sh logs      show the demo server's request log as it happens
@@ -34,7 +35,9 @@ is_up() { curl -fs "http://127.0.0.1:$1/api/auth/status" >/dev/null 2>&1; }
 
 start_server() { # $1 = port
   mkdir -p "$DEMO_DIR"
-  (cd "$APP" && DB_PATH="$DB" EMAIL_OUTPUT_DIR="$DEMO_DIR/emails" PORT="$1" \
+  # The sign-in screen offers a one-click demo sign-in with this login (the server shows it only on a demo database).
+  local signin=""; [ -f "$LOGIN_FILE" ] && signin="$OWNER_EMAIL $(grep -o 'Demo-[A-Za-z0-9_-]*' "$LOGIN_FILE" | head -1)"
+  (cd "$APP" && DB_PATH="$DB" EMAIL_OUTPUT_DIR="$DEMO_DIR/emails" PORT="$1" REPAIRPRO_DEMO_SIGNIN="$signin" \
     setsid -f nohup node dist/index.cjs "--repairpro-demo-port=$1" >>"$DEMO_DIR/server.log" 2>&1 </dev/null)
   for _ in $(seq 1 150); do is_up "$1" && { built_commit >"$DEMO_DIR/running-$1"; return 0; }; sleep 0.2; done
   echo "The demo server did not start. Details: $DEMO_DIR/server.log" >&2
@@ -49,6 +52,15 @@ stop_server() { # $1 = port. The server is tagged with its port so only the demo
 }
 
 BUILD_MARK="$APP/dist/.build-commit"
+pull_latest() {
+  local branch; branch="$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null)" || return 1
+  [ "$branch" != "HEAD" ] || return 1
+  if [ -n "$(git -C "$REPO" status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+    echo "Files in this codespace were changed by hand, so the newest version was not downloaded automatically."; return 1
+  fi
+  echo "Checking GitHub for the newest version of $branch..."
+  git -C "$REPO" pull --ff-only --quiet origin "$branch" && echo "Code version $(head_commit)." || { echo "Could not reach GitHub; starting the version already here."; return 1; }
+}
 head_commit() { git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown; }
 built_commit() { cat "$BUILD_MARK" 2>/dev/null || echo none; }
 
@@ -81,7 +93,22 @@ create_demo() {
     const { activationCode } = JSON.parse(require("fs").readFileSync(inviteFile, "utf8"));
     fetch(`http://127.0.0.1:${port}/api/auth/activate`, { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, activationCode, password }) })
-      .then(async r => { if (!r.ok) { console.error(await r.text()); process.exit(1); } });
+      .then(async r => { if (!r.ok) { console.error(await r.text()); process.exit(1); }
+        // Demo staff (sample people only) so salesperson, estimator and follow-up lists have real choices.
+        // Service writers use the Service advisor role. They share the demo password.
+        const { token } = await r.json(), base = `http://127.0.0.1:${port}`;
+        const call = (path, body, auth) => fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json", ...(auth ? { Authorization: `Bearer ${auth}` } : {}) }, body: JSON.stringify(body) })
+          .then(async x => { if (!x.ok) throw new Error(path + ": " + await x.text()); return x.json(); });
+        for (const [fullName, email, role] of [["Sam Rivera (service writer)", "sam.rivera@example.invalid", "advisor"],
+          ["Kelly Brooks (service advisor)", "kelly.brooks@example.invalid", "advisor"], ["Morgan Lee (manager)", "morgan.lee@example.invalid", "manager"]]) {
+          const invited = await call("/api/staff", { fullName, email, role }, token);
+          await call("/api/auth/activate", { email, activationCode: invited.activationCode, password });
+        }
+        // Sample discount codes (not McDowells codes) so the estimate discount list has choices to try.
+        for (const [code, description, kind, amount] of [["SAMPLE10", "Sample: returning customer", "percent", 10],
+          ["SAMPLE50", "Sample: $50 off labor", "amount", 50]])
+          await call("/api/discount-codes", { code, description, kind, amount }, token);
+      }).catch(e => { console.error(e.message); process.exit(1); });
   ' "$SETUP_PORT" "$OWNER_EMAIL" "$DEMO_DIR/invite.json" "$password"
   stop_server "$SETUP_PORT"
   rm -f "$DEMO_DIR/invite.json"
@@ -94,6 +121,14 @@ create_demo() {
 |---|---|
 | Work email | \`$OWNER_EMAIL\` |
 | Password | \`$password\` |
+
+Other sample staff logins (same password), useful for testing roles and the salesperson lists:
+
+| Name | Work email | Role |
+|---|---|---|
+| Sam Rivera (service writer) | \`sam.rivera@example.invalid\` | Service advisor |
+| Kelly Brooks (service advisor) | \`kelly.brooks@example.invalid\` | Service advisor |
+| Morgan Lee (manager) | \`morgan.lee@example.invalid\` | Manager |
 
 1. Open the CRM: it usually opens in a new browser tab by itself. If not, click the **Ports** tab
    at the bottom of this window, find **RepairPro demo (5000)**, and click the globe icon.
@@ -111,6 +146,9 @@ case "${1:-}" in
     [ -f "$DB" ] || create_demo
     ;;
   start)
+    # Every codespace start (and "update") first gets the newest version of this branch, so restarting the
+    # codespace is enough to see new changes. Demo data is kept. Skipped if files were edited by hand.
+    pull_latest || true
     rebuild_if_stale
     [ -f "$DB" ] || create_demo
     # A server started from an older build keeps the old code in memory: restart it on the new build.
@@ -130,8 +168,27 @@ case "${1:-}" in
     echo "RepairPro demo request log (keep this terminal open while testing; it keeps the codespace active)."
     exec tail -n 5 -F "$DEMO_DIR/server.log"
     ;;
+  update)
+    # Newest code from GitHub for this branch; the estimates, customers and other demo records you entered are kept
+    # (the server upgrades the existing demo database when it starts).
+    branch="$(git -C "$REPO" rev-parse --abbrev-ref HEAD)"
+    echo "Getting the newest version of $branch (your demo data is kept)..."
+    pull_latest || { echo "Could not get the newest version. Nothing was changed; tell Claude what this window says." >&2; exit 1; }
+    "$0" start
+    echo "Updated to version $(head_commit). Your demo data is unchanged. Reload the CRM tab and sign in again (same password as before)."
+    ;;
   reset)
     case "$DEMO_DIR" in *demo*) ;; *) echo "Refusing to reset: DEMO_DIR does not look like a demo folder." >&2; exit 1 ;; esac
+    if [ "${2:-}" != "--yes" ]; then
+      echo "This ERASES every estimate, customer and other change you made in this demo and starts over with sample data."
+      echo "To get the newest version and KEEP your data, use instead:  bash .devcontainer/demo.sh update"
+      if [ -t 0 ]; then
+        read -r -p "Type ERASE to erase all demo data, or press Enter to cancel: " answer
+        [ "$answer" = "ERASE" ] || { echo "Cancelled. Nothing was erased."; exit 0; }
+      else
+        echo "Not erased. Run 'bash .devcontainer/demo.sh reset --yes' to confirm." >&2; exit 1
+      fi
+    fi
     stop_server "$PORT"
     rm -rf "$DEMO_DIR" "$LOGIN_FILE"
     create_demo

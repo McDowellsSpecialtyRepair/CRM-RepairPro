@@ -10,7 +10,7 @@ This is a **private test copy** of the CRM that runs on GitHub's computers. It c
 3. Wait while it sets up (about 3–5 minutes the first time). A window that looks like a code editor appears; you can ignore it.
 4. Two documents open inside it: this guide and **DEMO-LOGIN.md**, which contains your demo email and password.
 5. The CRM opens in a **new browser tab** by itself. If it doesn't, or you closed it: click **Ports** at the bottom of the editor window, find **RepairPro demo (5000)**, and click the small globe icon.
-6. Sign in with the email and password from **DEMO-LOGIN.md**. You are the demo Owner, so you can see and change everything.
+6. Sign in with the email and password from **DEMO-LOGIN.md**. You are the demo Owner, so you can see and change everything. DEMO-LOGIN.md also lists sample staff logins (a service writer, a service advisor and a manager) that share the same password, so the salesperson lists have real choices and you can see what other roles see.
 
 ## Before a long testing session (important)
 
@@ -37,15 +37,25 @@ To check from the codespace: open **Terminal → New Terminal** and type `bash .
 - **Coming back:** on the repository page, click **Code**, then **Codespaces**, and click the existing codespace to resume it.
 - **Free allowance:** GitHub includes a monthly amount of free Codespaces time for your account. When you are finished testing for a while, delete old codespaces (Code, Codespaces, the "…" menu, Delete) so they don't use storage.
 
-## Starting over with fresh sample data
+## Getting the newest changes (keeps your estimates)
 
-Either delete the codespace and create a new one, or, inside the editor window, open **Terminal** at the top, then **New Terminal**, and type:
+When Claude says new changes are ready, go back to your existing codespace (don't create a new one: a new codespace starts with only the sample data). Open **Terminal** at the top, then **New Terminal**, type:
+
+```
+bash .devcontainer/demo.sh update
+```
+
+and press Enter. Your estimates, customers and other demo entries are kept and your password stays the same. Reload the CRM tab and sign in.
+
+## Starting over with fresh sample data (erases your demo entries)
+
+Only if you want to throw away everything you entered: in the Terminal type
 
 ```
 bash .devcontainer/demo.sh reset
 ```
 
-then press Enter. When it finishes, open **DEMO-LOGIN.md** again: the password changes after a reset.
+press Enter, then type ERASE when asked. When it finishes, open **DEMO-LOGIN.md** again: the password changes after a reset.
 
 ## Reporting a problem
 

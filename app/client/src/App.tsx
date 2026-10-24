@@ -19,6 +19,7 @@ import JobDetail from "@/pages/job-detail";
 import Invoices from "@/pages/invoices";
 import InvoiceDetail from "@/pages/invoice-detail";
 import Scheduling from "@/pages/scheduling";
+import WaitingList from "@/pages/waiting-list";
 import BookingPortal from "@/pages/booking-portal";
 import Splat from "@/pages/splat";
 import PricingMatrix from "@/pages/pricing-matrix";
@@ -54,6 +55,7 @@ function AppRouter() {
         <Route path="/invoices" component={Invoices} />
         <Route path="/invoices/:id" component={InvoiceDetail} />
         <Route path="/scheduling" component={Scheduling} />
+        <Route path="/waiting" component={WaitingList} />
         <Route path="/booking" component={BookingPortal} />
         <Route path="/splat" component={Splat} />
         <Route path="/pricing-matrix" component={PricingMatrix} />

@@ -74,7 +74,7 @@ export function LegacyDashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-6 gap-2">
         {isLoading
           ? Array.from({ length: 8 }).map((_, i) => (
               <Card key={i} className="animate-pulse">
@@ -90,13 +90,13 @@ export function LegacyDashboard() {
               const Icon = kpi.icon;
               return (
                 <Card key={kpi.label} className="hover:shadow-sm transition-shadow">
-                  <CardHeader className="pb-2">
+                  <CardHeader className="p-3 pb-1 sm:p-3 sm:pb-1">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-xs font-medium text-muted-foreground">{kpi.label}</CardTitle>
                       <Icon className={`h-4 w-4 ${kpi.color}`} />
                     </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-3 pt-0 sm:p-3 sm:pt-0">
                     <div className="text-lg font-bold tabular-nums" data-testid={`text-${kpi.label.toLowerCase().replace(/\s/g, "-")}`}>
                       {kpi.value}
                     </div>

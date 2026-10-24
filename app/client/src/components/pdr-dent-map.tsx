@@ -85,7 +85,7 @@ export function PdrDentMap({ estimate, vehicle, readOnly }: Props) {
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="field-row">
           <div>
             <Label className="text-xs">Body style{vehicle ? ` (from ${vehicle.year || ""} ${vehicle.make || ""} ${vehicle.model || ""})` : ""}</Label>
             <Select value={bodyType} disabled={readOnly || dents.length > 0} onValueChange={v => { setChosenBody(v as VehicleType); setSelected(null); }}>
@@ -97,19 +97,22 @@ export function PdrDentMap({ estimate, vehicle, readOnly }: Props) {
               </SelectContent>
             </Select>
           </div>
-          <div className="sm:col-span-2 text-sm self-end" data-testid="text-dent-summary">
+          <div className="field-auto text-sm self-end" data-testid="text-dent-summary">
             {dents.length} dent{dents.length === 1 ? "" : "s"} saved · {billedCount} billed · {dents.length - billedCount} not yet billed
           </div>
         </div>
         {dents.length > 0 && !readOnly && <p className="text-xs text-muted-foreground">Body style is fixed once dents are saved, so each dent stays on the diagram it was marked on.</p>}
         {(loadError || error) && <p role="alert" className="text-sm text-destructive">{(loadError as any)?.message || error}</p>}
 
-        <div className="rounded-md border border-border bg-muted/20 p-2">
+        {/* Wide screens: the diagram on the left, the chosen panel's dents on the right */}
+        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+        <div className="rounded-md border border-border bg-muted/20 p-2 min-w-0">
           {isLoading ? <p className="text-sm p-4">Loading saved dents…</p> :
             <VehicleSplat vehicleType={bodyType} view="exterior" selectedPanel={selected} onPanelClick={onPanelClick}
               damages={Object.entries(panelCounts).map(([panelId, p]) => ({ panelId, panelName: p.panelName, damageCount: p.count, severity: p.deep ? "severe" : p.medium ? "moderate" : "minor" }))} />}
         </div>
 
+        <div className="min-w-0">
         {selected && (
           <div className="rounded-md border border-primary/50 bg-primary/5 p-3 space-y-3" data-testid="panel-dents">
             <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -125,6 +128,8 @@ export function PdrDentMap({ estimate, vehicle, readOnly }: Props) {
         )}
 
         {!selected && <p className="text-sm text-muted-foreground text-center py-2">{dents.length ? "Tap a panel to see or edit its dents. Prices and the billing method are under Dent pricing and billing in section 3." : "No dents marked yet"}</p>}
+        </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -167,7 +172,7 @@ function DentEditor({ dent, index, readOnly, queryKey }: { dent: Dent; index: nu
         {dent.overridePrice != null ? ` · entered by ${dent.overrideBy || "staff"} (calculated ${dent.overrideSuggestedPrice != null ? fmt(dent.overrideSuggestedPrice) : "none"})` : dent.suggestedSource ? ` · ${dent.suggestedSource}` : ""}
       </p>
       {billed && !readOnly && <p className="text-xs text-muted-foreground">This dent is billed. To change details that affect its price, first remove its line or package under Dent pricing and billing.</p>}
-      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="field-row">
         <Field label="Size" id={`${id}-size`}>
           <Select value={pendingCrease ? "crease" : dent.size} disabled={readOnly || billed} onValueChange={v => {
             if (v === "crease" && !dent.lengthIn) { setPendingCrease(true); setStatus("Choose the crease length to save this change"); }

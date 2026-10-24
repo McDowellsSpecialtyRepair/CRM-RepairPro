@@ -97,12 +97,12 @@ export default function CapacityCalendar() {
           hours, appointments and leave. All times are Boise local time.
         </p>
       </header>
-      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="field-row">
         <SelectField
-          label="Calendar department"
+          label="Technician group"
           value={department}
           onChange={setDepartment}
-          options={[{ value: "", label: "All departments" }, ...DEPARTMENTS]}
+          options={[{ value: "", label: "All technician groups" }, ...DEPARTMENTS]}
         />
         <Field
           label="Search from date"
@@ -155,7 +155,7 @@ export default function CapacityCalendar() {
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {t.profile.department || "Department not assigned"} ·{" "}
+                    {t.profile.department || "Technician group not assigned"} ·{" "}
                     {t.technicianType === "mobile" ? "Mobile" : "In-shop"}
                   </p>
                   <p className="text-sm">
@@ -264,6 +264,13 @@ export default function CapacityCalendar() {
                     setBooking({ ...booking, readinessConfirmed: v })
                   }
                 />
+                {/Parts for this job are still outstanding/.test(error) && (
+                  <Check
+                    label="Book anyway: I'm sure the parts will be here in time"
+                    value={!!booking.partsOverride}
+                    onChange={(v: boolean) => setBooking({ ...booking, partsOverride: v })}
+                  />
+                )}
                 <Notice error={error} />
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -283,6 +290,7 @@ export default function CapacityCalendar() {
                             : null,
                           readinessConfirmed: booking.readinessConfirmed,
                           retryKey: booking.retryKey,
+                          ...(booking.partsOverride ? { partsOverride: true } : {}),
                         });
                         setBooking(null);
                       })
@@ -303,7 +311,7 @@ export default function CapacityCalendar() {
                 <h2 className="font-semibold">
                   Unavailable time · {leave.name}
                 </h2>
-                <div className="grid sm:grid-cols-3 gap-3">
+                <div className="field-row">
                   <Field
                     label="Leave date"
                     type="date"
@@ -356,7 +364,7 @@ export default function CapacityCalendar() {
             </Card>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-semibold">Seven-day department board</h2>
+            <h2 className="font-semibold">Seven-day board by technician group</h2>
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -379,7 +387,7 @@ export default function CapacityCalendar() {
           </div>
           <p className="text-xs text-muted-foreground">
             Scroll horizontally on a phone. Calendar rows are grouped by
-            department; openings above are sorted by earliest available time.
+            technician group (choose one above to see only that group); openings above are sorted by earliest available time.
           </p>
           <div className="overflow-x-auto rounded-xl border bg-card">
             <table className="w-full min-w-[1060px] text-sm">
@@ -425,7 +433,7 @@ export default function CapacityCalendar() {
               <summary className="font-semibold cursor-pointer">
                 Register a shared bay or piece of equipment
               </summary>
-              <div className="grid sm:grid-cols-3 gap-3 mt-4">
+              <div className="field-row mt-4">
                 <Field
                   label="Resource name"
                   value={newResource.name}
@@ -434,7 +442,7 @@ export default function CapacityCalendar() {
                   }
                 />
                 <SelectField
-                  label="Resource department"
+                  label="Resource technician group"
                   value={newResource.department}
                   onChange={(v: string) =>
                     setNewResource({ ...newResource, department: v })
@@ -546,9 +554,9 @@ function CalendarRow({
                   <strong>
                     {s.startTime}–{s.endTime}
                   </strong>
-                  <p className="mt-1">
+                  {s.details ? <SlotDetails d={s.details} jobId={s.jobId} /> : <p className="mt-1">
                     {s.jobId ? <Link href={`/jobs/${s.jobId}`} className="underline">{jobs.find((j: any) => j.id === s.jobId)?.jobNumber || "Open work order"}</Link> : s.slotType}
-                  </p>
+                  </p>}
                   <p>{s.status.replace("_", " ")}</p>
                   {canEdit &&
                     !["cancelled", "completed"].includes(s.status) && (
@@ -572,6 +580,13 @@ function CalendarRow({
                         Cancel reservation
                       </button>
                     )}
+                </div>
+              ))}
+              {(data.planned || []).filter((w: any) => w.technicianId === t.id && w.date === date).map((w: any) => (
+                <div key={`${w.kind}-${w.id}`} className="border border-dashed border-amber-500 rounded p-2 text-xs bg-amber-50 dark:bg-amber-950/30" data-testid={`planned-${w.kind}-${w.id}`}>
+                  <strong>Planned – no time booked</strong>
+                  {w.details && <SlotDetails d={w.details} jobId={w.kind === "job" ? w.id : 0} estimateId={w.kind === "estimate" ? w.id : undefined} />}
+                  <p className="mt-1 text-muted-foreground">Book a time above so the hours are reserved.</p>
                 </div>
               ))}
               {absence.map((a: any) => (
@@ -613,6 +628,7 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
     ),
     [windows, setWindows] = useState<any[]>(t.profile.windows),
     [confirmed, setConfirmed] = useState(false),
+    [keepConflicts, setKeepConflicts] = useState(false),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   return (
@@ -625,7 +641,7 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
           before changes can be saved.
         </p>
         <SelectField
-          label="Technician department"
+          label="Technician group"
           value={department}
           onChange={setDepartment}
           options={DEPARTMENTS}
@@ -633,7 +649,7 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
         {windows.map((w, i) => (
           <div
             key={i}
-            className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end"
+            className="field-row items-end"
           >
             <SelectField
               label={`Window ${i + 1} day`}
@@ -702,10 +718,17 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
           </Button>
         </div>
         <Check
-          label="I reviewed these hours and department; use them for availability"
+          label="I reviewed these hours and technician group; use them for availability"
           value={confirmed}
           onChange={setConfirmed}
         />
+        {/outside working time/.test(error) && (
+          <Check
+            label="Keep these appointments as booked (they will be outside this technician's working hours)"
+            value={keepConflicts}
+            onChange={setKeepConflicts}
+          />
+        )}
         <Notice error={error} />
         <div className="flex gap-2">
           <Button
@@ -718,6 +741,7 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
                   department,
                   windows,
                   confirmed: true,
+                  ...(keepConflicts ? { keepConflicts: true } : {}),
                 });
                 await refresh();
                 close();
@@ -736,5 +760,24 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// The booked work order at a glance: who, where, what item, what service and what work (no prices).
+function SlotDetails({ d, jobId, estimateId }: { d: any; jobId: number; estimateId?: number }) {
+  const urgent = d.priority === "urgent" || d.priority === "high";
+  return (
+    <div className="mt-1 space-y-0.5 break-words" data-testid={estimateId ? `planned-details-estimate-${estimateId}` : `slot-details-${jobId}`}>
+      {urgent && <span className="inline-block rounded bg-destructive/15 text-destructive px-1.5 text-[11px] font-semibold uppercase">{d.priority}</span>}
+      <p className="font-semibold">{d.customer || "Customer not found"}</p>
+      <p>{d.service}{d.item ? ` · ${d.item}` : ""}</p>
+      {d.address && d.address.replace(/[ ,]/g, "") && <p className="text-muted-foreground">{d.address}</p>}
+      {d.phone && <p><a className="underline" href={`tel:${String(d.phone).replace(/[^0-9+]/g, "")}`}>{d.phone}</a></p>}
+      {d.work?.length > 0 && <ul className="list-disc ml-4 text-muted-foreground">{d.work.map((w: string, i: number) => <li key={i}>{w}</li>)}{d.moreWork > 0 && <li>and {d.moreWork} more</li>}</ul>}
+      {!d.work?.length && d.instructions && <p className="text-muted-foreground">{d.instructions}</p>}
+      {d.insuranceClaim && <p className="text-muted-foreground">Claim {d.insuranceClaim}</p>}
+      <p>{estimateId ? <Link href={`/estimates/${estimateId}`} className="underline">Estimate {d.estimateNumbers.join(", ")}</Link>
+        : <Link href={`/jobs/${jobId}`} className="underline">{d.jobNumber}{d.estimateNumbers?.length ? ` · Estimate ${d.estimateNumbers.join(", ")}` : ""}</Link>}</p>
+    </div>
   );
 }

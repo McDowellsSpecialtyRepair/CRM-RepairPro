@@ -119,8 +119,8 @@ try{
   await billing.getByText(/Entered price by .*No matrix price available/).waitFor();
   await billing.getByRole("button",{name:"Select all not billed"}).click();
   await billing.getByTestId("button-bill-individually").click();
-  await p.getByTestId("estimate-section-3").getByRole("cell",{name:/^Hood: crease #\d$/}).waitFor();
-  check(`${label}: individual billing adds one line per dent in section 3`,await p.getByTestId("estimate-section-3").getByRole("cell",{name:/^Hood: (Dime dent|crease) #\d$/}).count()===2);
+  await p.getByTestId("estimate-section-3").getByText(/^Hood: crease #\d$/).filter({visible:true}).first().waitFor();
+  check(`${label}: individual billing adds one line per dent in section 3`,await p.getByTestId("estimate-section-3").getByText(/^Hood: (Dime dent|crease) #\d$/).filter({visible:true}).count()===2);
   check(`${label}: dent records remain after billing`,await p.getByTestId("text-dent-summary").getByText("2 billed").isVisible());
   if(label==="desktop"){
    // Panel package below the calculated total needs management approval.
@@ -172,7 +172,8 @@ try{
    await p.getByTestId("button-create-customer-inline").click();
    await p.getByLabel("First name").fill("Pat");await p.getByLabel("Last name").fill(last);await p.getByLabel("Phone").fill("555-019-1001");
    await p.getByTestId("duplicate-warning").waitFor();
-   check(`${label}: likely duplicate blocks Create until confirmed`,await p.getByTestId("button-save-quick-customer").isDisabled());
+   await p.getByTestId("button-save-quick-customer").click();
+   check(`${label}: likely duplicate blocks Create until confirmed, and says why`,/existing customer/.test(await p.getByTestId("quick-customer-problems").innerText())&&await p.getByTestId("form-quick-customer").count()===1);
    await p.getByRole("button",{name:"Use this existing customer"}).first().click();
    await p.getByText(`Pat ${last}`).first().waitFor();
    check(`${label}: duplicate warning selects the existing customer`,await p.getByTestId("form-quick-customer").count()===0);
@@ -183,6 +184,8 @@ try{
     if(!est)continue;
     await p.goto(`${base}/#/estimates/${est.id}`);
     await p.getByTestId("estimate-section-4").waitFor();
+    // The damage tool appears once its price lists load; wait for it rather than checking at the first paint.
+    await p.getByTestId("estimate-section-2").getByTestId(card).waitFor({timeout:10000}).catch(()=>{});
     const tops=await p.evaluate(()=>[1,2,3,4].map(n=>document.querySelector(`[data-testid="estimate-section-${n}"]`)?.getBoundingClientRect().top??-1));
     check(`${label}: ${service} estimate keeps its own damage tool in the four-section order`,tops.every((t,i)=>t>=0&&(i===0||t>tops[i-1]))&&await p.getByTestId("estimate-section-2").getByTestId(card).isVisible());
    }

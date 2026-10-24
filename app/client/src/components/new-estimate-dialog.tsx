@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ContactCheck, contactProblems } from "@/components/contact-check";
 import { Loader2, Car, Caravan, Ship, Sofa, Check, Plus } from "lucide-react";
 import { CustomerLookup, DuplicateWarning } from "@/components/customer-lookup";
 import { useAuth } from "@/components/auth-provider";
@@ -86,13 +87,15 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
 
   // A vehicle can be saved with only its VIN (for example when the VIN lookup fails), or with a make or model.
   const newVehicleReady = normalizeVin(newVehicle.vin).length >= 5 || !!(newVehicle.make.trim() || newVehicle.model.trim());
-  const missingReason = !cid ? "Choose or create the customer first." : !svc ? "Choose the service." :
+  // A new item's name is optional: if it is left blank, the chosen type is used (for example "Chair").
+  const assetTypeLabel = ASSET_TYPE_LABELS[newAsset.assetType] || "Item";
+  const assetName = newAsset.name.trim() || assetTypeLabel;
+  const missingReason = !cid ? (creatingCustomer ? "Finish the new customer above and click Create customer." : "Choose or create the customer first.") : !svc ? "Choose the service." :
     effectiveItem === "" ? `Choose which ${svc.target === "asset" ? "item" : "vehicle"} this is for, add a new one, or skip.` :
-    effectiveItem === "new" && svc.target === "asset" && !newAsset.name.trim() ? "Enter a name for the new item." :
-    effectiveItem === "new" && svc.target === "vehicle" && !newVehicleReady ? "Enter the VIN, or the make or model, to save this vehicle." : "";
+    effectiveItem === "new" && svc.target === "vehicle" && !newVehicleReady ? `To save this ${svc.domain === "marine" ? "boat" : svc.domain === "rv" ? "RV" : "vehicle"}, enter its VIN, or type its make or model.` : "";
   const canCreate = !!cid && !!svc && (
     effectiveItem === "none" ||
-    (effectiveItem === "new" && (svc.target === "asset" ? !!newAsset.name.trim() : newVehicleReady)) ||
+    (effectiveItem === "new" && (svc.target === "asset" || newVehicleReady)) ||
     (effectiveItem !== "" && effectiveItem !== "new" && effectiveItem !== "none")
   );
 
@@ -104,7 +107,7 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
       let assetId: number | null = null;
       if (effectiveItem === "new") {
         if (svc.target === "asset") {
-          const a = await apiRequest("POST", "/api/assets", { ...newAsset, customerId: parseInt(cid) });
+          const a = await apiRequest("POST", "/api/assets", { ...newAsset, name: assetName, customerId: parseInt(cid) });
           assetId = a.id;
           setItemId(String(a.id));
           await queryClient.invalidateQueries({queryKey:["/api/customers",cid]});
@@ -126,7 +129,7 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
       if (isWO) {
         const v = vehicleId ? (customer?.vehicles || []).find((x: any) => x.id === vehicleId) : null;
         const a = assetId ? (customer?.assets || []).find((x: any) => x.id === assetId) : null;
-        const target = v ? `${v.year || ""} ${v.make || ""} ${v.model || ""}`.trim() : a ? a.name : (effectiveItem === "new" ? (svc.target === "asset" ? newAsset.name : `${newVehicle.year} ${newVehicle.make} ${newVehicle.model}`.trim()) : "");
+        const target = v ? `${v.year || ""} ${v.make || ""} ${v.model || ""}`.trim() : a ? a.name : (effectiveItem === "new" ? (svc.target === "asset" ? assetName : `${newVehicle.year} ${newVehicle.make} ${newVehicle.model}`.trim()) : "");
         const job = await apiRequest("POST", "/api/jobs", {
           customerId: parseInt(cid), serviceType: svc.value, vehicleId, assetId,
           title: `${svc.label}${target ? " - " + target : ""}`, status: "pending", priority: "normal",
@@ -295,7 +298,8 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
                       <SelectContent>{ASSET_TYPES.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
-                  <div><Label className="text-xs">Name</Label><Input value={newAsset.name} onChange={(e) => setNewAsset({ ...newAsset, name: e.target.value })} placeholder="e.g. Dining booths (12)" data-testid="input-asset-name" /></div>
+                  <div><Label htmlFor="estimate-asset-name" className="text-xs">Name (optional)</Label><Input id="estimate-asset-name" value={newAsset.name} onChange={(e) => setNewAsset({ ...newAsset, name: e.target.value })} placeholder={`Leave blank to use "${assetTypeLabel}"`} data-testid="input-asset-name" />
+                    <p className="text-xs text-muted-foreground mt-1">For example "Dining booths (12)". If left blank, it is saved as "{assetTypeLabel}".</p></div>
                   <div><Label className="text-xs">Location</Label><Input value={newAsset.location} onChange={(e) => setNewAsset({ ...newAsset, location: e.target.value })} placeholder="Address or room" /></div>
                   <div><Label className="text-xs">Description</Label><Input value={newAsset.description} onChange={(e) => setNewAsset({ ...newAsset, description: e.target.value })} placeholder="Material, color, quantity" /></div>
                 </div>
@@ -304,7 +308,7 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
           )}
 
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-          {!error && !saving && missingReason && (svc || cid) && <p className="text-xs text-muted-foreground" data-testid="text-create-missing">{missingReason}</p>}
+          {!error && !saving && missingReason && (svc || cid) && <p role="status" className="rounded-md border border-amber-500/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-sm text-amber-900 dark:text-amber-200" data-testid="text-create-missing">Before you can continue: {missingReason}</p>}
         </div>
 
         <DialogFooter>
@@ -323,6 +327,8 @@ export function NewEstimateDialog({ open, onOpenChange, customerId, initialServi
 function QuickCustomerForm({ onPicked, onCancel }: { onPicked: (c: { id: number; name: string; customerNumber: string }) => void; onCancel: () => void }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ customerType: "retail", firstName: "", lastName: "", companyName: "", phone: "", email: "" });
+  const [keepEmail, setKeepEmail] = useState(false);
+  const [tried, setTried] = useState(false);
   const [matches, setMatches] = useState<any[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -339,10 +345,18 @@ function QuickCustomerForm({ onPicked, onCancel }: { onPicked: (c: { id: number;
   }, [form.firstName, form.lastName, form.companyName, form.phone, form.email]);
   useEffect(() => setConfirmed(false), [matches.length]);
   const likely = matches.some(m => m.level === "likely");
+  // Everything that stops the save, listed by the button instead of a silently greyed-out button.
+  const problems = [
+    ...(named ? [] : [retail ? "Enter the customer's first or last name." : `Enter the company name (required for ${form.customerType} customers).`]),
+    ...contactProblems(form.phone, form.email, keepEmail),
+    ...(likely && !confirmed ? ["This looks like an existing customer: choose it above, or tick \"This is a different customer\"."] : []),
+  ];
   const save = async () => {
+    setTried(true);
+    if (problems.length) return;
     setSaving(true); setError("");
     try {
-      const body = { customerType: form.customerType, status: "active", phone: form.phone.trim(), email: form.email.trim(),
+      const body = { customerType: form.customerType, status: "active", phone: form.phone.trim(), email: form.email.trim(), confirmEmail: keepEmail,
         ...(retail ? { firstName: form.firstName.trim(), lastName: form.lastName.trim() } : { companyName: form.companyName.trim() }), confirmDuplicate: confirmed };
       const c = await apiRequest("POST", "/api/customers", body);
       await queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
@@ -374,20 +388,24 @@ function QuickCustomerForm({ onPicked, onCancel }: { onPicked: (c: { id: number;
         {retail ? <>
           <div><Label htmlFor="qc-first" className="text-xs">First name</Label><Input id="qc-first" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} /></div>
           <div><Label htmlFor="qc-last" className="text-xs">Last name</Label><Input id="qc-last" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} /></div>
-        </> : <div><Label htmlFor="qc-company" className="text-xs">Company name</Label><Input id="qc-company" value={form.companyName} onChange={e => setForm({ ...form, companyName: e.target.value })} /></div>}
-        <div><Label htmlFor="qc-phone" className="text-xs">Phone</Label><Input id="qc-phone" inputMode="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
-        <div><Label htmlFor="qc-email" className="text-xs">Email (optional)</Label><Input id="qc-email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
+        </> : <div><Label htmlFor="qc-company" className="text-xs">Company name <span className="text-destructive">(required)</span></Label><Input id="qc-company" aria-invalid={tried && !named} value={form.companyName} onChange={e => setForm({ ...form, companyName: e.target.value })} /></div>}
+        <div><Label htmlFor="qc-phone" className="text-xs">Phone</Label><Input id="qc-phone" inputMode="tel" placeholder="208-555-1212" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+          <ContactCheck kind="phone" value={form.phone} onFix={v => setForm({ ...form, phone: v })} testId="check-quick-phone" /></div>
+        <div><Label htmlFor="qc-email" className="text-xs">Email (optional)</Label><Input id="qc-email" type="text" inputMode="email" autoCapitalize="none" placeholder="name@gmail.com" value={form.email} onChange={e => { setForm({ ...form, email: e.target.value }); setKeepEmail(false); }} />
+          <ContactCheck kind="email" value={form.email} keep={keepEmail} onKeep={setKeepEmail} onFix={v => { setForm({ ...form, email: v }); setKeepEmail(false); }} testId="check-quick-email" /></div>
       </div>
       <DuplicateWarning matches={matches} useOnlyLabel="Use this existing customer" onUse={c => onPicked({ id: c.id, name: c.name, customerNumber: c.customerNumber })} />
       {likely && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} data-testid="checkbox-confirm-different" /> This is a different customer; create a new account</label>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" onClick={save} disabled={!named || saving || (likely && !confirmed)} data-testid="button-save-quick-customer">
+        <Button type="button" size="sm" onClick={save} disabled={saving} data-testid="button-save-quick-customer">
           {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />} Create customer
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>Back to search</Button>
       </div>
-      {!named && <p className="text-xs text-muted-foreground">{retail ? "Enter a first or last name." : "Enter the company name."} Address, tax and billing details can be added later on the customer profile.</p>}
+      {tried && problems.length > 0 && <div role="alert" className="rounded-md border border-destructive/50 p-2 text-sm text-destructive" data-testid="quick-customer-problems">
+        <p className="font-medium">To create this customer:</p><ul className="list-disc ml-5">{problems.map(p => <li key={p}>{p}</li>)}</ul></div>}
+      <p className="text-xs text-muted-foreground">{retail ? "A first or last name is required." : "The company name is required."} Phone and email are checked for typing mistakes, and the CRM looks for an existing customer with the same name, phone or email. Address, tax and billing details can be added later on the customer profile.</p>
     </div>
   );
 }

@@ -43,7 +43,8 @@ export function buildPricingCatalog(matrices:any[],templates:any[],date=new Date
     const rows=matrices.filter(m=>m.matrixType===type).sort((a,b)=>a.id-b.id);
     const dimensions:[string,string][]=[["panel","Panel / item"],["vehicleCategory","Vehicle"],["sizeCategory","Size"],["dentCountRange","Dent count"],["filmType","Film"],["damageType","Damage"],["severity","Severity"],["insuranceCompany","Insurer"]];
     const used=dimensions.filter(([k])=>rows.some(r=>r[k]));
-    tables.push({heading:titles[type]||label(type),description:`${rows.length} saved matrix entries.`,columns:["ID / matrix",...used.map(([,v])=>v),"Rate","Unit","Notes"],
+    const sample=type!=="pdr_dent";
+    tables.push({heading:(titles[type]||label(type))+(sample?" (SAMPLE PRICES, not McDowells prices)":""),description:sample?`${rows.length} saved matrix entries. These are sample prices that came with the original software. Nobody at McDowells entered or checked them; do not quote from them.`:`${rows.length} saved matrix entries.`,columns:["ID / matrix",...used.map(([,v])=>v),"Rate","Unit","Notes"],
       rows:rows.map(r=>[`${r.id} · ${r.name}`,...used.map(([k])=>label(r[k])),money(r.price),label(r.unitType),r.notes||""]),ids:rows.map(r=>r.id)});
   }
   tables.push({heading:"Service-template base prices",description:"Separate estimating shortcuts; do not add to a matrix price for the same work.",columns:["ID / template","Service","Description","Base rate","Unit","Status"],rows:templates.map(t=>[`${t.id} · ${t.name}`,SERVICES.find(s=>s.value===t.serviceType)?.label||label(t.serviceType),t.description||"",money(t.basePrice),label(t.unitType),t.isActive?"Active":"Inactive"]),ids:[]});

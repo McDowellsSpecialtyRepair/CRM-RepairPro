@@ -4,6 +4,8 @@ import { apiRequest } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ContactCheck, contactProblems } from "@/components/contact-check";
+import { checkPhone } from "@shared/contact-validation";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ContactChangeQuestions, allAnswered, type ContactAnswer } from "@/components/contact-change-questions";
@@ -22,6 +24,8 @@ export function EditCustomerDialog({ open, onOpenChange, customer, onMergeReques
   const [dups, setDups] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [keepEmail, setKeepEmail] = useState(false);
+  const contactIssues = [...contactProblems(form.phone || "", form.email || "", keepEmail), ...(checkPhone(form.mobile || "").ok ? [] : ["Fix the mobile number (see the message under it)."])];
 
   useEffect(() => {
     if (!open) return;
@@ -45,6 +49,7 @@ export function EditCustomerDialog({ open, onOpenChange, customer, onMergeReques
   const set = (k: string, v: string) => setForm({ ...form, [k]: v });
 
   const save = async (withAnswers: boolean) => {
+    if (contactIssues.length) { setError(contactIssues.join(" ")); return; }
     setBusy(true); setError("");
     try {
       let d = diffs;
@@ -57,10 +62,10 @@ export function EditCustomerDialog({ open, onOpenChange, customer, onMergeReques
       (d || []).forEach((x: any) => (x.key === "address" ? ADDR.forEach((k) => covered.add(k)) : covered.add(x.key)));
       const patch: any = {};
       FIELDS.forEach((k) => { if (!covered.has(k) && (form[k] || "") !== (customer[k] || "")) patch[k] = form[k]; });
-      if (Object.keys(patch).length) await apiRequest("PATCH", `/api/customers/${customer.id}`, patch);
+      if (Object.keys(patch).length) await apiRequest("PATCH", `/api/customers/${customer.id}`, { ...patch, ...(keepEmail ? { confirmEmail: true } : {}) });
       if (d && d.length) {
         await apiRequest("POST", `/api/customers/${customer.id}/contact-update`, {
-          context: "Profile edit",
+          context: "Profile edit", confirmEmail: keepEmail,
           answers: d.map((x: any) => ({ key: x.key, current: x.current, incoming: x.incoming, answer: answers[x.key] })),
         });
       }
@@ -73,7 +78,9 @@ export function EditCustomerDialog({ open, onOpenChange, customer, onMergeReques
   const field = (k: string, label: string, type = "text") => (
     <div>
       <Label className="text-xs">{label}</Label>
-      <Input className="mt-1" type={type} value={form[k] || ""} onChange={(e) => set(k, e.target.value)} data-testid={`edit-${k}`} />
+      <Input className="mt-1" type={type === "email" ? "text" : type} inputMode={type === "email" ? "email" : type === "tel" ? "tel" : undefined} value={form[k] || ""} onChange={(e) => { set(k, e.target.value); if (k === "email") setKeepEmail(false); }} data-testid={`edit-${k}`} />
+      {(k === "phone" || k === "mobile") && <ContactCheck kind="phone" value={form[k] || ""} onFix={(v) => set(k, v)} testId={`check-edit-${k}`} />}
+      {k === "email" && <ContactCheck kind="email" value={form.email || ""} keep={keepEmail} onKeep={setKeepEmail} onFix={(v) => { set("email", v); setKeepEmail(false); }} testId="check-edit-email" />}
     </div>
   );
 

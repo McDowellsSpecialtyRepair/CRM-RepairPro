@@ -3,6 +3,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { PricingPrintPreview } from "@/components/pricing-print-preview";
 import { HailReference } from "@/components/hail-reference";
 import { PdrPricingEditor } from "@/components/pdr-pricing-editor";
+import { DiscountCodesManager } from "@/components/discount-codes-manager";
 import { HAIL_REFERENCE_ROWS } from "@shared/hail-reference";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,19 @@ import { useState, useMemo } from "react";
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
+
+// A missing price is "Not priced", never $0.00.
+const priceCell = (n: number | null | undefined) =>
+  n === null || n === undefined ? <span className="text-muted-foreground" data-testid="not-priced">Not priced</span> : formatCurrency(n);
+
+// The tabs other than PDR still hold the sample prices that came with the original software (owner decision PRICE-01).
+function SamplePricesBanner() {
+  return <div role="note" data-testid="sample-prices-banner"
+    className="rounded-md border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-950 dark:text-amber-100">
+    <p className="font-semibold">Sample prices from the original software. These are not McDowells prices.</p>
+    <p className="mt-1">Nobody at McDowells entered or checked these amounts, and they can't be edited here yet. Don't quote from them. Editable McDowells price lists for every service are planned (U4). Only the <strong>PDR Dent &amp; Crease</strong> tab holds prices management can edit today.</p>
+  </div>;
+}
 
 const sizeLabels: Record<string, string> = {
   dime: "Dime", nickel: "Nickel", quarter: "Quarter", half_dollar: "Half Dollar", softball: "Softball", multiple: "Multiple",
@@ -118,6 +132,7 @@ export default function PricingMatrix() {
             <TabsTrigger value="upholstery" data-testid="tab-upholstery">Upholstery</TabsTrigger>
             <TabsTrigger value="labor" data-testid="tab-labor">Labor Rates</TabsTrigger>
             <TabsTrigger value="material" data-testid="tab-material">Materials</TabsTrigger>
+            <TabsTrigger value="discounts" data-testid="tab-discount-codes">Discount Codes</TabsTrigger>
           </TabsList>
 
           {/* PDR DENT MATRIX */}
@@ -127,6 +142,7 @@ export default function PricingMatrix() {
 
           {/* HAIL GENERIC */}
           <TabsContent value="pdr_hail" className="space-y-4">
+            <SamplePricesBanner />
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -146,13 +162,13 @@ export default function PricingMatrix() {
                     <tbody>
                       {["Hood", "Roof", "Door", "Fender"].map((panel) => {
                         const rows = (grouped["pdr_hail"] || []).filter((m: any) => m.panel === panel);
-                        const sedan = rows.find((r: any) => r.vehicleCategory === "sedan")?.price || 0;
-                        const suv = rows.find((r: any) => r.vehicleCategory === "suv")?.price || 0;
+                        const sedan = rows.find((r: any) => r.vehicleCategory === "sedan")?.price;
+                        const suv = rows.find((r: any) => r.vehicleCategory === "suv")?.price;
                         return (
                           <tr key={panel} className="border-b border-border/50 hover:bg-muted/30">
                             <td className="py-3 pr-4 font-medium">{panel}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(sedan)}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(suv)}</td>
+                            <td className="py-3 px-3 text-right tabular-nums">{priceCell(sedan)}</td>
+                            <td className="py-3 px-3 text-right tabular-nums">{priceCell(suv)}</td>
                           </tr>
                         );
                       })}
@@ -261,6 +277,7 @@ export default function PricingMatrix() {
 
           {/* WINDOW TINT */}
           <TabsContent value="window_tint" className="space-y-4">
+            <SamplePricesBanner />
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -281,13 +298,13 @@ export default function PricingMatrix() {
                     <tbody>
                       {["standard", "ceramic", "carbon"].map((film) => {
                         const rows = (grouped["window_tint"] || []).filter((m: any) => m.filmType === film);
-                        const getVC = (vc: string) => rows.find((r: any) => r.vehicleCategory === vc)?.price || 0;
+                        const getVC = (vc: string) => rows.find((r: any) => r.vehicleCategory === vc)?.price;
                         return (
                           <tr key={film} className="border-b border-border/50 hover:bg-muted/30">
                             <td className="py-3 pr-4 font-medium capitalize">{film}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getVC("sedan"))}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getVC("suv"))}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getVC("truck"))}</td>
+                            <td className="py-3 px-3 text-right tabular-nums">{priceCell(getVC("sedan"))}</td>
+                            <td className="py-3 px-3 text-right tabular-nums">{priceCell(getVC("suv"))}</td>
+                            <td className="py-3 px-3 text-right tabular-nums">{priceCell(getVC("truck"))}</td>
                           </tr>
                         );
                       })}
@@ -318,6 +335,7 @@ export default function PricingMatrix() {
 
           {/* INTERIOR VINYL */}
           <TabsContent value="interior_vinyl" className="space-y-4">
+            <SamplePricesBanner />
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -338,13 +356,13 @@ export default function PricingMatrix() {
                     <tbody>
                       {["crack", "tear", "burn", "fade", "puncture"].map((dt) => {
                         const rows = (grouped["interior_vinyl"] || []).filter((m: any) => m.damageType === dt);
-                        const getSev = (s: string) => rows.find((r: any) => r.severity === s)?.price || 0;
+                        const getSev = (s: string) => rows.find((r: any) => r.severity === s)?.price;
                         return (
                           <tr key={dt} className="border-b border-border/50 hover:bg-muted/30">
                             <td className="py-3 pr-4 font-medium capitalize">{dt}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getSev("minor"))}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getSev("moderate"))}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getSev("severe"))}</td>
+                            <td className="py-3 px-3 text-right tabular-nums">{priceCell(getSev("minor"))}</td>
+                            <td className="py-3 px-3 text-right tabular-nums">{priceCell(getSev("moderate"))}</td>
+                            <td className="py-3 px-3 text-right tabular-nums">{priceCell(getSev("severe"))}</td>
                           </tr>
                         );
                       })}
@@ -357,6 +375,7 @@ export default function PricingMatrix() {
 
           {/* INTERIOR FABRIC */}
           <TabsContent value="interior_fabric" className="space-y-4">
+            <SamplePricesBanner />
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -377,13 +396,13 @@ export default function PricingMatrix() {
                     <tbody>
                       {["tear", "burn", "stain", "rip", "hole"].map((dt) => {
                         const rows = (grouped["interior_fabric"] || []).filter((m: any) => m.damageType === dt);
-                        const getSev = (s: string) => rows.find((r: any) => r.severity === s)?.price || 0;
+                        const getSev = (s: string) => rows.find((r: any) => r.severity === s)?.price;
                         return (
                           <tr key={dt} className="border-b border-border/50 hover:bg-muted/30">
                             <td className="py-3 pr-4 font-medium capitalize">{dt}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getSev("minor"))}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getSev("moderate"))}</td>
-                            <td className="py-3 px-3 text-right tabular-nums">{formatCurrency(getSev("severe"))}</td>
+                            <td className="py-3 px-3 text-right tabular-nums">{priceCell(getSev("minor"))}</td>
+                            <td className="py-3 px-3 text-right tabular-nums">{priceCell(getSev("moderate"))}</td>
+                            <td className="py-3 px-3 text-right tabular-nums">{priceCell(getSev("severe"))}</td>
                           </tr>
                         );
                       })}
@@ -396,6 +415,7 @@ export default function PricingMatrix() {
 
           {/* UPHOLSTERY */}
           <TabsContent value="upholstery" className="space-y-4">
+            <SamplePricesBanner />
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -425,6 +445,7 @@ export default function PricingMatrix() {
 
           {/* LABOR */}
           <TabsContent value="labor" className="space-y-4">
+            <SamplePricesBanner />
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -452,6 +473,7 @@ export default function PricingMatrix() {
 
           {/* MATERIALS */}
           <TabsContent value="material" className="space-y-4">
+            <SamplePricesBanner />
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -478,92 +500,27 @@ export default function PricingMatrix() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="discounts" className="space-y-4">
+            <DiscountCodesManager />
+          </TabsContent>
         </Tabs>
       )}
 
-      {/* QB Sync Log */}
-      <Card>
+      {/* QuickBooks is not connected (backlog INT-01). The old sync log only held sample entries, so it is not shown
+          as if transfers had happened. */}
+      <Card data-testid="card-quickbooks-not-connected">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Cloud className="h-4 w-4" /> QuickBooks Sync Log
+            <Cloud className="h-4 w-4" /> QuickBooks
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <QBSyncLog />
+        <CardContent className="text-sm space-y-1">
+          <p><strong>RepairPro is not connected to QuickBooks.</strong> Nothing has been sent to QuickBooks.</p>
+          <p className="text-muted-foreground">The connection to QuickBooks Desktop Enterprise is planned for later, after a design review with the bookkeeper. Until then, invoices are entered in QuickBooks the usual way.</p>
         </CardContent>
       </Card>
     </div>
   );
 }
 
-// QB Sync Log component
-function QBSyncLog() {
-  const { data: logs, isLoading } = useQuery({
-    queryKey: ["/api/qb-sync"],
-    queryFn: () => apiRequest("GET", "/api/qb-sync"),
-  });
-
-  if (isLoading) {
-    return <div className="py-4 text-center text-sm text-muted-foreground">Loading sync logs...</div>;
-  }
-
-  const statusColors: Record<string, string> = {
-    success: "bg-chart-3/15 text-chart-3",
-    pending: "bg-chart-4/15 text-chart-4",
-    error: "bg-destructive/15 text-destructive",
-  };
-
-  const directionColors: Record<string, string> = {
-    push: "bg-chart-1/15 text-chart-1",
-    pull: "bg-chart-2/15 text-chart-2",
-  };
-
-  return (
-    <div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-xs text-muted-foreground">
-              <th className="text-left font-medium pb-2 pr-3">Direction</th>
-              <th className="text-left font-medium pb-2 pr-3">Record Type</th>
-              <th className="text-left font-medium pb-2 pr-3">Record ID</th>
-              <th className="text-left font-medium pb-2 pr-3">QB Transaction ID</th>
-              <th className="text-left font-medium pb-2 pr-3">Status</th>
-              <th className="text-left font-medium pb-2 pr-3">Message</th>
-              <th className="text-right font-medium pb-2">Synced At</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(logs || []).map((log: any) => (
-              <tr key={log.id} className="border-b border-border/50 hover:bg-muted/30" data-testid={`row-qb-sync-${log.id}`}>
-                <td className="py-2 pr-3">
-                  <Badge variant="secondary" className={`text-[10px] ${directionColors[log.syncDirection] || ""}`}>{log.syncDirection}</Badge>
-                </td>
-                <td className="py-2 pr-3 text-xs">{log.recordType}</td>
-                <td className="py-2 pr-3 text-xs tabular-nums">{log.recordId || "—"}</td>
-                <td className="py-2 pr-3 text-xs font-mono">{log.qbTxnId || "—"}</td>
-                <td className="py-2 pr-3">
-                  <Badge variant="secondary" className={`text-[10px] ${statusColors[log.status] || ""}`}>{log.status}</Badge>
-                </td>
-                <td className="py-2 pr-3 text-xs text-muted-foreground max-w-xs truncate">{log.message || "—"}</td>
-                <td className="py-2 text-right text-xs text-muted-foreground">
-                  {log.syncedAt ? new Date(log.syncedAt).toLocaleString() : "—"}
-                </td>
-              </tr>
-            ))}
-            {(!logs || logs.length === 0) && (
-              <tr>
-                <td colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
-                  No QuickBooks sync activity yet. Sync logs will appear here when invoices, payments, and customers are synced with QuickBooks Enterprise.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <div className="mt-3 text-xs text-muted-foreground">
-        <strong>What gets synced:</strong> Customer records (push), Invoices (push), Payments (push), Line items (push). QuickBooks tax codes map from tax jurisdictions.
-      </div>
-    </div>
-  );
-}

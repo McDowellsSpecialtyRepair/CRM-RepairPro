@@ -1,8 +1,13 @@
 import { Link, useRoute, useLocation } from "wouter";
+import { EstimatePeople } from "@/components/estimate-people";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/components/auth-provider";
 import { WorkPlanning } from "@/components/work-planning";
+import { DiscountEditor } from "@/components/discount-editor";
+import { EstimateMarketing } from "@/components/estimate-marketing";
+import { ChangeHistory } from "@/components/change-history";
+import { CallbacksCard } from "@/components/callbacks-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,8 +32,18 @@ export default function JobDetail() {
   const item = j.vehicle ? [j.vehicle.year,j.vehicle.make,j.vehicle.model].filter(Boolean).join(" ") : j.asset?.name || "No item attached";
   return <div className="space-y-5">
     <Link href="/jobs" className="text-sm underline">Back to work orders</Link>
-    <header className="flex flex-wrap justify-between gap-3"><div><p className="text-sm text-muted-foreground">{j.jobNumber}</p><h1 className="text-xl font-bold break-words">{j.title}</h1><p className="text-sm mt-2">{SERVICE_LABELS[j.serviceType] || j.serviceType} · {item}</p>{j.vehicle?.vin && <p className="text-xs mt-1">VIN: {j.vehicle.vin}</p>}</div><Badge variant="secondary" className="self-start">{j.status.replaceAll("_", " ")}</Badge></header>
+    <header className="flex flex-wrap justify-between gap-3"><div><p className="text-sm text-muted-foreground">{j.jobNumber}{j.estimates.length > 0 && <span data-testid="text-job-estimate-numbers"> · Estimate {j.estimates.map((e: any) => e.estimateNumber).join(", ")}</span>}</p><h1 className="text-xl font-bold break-words">{j.title}</h1><p className="text-sm mt-2">{SERVICE_LABELS[j.serviceType] || j.serviceType} · {item}</p>{j.vehicle?.vin && <p className="text-xs mt-1">VIN: {j.vehicle.vin}</p>}</div><Badge variant="secondary" className="self-start">{j.status.replaceAll("_", " ")}</Badge></header>
     <Card><CardContent className="p-5 flex flex-wrap gap-4 justify-between"><div><h2 className="text-xs text-muted-foreground">Customer</h2><Link href={`/customers/${j.customerId}`} className="font-medium underline">{c?.companyName || [c?.firstName,c?.lastName].filter(Boolean).join(" ") || `Customer ${j.customerId}`}</Link><p className="text-sm mt-1">{[c?.phone,c?.email].filter(Boolean).join(" · ")}</p></div><div className="flex flex-wrap gap-4 items-center">{j.vehicleId && <Link className="text-sm underline" href={`/vehicles/${j.vehicleId}`}>Vehicle & service history</Link>}{j.production && can("operations.read") && <Link className="text-sm underline" href={`/operations/${j.production}`}>Production tasks & labor progress</Link>}</div></CardContent></Card>
+    {/* With a linked estimate, its People box (salespeople with shares, estimator, follow-up) is edited here
+        and stays editable until the estimate is invoiced. Without one, the work order keeps one salesperson. */}
+    {j.estimates.length === 0 && <EstimatePeople key={`people-${id}`} kind="jobs" id={id} />}
+    {can("estimates.read") && j.estimates.map((e: any) => <div key={`edit-${e.id}`} className="space-y-3" data-testid={`work-order-estimate-${e.estimateNumber}`}>
+      {j.estimates.length > 1 && <h2 className="font-semibold text-sm">Estimate {e.estimateNumber}</h2>}
+      <EstimatePeople kind="estimates" id={e.id} locked={!!e.invoiceId || e.status === "invoiced"} />
+      <EstimateMarketing estimateId={e.id} customerId={e.customerId} locked={!!e.invoiceId || e.status === "invoiced"} />
+      <Card><CardContent className="p-4"><DiscountEditor estimate={e} locked={!!e.invoiceId || e.status === "invoiced" || !can("estimates.write")} /></CardContent></Card>
+    </div>)}
+    <CallbacksCard kind="jobs" id={id} />
     <WorkPlanning key={id} kind="jobs" id={id} />
     <section className="space-y-3"><h2 className="font-semibold">Estimated repair scope</h2>
       {j.estimates.length === 0 && candidates.length > 0 && can("estimates.write") && can("jobs.write") && !["completed","cancelled"].includes(j.status) && <Card><CardContent className="p-5 space-y-3">
@@ -44,5 +59,6 @@ export default function JobDetail() {
       </CardContent></Card>)}
     </section>
     {j.invoices.length > 0 && <section className="space-y-3"><h2 className="font-semibold">Linked invoices</h2>{j.invoices.map((i: any) => <Link key={i.id} href={`/invoices/${i.id}`} className="block rounded-md border p-4 hover:bg-muted/40"><span className="font-medium underline">{i.invoiceNumber}</span><span className="text-sm ml-3">{i.status} · {cash(i.total)}</span></Link>)}</section>}
+    <ChangeHistory kind="jobs" id={id} />
   </div>;
 }

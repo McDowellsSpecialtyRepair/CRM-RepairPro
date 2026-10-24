@@ -1,20 +1,27 @@
+// The owner's five technician groups (2026-10-23). Calendar rows, capacity searches and production are by group.
 export const DEPARTMENTS = [
-  "PDR / Hail",
-  "Window Tint",
-  "Interior Repair",
-  "Upholstery",
-  "Furniture / Commercial",
+  "AS - Auto Shop",
+  "FR - Furniture",
+  "UP - Upholstery",
+  "MI - Mobile Interior",
+  "ME - Mobile Exterior",
 ] as const;
+// The earlier service departments, mapped to the group that usually does that work (owner can reassign).
+export const OLD_DEPARTMENT_GROUP: Record<string, (typeof DEPARTMENTS)[number]> = {
+  "PDR / Hail": "ME - Mobile Exterior", "Window Tint": "AS - Auto Shop", "Interior Repair": "MI - Mobile Interior",
+  "Upholstery": "UP - Upholstery", "Furniture / Commercial": "FR - Furniture",
+};
+// The group that usually does a service; a starting suggestion only.
 export const departmentFor = (service: string) =>
   service === "pdr" || service === "hail"
-    ? DEPARTMENTS[0]
+    ? DEPARTMENTS[4]
     : service === "window_tint"
-      ? DEPARTMENTS[1]
+      ? DEPARTMENTS[0]
       : service === "upholstery"
-        ? DEPARTMENTS[4]
+        ? DEPARTMENTS[1]
         : service.includes("upholstery")
-          ? DEPARTMENTS[3]
-          : ["interior_repair","rv_interior","marine_interior"].includes(service)?DEPARTMENTS[2]:"";
+          ? DEPARTMENTS[2]
+          : ["interior_repair","rv_interior","marine_interior"].includes(service)?DEPARTMENTS[3]:"";
 export const HOLD_REASONS = [
   "",
   "Parts / materials",

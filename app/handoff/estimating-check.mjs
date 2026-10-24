@@ -69,7 +69,7 @@ try{
  const invite=JSON.parse(readFileSync(join(work,"owner.json"),"utf8"));
  const owner=(await ok("POST","/api/auth/activate",{email:ownerEmail,activationCode:invite.activationCode,password:password()})).token;
  const staff={};
- for(const [role,extra] of [["advisor",{}],["technician",{technicianId:1}],["auditor",{}]]){
+ for(const [role,extra] of [["advisor",{}],["manager",{}],["technician",{technicianId:1}],["auditor",{}]]){
   const email=`${role}@example.invalid`,r=await ok("POST","/api/staff",{email,fullName:`Test ${role}`,role,...extra},owner);
   staff[role]=(await ok("POST","/api/auth/activate",{email,activationCode:r.activationCode,password:password()})).token;
  }
@@ -197,6 +197,321 @@ try{
  check("Invoice total equals the dent-backed estimate total",inv.total===(await ok("GET",ep)).total);
  check("Invoiced estimates refuse dent changes",(await call("POST",ep+"/dents",{...hood,size:"dime"})).status===409&&(await call("PATCH",`/api/estimates/dents/${d1.id}`,{notes:"late"})).status===409);
  check("Invoiced dent records remain readable",(await ok("GET",ep+"/dents")).length===4&&!!invLines);
+ // ---- A1: Salesperson, Estimator and Follow-up salesperson on an estimate ----
+ const allStaff=await ok("GET","/api/staff",undefined,owner);
+ const sid=name=>allStaff.find(u=>u.fullName===name||u.full_name===name)?.id;
+ const people=await ok("GET","/api/people/staff");
+ check("People choices are active owner/admin/manager/service-advisor staff (no technician or auditor)",
+  people.some(p=>p.name==="Test advisor")&&!people.some(p=>p.name==="Test technician"||p.name==="Test auditor"));
+ const tp=`/api/estimates/${tint.id}`;
+ const tintBefore=await ok("GET",tp);
+ let plan=await ok("GET",tp+"/planning");
+ const advisorId=sid("Test advisor"),managerId=sid("Test manager"),ownerId=people.find(p=>p.role==="owner")?.id;
+ // One People box: up to 3 salespeople whose shares total 100%, plus the estimator and follow-up salesperson.
+ plan=await ok("PATCH",tp+"/people",{revision:plan.peopleRevision,salesTeam:[{staffId:advisorId,shareBps:6000},{staffId:managerId,shareBps:2500},{staffId:ownerId,shareBps:1500}],estimatorId:ownerId,followUpId:advisorId});
+ const reread=await ok("GET",tp+"/planning");
+ check("Three salespeople with shares, the estimator and the follow-up salesperson are saved and read back",
+  reread.salesTeam.length===3&&reread.salesTeam.find(r=>r.staff_id===managerId)?.share_bps===2500&&reread.estimatorId===ownerId&&reread.followUpId===advisorId);
+ check("The salesperson with the largest share is the lead salesperson",reread.salesPersonId===advisorId&&reread.salesPerson==="Test advisor");
+ check("The commission split screen reads the same salespeople (one place to enter them)",await (async()=>{const t=await ok("GET",tp+"/sales-team");const rows=t.splits||t.rows||t;return JSON.stringify(rows).includes(String(managerId))&&JSON.stringify(rows).includes("2500");})());
+ {const t=await ok("GET",tp);check("Changing people does not change the estimate's totals, status or lines",t.total===tintBefore.total&&t.status===tintBefore.status&&JSON.stringify(t.lineItems)===JSON.stringify(tintBefore.lineItems));}
+ check("Salesperson shares must add up to 100%",await (async()=>{const r=await call("PATCH",tp+"/people",{revision:reread.peopleRevision,salesTeam:[{staffId:advisorId,shareBps:6000},{staffId:managerId,shareBps:3000}]});return r.status===400&&/100%/.test(r.text);})());
+ check("No more than 3 salespeople",(await call("PATCH",tp+"/people",{revision:reread.peopleRevision,salesTeam:[1,2,3,4].map(()=>({staffId:advisorId,shareBps:2500}))})).status===400);
+ check("The same salesperson cannot be listed twice",(await call("PATCH",tp+"/people",{revision:reread.peopleRevision,salesTeam:[{staffId:advisorId,shareBps:5000},{staffId:advisorId,shareBps:5000}]})).status===400);
+ check("A stale people edit is refused (another user changed it)",(await call("PATCH",tp+"/people",{revision:"stale",estimatorId:null})).status===409);
+ check("A technician cannot change the people on an estimate",(await call("PATCH",tp+"/people",{revision:reread.peopleRevision,estimatorId:null},staff.technician)).status===403);
+ check("A non-sales role (auditor) cannot be chosen as salesperson, with an explanation",await (async()=>{const r=await call("PATCH",tp+"/people",{revision:reread.peopleRevision,salesTeam:[{staffId:sid("Test auditor"),shareBps:10000}]});return r.status===400&&/Service advisor/.test(r.text);})());
+ check("Unexpected fields are refused",(await call("PATCH",tp+"/people",{revision:reread.peopleRevision,priority:"high"})).status===400);
+ // The owner's "This record changed while you were editing" on every save: adding a line, or saving the
+ // other box, must not invalidate the box still open on the same screen.
+ {const p0=await ok("GET",tp+"/planning");
+  await ok("POST",tp+"/line-items",{serviceCategory:"window_tint",description:"Tint labor",unitPrice:400});
+  const p1=await ok("PATCH",tp+"/planning",{revision:p0.revision,priority:"high"});
+  check("Planning saves after a line item was added on the same screen (no false 'record changed')",p1.priority==="high");
+  const p2=await ok("PATCH",tp+"/people",{revision:p0.peopleRevision,followUpId:managerId});
+  check("People save after planning was saved on the same screen (no false 'record changed')",p2.followUpId===managerId);
+  check("Planning still saves after people were saved",(await ok("PATCH",tp+"/planning",{revision:p2.revision,priority:"low"})).priority==="low");
+  check("A planning edit based on an old planning version is still refused",(await call("PATCH",tp+"/planning",{revision:p0.revision,priority:"urgent"})).status===409);}
+ // ---- A1: schedule date before the estimate was created needs a confirmation ----
+ {const pl=await ok("GET",tp+"/planning");
+  const r=await call("PATCH",tp+"/planning",{revision:pl.revision,scheduledDate:"2020-01-15"});
+  check("Scheduling before the estimate was created is stopped with a warning",r.status===409&&/before this estimate was created/.test(r.text));
+  check("The refused early date is not saved",(await ok("GET",tp+"/planning")).scheduledDate!=="2020-01-15");
+  const c=await ok("PATCH",tp+"/planning",{revision:pl.revision,scheduledDate:"2020-01-15",confirmEarlyDate:true});
+  check("The estimator can confirm the early date (work really started first) and it is saved",c.scheduledDate==="2020-01-15");
+  const dbr=new Database(dbPath,{readonly:true});
+  check("A confirmed early date is recorded in the audit history",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='schedule.date_before_estimate_confirmed' AND record_id=?").get(String(tint.id)));dbr.close();
+  const today=new Date().toLocaleDateString("en-CA",{timeZone:"America/Boise"});
+  check("A date on or after the estimate date needs no confirmation",(await ok("PATCH",tp+"/planning",{revision:c.revision,scheduledDate:today})).scheduledDate===today);}
+ // ---- A1: discount codes and labor discounts ----
+ check("Only pricing managers can add discount codes",(await call("POST","/api/discount-codes",{code:"VET10",description:"Veteran",kind:"percent",amount:10})).status===403);
+ const vet=await ok("POST","/api/discount-codes",{code:"vet10",description:"Veteran discount",kind:"percent",amount:10},owner);
+ const flat=await ok("POST","/api/discount-codes",{code:"FLAT50",description:"$50 off labor",kind:"amount",amount:50},owner);
+ check("A discount code is saved with its code, description and amount",vet.code==="VET10"&&vet.description==="Veteran discount"&&vet.kind==="percent"&&vet.amount===10&&vet.active);
+ check("Duplicate discount codes are refused",(await call("POST","/api/discount-codes",{code:"VET10",description:"x",kind:"percent",amount:5},owner)).status===409);
+ check("A percentage over 100 is refused",(await call("POST","/api/discount-codes",{code:"BAD",description:"x",kind:"percent",amount:150},owner)).status===400);
+ check("Estimators can read the discount list",(await ok("GET","/api/discount-codes")).some(c=>c.code==="VET10"));
+ await ok("POST",tp+"/line-items",{serviceCategory:"window_tint",description:"Tint film",unitPrice:100,lineType:"parts"});
+ const noDisc=await ok("GET",tp);
+ const laborTotal=noDisc.lineItems.filter(l=>l.lineType==="labor").reduce((n,l)=>n+l.total,0);
+ const withCode=await ok("PATCH",tp,{discountBasis:"labor",discountCode:"VET10"});
+ check("Choosing a discount code applies its description and amount (10% of labor)",withCode.discountCode==="VET10"&&withCode.discountNote==="Veteran discount"&&withCode.discountPercent===10&&Math.abs(withCode.discount-laborTotal*0.1)<0.005);
+ check("A labor discount does not change the sales tax on parts",withCode.taxAmount===noDisc.taxAmount);
+ check("The total drops by exactly the discount",Math.abs(withCode.total-(noDisc.total-withCode.discount))<0.005);
+ await ok("POST",tp+"/line-items",{serviceCategory:"window_tint",description:"More tint labor",unitPrice:200});
+ {const t=await ok("GET",tp);check("A percentage labor discount follows the labor when lines are added",Math.abs(t.discount-(laborTotal+200)*0.1)<0.005);}
+ check("A hand-entered discount needs a description",(await call("PATCH",tp,{discountBasis:"labor",discountCode:null,discountNote:"",discount:25,discountPercent:null})).status===400);
+ const manual=await ok("PATCH",tp,{discountBasis:"labor",discountCode:null,discountNote:"Returning customer",discount:25,discountPercent:null});
+ check("A hand-entered dollar discount with a description is saved",manual.discount===25&&manual.discountNote==="Returning customer"&&manual.discountCode===null);
+ check("A labor discount larger than the labor is refused",(await call("PATCH",tp,{discountBasis:"labor",discountCode:null,discountNote:"Too much",discount:99999,discountPercent:null})).status===400);
+ check("Turned-off discount codes cannot be chosen",await (async()=>{await ok("PATCH",`/api/discount-codes/${flat.id}`,{active:false},owner);return (await call("PATCH",tp,{discountBasis:"labor",discountCode:"FLAT50"})).status===400;})());
+ {const printed=await ok("GET",`/print/estimate/${tint.id}`);check("The printed estimate shows the discount description and that it is off labor",/Discount: Returning customer \(off labor\)/.test(printed));}
+ const removed=await ok("PATCH",tp,{discountBasis:"labor",discount:0,discountPercent:null,discountCode:null,discountNote:null});
+ check("Removing the discount clears the code and description",removed.discount===0&&removed.discountNote===null&&removed.discountCode===null&&Math.abs(removed.total-(removed.subtotal+removed.taxAmount))<0.005);
+ {const dbr=new Database(dbPath,{readonly:true});
+  check("People changes are recorded in the audit history",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='people.updated' AND record_id=?").get(String(tint.id)));dbr.close();}
+ // ---- A1: one number follows the repair (estimate -> work order -> invoice -> print/email) ----
+ {const e=await ok("GET",ep);
+  check("The invoice carries the estimate's number",inv.estimateNumber===e.estimateNumber&&/^EST-/.test(e.estimateNumber));
+  const printed=await ok("GET",`/print/invoice/${inv.id}`);
+  check("The printed invoice shows the estimate number under the invoice number",printed.includes(`Estimate ${e.estimateNumber}`));
+  check("The invoice list shows the estimate number",(await ok("GET","/api/invoices")).find(i=>i.id===inv.id)?.estimateNumber===e.estimateNumber);}
+ // ---- A1: everything stays editable on a work order in progress, until invoiced ----
+ {const job=await ok("POST","/api/jobs",{customerId:cust.id,serviceType:"window_tint",vehicleId:v2.id,title:"Tint in progress",status:"pending",priority:"normal"},owner);
+  const je=await ok("POST",`/api/jobs/${job.id}/estimate`,{},owner);
+  check("The work order list shows the linked estimate number",(await ok("GET","/api/jobs")).find(j=>j.id===job.id)?.estimateNumbers.includes(je.estimateNumber));
+  await ok("POST",`/api/estimates/${je.id}/line-items`,{serviceCategory:"window_tint",description:"Tint labor",unitPrice:300});
+  let jp=await ok("GET",`/api/jobs/${job.id}/planning`);
+  jp=await ok("PATCH",`/api/jobs/${job.id}/planning`,{revision:jp.revision,status:"in_progress"},owner);
+  check("The work order is in progress",jp.status==="in_progress");
+  const pp=await ok("GET",`/api/estimates/${je.id}/planning`);
+  const pe=await ok("PATCH",`/api/estimates/${je.id}/people`,{revision:pp.peopleRevision,salesTeam:[{staffId:advisorId,shareBps:5000},{staffId:managerId,shareBps:5000}],estimatorId:managerId,followUpId:ownerId});
+  check("Salespeople, estimator and follow-up can be changed while the work order is in progress",pe.salesTeam.length===2&&pe.estimatorId===managerId);
+  check("The work order shows the same people",(await ok("GET",`/api/jobs/${job.id}/planning`)).estimatorId===managerId);
+  const dj=await ok("PATCH",`/api/estimates/${je.id}`,{discountBasis:"labor",discountCode:"VET10"});
+  check("A discount can be added while the work order is in progress",dj.discount===30);
+  const jd=await ok("GET",`/api/jobs/${job.id}/detail`);
+  check("The work order page receives the estimate's discount details",jd.estimates[0].discountCode==="VET10"&&jd.estimates[0].discount===30);
+  const early=await ok("PATCH",`/api/jobs/${job.id}/planning`,{revision:jp.revision,scheduledDate:"2020-02-01",confirmEarlyDate:true},owner);
+  check("The schedule date can be changed (with the early-date confirmation) while in progress",early.scheduledDate==="2020-02-01");}
+ // ---- A1: how the customer heard about us, and the referral thank-you list ----
+ {const sources=await ok("GET","/api/marketing-sources");
+  const src=n=>sources.find(s=>s.name===n);
+  check("The starting tags are the RoadFS tags plus Referral and Vans",["Radio","Referral","Repeat Customer","Building Sign","Vans / vehicle lettering","2nd Work Order","Bodyshop Referral","Lobby - In Person","Web Form","Callback Sale"].every(n=>src(n)?.active));
+  check("Tags are in four groups",src("Radio").group==="How they found us"&&src("Dealer Referral").group==="Referred by"&&src("Lobby - In Person").group==="How the estimate came in"&&src("New Customer").group==="Customer");
+  check("Body shop, dealer, furniture store and insurance referrals ask who referred them",["Bodyshop Referral","Dealer Referral","Furniture Store Referral","Insurance Referral"].every(n=>src(n).needsReferrer));
+  check("Referral asks who referred them; Radio does not",src("Referral").needsReferrer&&!src("Radio").needsReferrer);
+  check("Only marketing managers can change the choices",(await call("POST","/api/marketing-sources",{name:"Billboard"})).status===403);
+  const bb=await ok("POST","/api/marketing-sources",{name:"Billboard on Eagle Rd"},owner);
+  check("A manager can add a choice",bb.active&&!bb.needsReferrer);
+  check("Duplicate choices are refused",(await call("POST","/api/marketing-sources",{name:"billboard on eagle rd"},owner)).status===409);
+  const mu=`/api/estimates/${tint.id}/marketing`;
+  check("An estimate starts with no tags",(await ok("GET",mu)).tags.length===0);
+  const radio=await ok("PUT",mu,{sourceId:src("Radio").id});
+  check("Radio is saved on the estimate",radio.source==="Radio");
+  check("The customer's record gets the source when it had none",(await ok("GET",`/api/customers/${cust.id}`)).referralSource==="Radio");
+  check("Referral without a referrer is refused with an explanation",await (async()=>{const r=await call("PUT",mu,{sourceId:src("Referral").id});return r.status===400&&/who referred/.test(r.text);})());
+  check("A customer cannot refer themselves",(await call("PUT",mu,{sourceId:src("Referral").id,referrerCustomerId:cust.id})).status===400);
+  const friend=await ok("POST","/api/customers",{customerType:"retail",firstName:"Pat",lastName:"Referrer",phone:"555-010-3131",status:"active"});
+  const ref=await ok("PUT",mu,{sourceId:src("Referral").id,referrerCustomerId:friend.id,referrerNote:"Coworker"});
+  check("A referral by an existing customer is saved with their name and phone",ref.referrer.name==="Pat Referrer"&&ref.referrer.phone==="555-010-3131"&&ref.thankYouStatus==="to_thank");
+  check("Service advisors can open the referral thank-you list",(await call("GET","/api/referrals")).status===200);
+  check("Technicians cannot open the referral thank-you list",(await call("GET","/api/referrals",undefined,staff.technician)).status===403);
+  let list=await ok("GET","/api/referrals",undefined,owner);
+  const row=list.find(r=>r.estimateId===tint.id);
+  check("The referrer is on the thank-you list with the referred customer and estimate number",row&&row.status==="to_thank"&&row.referrerName==="Pat Referrer"&&row.referredCustomer==="Dana Phase-Two"&&row.estimateNumber===tintBefore.estimateNumber);
+  const th=await ok("PATCH",`/api/referrals/${tint.id}`,{thanked:true,note:"Card mailed"},owner);
+  check("Marking a referral thanked records who and how",th.status==="thanked"&&th.thankedNote==="Card mailed"&&!!th.thankedBy);
+  check("Re-saving the same referrer keeps it thanked",(await ok("PUT",mu,{sourceId:src("Referral").id,referrerCustomerId:friend.id,referrerNote:"Coworker"})).thankYouStatus==="thanked");
+  const byName=await ok("PUT",mu,{sourceId:src("Referral").id,referrerName:"Lee Neighbor",referrerPhone:"555-010-4444"});
+  check("A referrer who is not a customer can be typed in, and goes back on the list to thank",byName.referrer.name==="Lee Neighbor"&&byName.thankYouStatus==="to_thank");
+  check("A turned-off choice cannot be picked for a new answer",await (async()=>{await ok("PATCH",`/api/marketing-sources/${bb.id}`,{active:false},owner);return (await call("PUT",mu,{sourceId:bb.id})).status===400;})());
+  check("The marketing answer is locked once the estimate is invoiced",(await call("PUT",`/api/estimates/${est.id}/marketing`,{sourceId:src("Radio").id})).status===409);
+  const multi=await ok("PUT",mu,{sourceIds:[src("Radio").id,src("Lobby - In Person").id,src("New Customer").id,src("Dealer Referral").id],referrerName:"Boise Ford",referrerPhone:"208-555-0199"});
+  check("Several tags can be saved on one estimate (Radio + Lobby - In Person + New Customer + Dealer Referral)",multi.tags.length===4&&["Radio","Lobby - In Person","New Customer","Dealer Referral"].every(n=>multi.tags.some(t=>t.name===n)));
+  check("A dealer referral records which dealer referred them",multi.referrer.name==="Boise Ford");
+  check("The thank-you list shows the referral tag",(await ok("GET","/api/referrals",undefined,owner)).find(x=>x.estimateId===tint.id)?.source==="Dealer Referral");
+  const noRef=await ok("PUT",mu,{sourceIds:[src("Radio").id,src("Repeat Customer").id]});
+  check("Removing the referral tag takes it off the thank-you list",!noRef.needsReferrer&&!(await ok("GET","/api/referrals",undefined,owner)).some(x=>x.estimateId===tint.id));
+  check("A tag group must be one of the four groups",(await call("POST","/api/marketing-sources",{name:"Odd one",group:"Elsewhere"},owner)).status===400);
+  check("A manager can add a tag to a group",(await ok("POST","/api/marketing-sources",{name:"KBOI radio",group:"How they found us"},owner)).group==="How they found us");
+  const dbr=new Database(dbPath,{readonly:true});
+  check("Marketing answers and thank-yous are in the audit history",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='marketing.updated' AND record_id=?").get(String(tint.id))&&!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='referral.thanked'").get());dbr.close();}
+ // ---- A1: change history shows the login that made each change ----
+ {check("Service advisors cannot open the change history (managers, owners and auditors can)",(await call("GET",`/api/history/estimates/${tint.id}`)).status===403);
+  check("An auditor can read the change history",(await call("GET",`/api/history/estimates/${tint.id}`,undefined,staff.auditor)).status===200);
+  const h=await ok("GET",`/api/history/estimates/${tint.id}`,undefined,owner);
+  const people=h.find(e=>/People changed/.test(e.what)&&e.changes.some(c=>c.field==="Follow-up salesperson"));
+  check("Changing the follow-up salesperson is in the estimate's history with the person's name and login",people&&people.by==="Test advisor"&&people.login==="advisor@example.invalid");
+  check("The history shows the follow-up change from one person to another by name",people.changes.some(c=>c.field==="Follow-up salesperson"&&/Test /.test(c.from)&&/Test /.test(c.to)));
+  const mk=h.find(e=>/heard about us/.test(e.what)&&e.changes.some(c=>c.field==="Referred by"&&/Lee Neighbor/.test(c.to)));
+  check("Changing who referred the customer is in the history (old and new referrer) with the login",mk&&/Pat Referrer/.test(mk.changes.find(c=>c.field==="Referred by").from)&&mk.login==="advisor@example.invalid");
+  check("Marking a referral thanked is in the history with the login",h.some(e=>e.what==="Referral marked thanked"&&e.login==="owner@example.invalid"));
+  check("Discount changes are in the history",h.some(e=>e.changes.some(c=>c.field==="Discount description"&&c.to==="Returning customer")));
+  check("Early schedule dates confirmed by the estimator are in the history",h.some(e=>/Early schedule date confirmed/.test(e.what)));
+  check("Internal costs are not shown in the change history",!JSON.stringify(h).includes("unit cost"));
+  await ok("PATCH",`/api/customers/${cust.id}`,{phone:"555-010-9999"});
+  const ch=await ok("GET",`/api/history/customers/${cust.id}`,undefined,owner);
+  check("Changing a customer's phone is in the customer's history with old and new number and the login",ch.some(e=>e.login==="advisor@example.invalid"&&e.changes.some(c=>c.field==="Phone"&&c.from==="555-010-2101"&&c.to==="555-010-9999")));
+  const job=(await ok("GET","/api/jobs")).find(j=>j.title==="Tint in progress");
+  const jh=await ok("GET",`/api/history/jobs/${job.id}`,undefined,owner);
+  check("A work order's history includes people changes on its linked estimate",jh.some(e=>/People changed/.test(e.what)&&e.changes.some(c=>c.field==="Estimator")));
+  check("A work order's history includes its status change",jh.some(e=>e.changes.some(c=>c.field==="Status"&&c.to==="in progress")));
+  const dbr=new Database(dbPath,{readonly:true});
+  check("Opening the change history is itself recorded",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='history.viewed' AND entity='customers' AND record_id=?").get(String(cust.id)));dbr.close();}
+ // ---- A1: phone and email typing checks, and duplicate customers ----
+ {const bad=async(body,re)=>{const r=await call("POST","/api/customers",{customerType:"insurance",companyName:"Check Ins Co",status:"active",...body});return r.status===400&&re.test(r.text);};
+  check("A phone number with too many digits is refused with how many digits it has",await bad({phone:"208-555-12111"},/11 digits.*10 digits/));
+  check("A phone number with too few digits is refused",await bad({phone:"208-555"},/6 digits/));
+  check("An email with spaces is refused and the fix is suggested",await bad({email:"bm47 ford @ gmmail.con"},/can't contain spaces.*bm47ford@gmail\.com/));
+  check("A misspelled email domain (gmmail.con) is caught and gmail.com suggested",await bad({email:"bm47ford@gmmail.con"},/Did you mean bm47ford@gmail\.com/));
+  check("An email without an @ is refused",await bad({email:"bm47ford.gmail.com"},/needs an @/));
+  const ok1=await ok("POST","/api/customers",{customerType:"insurance",companyName:"Check Ins Co",status:"active",phone:"(208) 555 7788",email:"Claims@CheckIns.com"});
+  check("A good phone number is saved in one format (208-555-7788) and the email in lower case",ok1.phone==="208-555-7788"&&ok1.email==="claims@checkins.com");
+  const kept=await ok("POST","/api/customers",{customerType:"insurance",companyName:"Rare Domain Co",status:"active",email:"ops@gmail.co",confirmEmail:true});
+  check("A flagged email can be kept as typed when the person confirms it",kept.email==="ops@gmail.co");
+  const dup=await call("POST","/api/customers",{customerType:"insurance",companyName:"Another Name",status:"active",phone:"1-208-555-7788"});
+  check("The same phone number written differently (1-208-555-7788) is caught as a possible duplicate customer",dup.status===409&&/duplicate/i.test(dup.text));
+  check("Editing a customer to a bad phone number is refused",(await call("PATCH",`/api/customers/${ok1.id}`,{phone:"555-12"})).status===400);
+  check("Editing a customer's email to a typo is refused",(await call("PATCH",`/api/customers/${ok1.id}`,{email:"claims@hotmial.com"})).status===400);
+  check("A new number on the contact-change screen gets the same check",(await call("POST",`/api/customers/${ok1.id}/contact-update`,{answers:[{key:"phone",current:"208-555-7788",incoming:"208-555-77889",answer:"replaced"}]})).status===400);}
+ // ---- A1: marine and RV interiors can reupholster a panel instead of repairing it ----
+ {const boat=await ok("POST","/api/vehicles",{customerId:cust.id,vehicleType:"marine",year:"2015",make:"Sea Ray",model:"Sundancer"});
+  const me=await ok("POST","/api/estimates",{customerId:cust.id,serviceType:"marine_interior",vehicleId:boat.id,taxRate:6});
+  const up=await ok("POST",`/api/estimates/${me.id}/line-items`,{serviceCategory:"upholstery",repairAction:"reupholster",description:"V-berth cushion: reupholster",panelLocation:"V-berth cushion",unitPrice:110});
+  check("A marine interior estimate accepts a reupholster line",up.serviceCategory==="upholstery"&&up.repairAction==="reupholster");
+  const rep=await ok("POST",`/api/estimates/${me.id}/line-items`,{serviceCategory:"interior_vinyl",repairAction:"repair",description:"Helm seat: vinyl tear",unitPrice:85});
+  check("The same marine estimate still accepts a repair line",rep.serviceCategory==="interior_vinyl");
+  check("Reupholster with new foam is allowed on marine interiors",(await call("POST",`/api/estimates/${me.id}/line-items`,{serviceCategory:"upholstery",repairAction:"foam_replacement",description:"Settee: reupholster + foam",unitPrice:137.5})).status<300);
+  check("Auto interiors are unchanged (no reupholster lines)",(await call("POST",`/api/estimates/${tint.id}/line-items`,{serviceCategory:"upholstery",repairAction:"reupholster",description:"x",unitPrice:1})).status===400);}
+ // ---- A1: the schedule shows who, where, what item and what work for each booking ----
+ {const slots=await ok("GET","/api/schedule-slots",undefined,owner);
+  const withJob=slots.find(x=>x.jobId&&x.status!=="cancelled");
+  check("Test data has a booked work order on the calendar",!!withJob);
+  const cap=await ok("GET",`/api/capacity?from=${withJob.date}`);
+  const slot=cap.slots.find(x=>x.id===withJob.id);
+  const job=await ok("GET",`/api/jobs/${withJob.jobId}`,undefined,owner),c=await ok("GET",`/api/customers/${job.customerId}`,undefined,owner);
+  check("Each calendar booking includes the customer's name, service and work order number",slot.details&&slot.details.customer===(c.companyName||`${c.firstName} ${c.lastName}`.trim())&&slot.details.jobNumber===job.jobNumber&&!!slot.details.service);
+  check("Each calendar booking includes the customer's phone and address",slot.details.phone===(c.mobile||c.phone||null)&&(c.address?slot.details.address.includes(c.address):true));
+  check("Calendar bookings show no prices or costs",!/"(?:unitPrice|unit_price|total|unitCost|unit_cost|price)"/.test(JSON.stringify(slot.details)));
+  const mine=await ok("GET","/api/my-work",undefined,staff.technician);
+  check("A technician's own work list includes where to go, the customer phone and their booked times",Array.isArray(mine)&&mine.every(j=>"address" in j&&"phone" in j&&Array.isArray(j.appointments)));}
+ check("A normal server never offers the demo one-click sign-in",!("demoSignIn" in (await ok("GET","/api/auth/status"))));
+ // ---- A1: planned work (date + lead technician, no booked time) shows on the calendar ----
+ {const pe=await ok("POST","/api/estimates",{customerId:cust.id,serviceType:"window_tint",vehicleId:v2.id,taxRate:6});
+  await ok("POST",`/api/estimates/${pe.id}/line-items`,{serviceCategory:"window_tint",description:"Full tint, ceramic",unitPrice:350});
+  const day=new Date(Date.now()+8*86400000).toLocaleDateString("en-CA",{timeZone:"America/Boise"});
+  const pl=await ok("GET",`/api/estimates/${pe.id}/planning`);
+  await ok("PATCH",`/api/estimates/${pe.id}/planning`,{revision:pl.revision,scheduledDate:day,assignedTechId:techs[0].id});
+  const cap=await ok("GET",`/api/capacity?from=${day}`);
+  const w=(cap.planned||[]).find(x=>x.kind==="estimate"&&x.id===pe.id);
+  check("An estimate planned for a day with a lead technician shows on that technician's day of the calendar",w&&w.date===day&&w.technicianId===techs[0].id);
+  check("The planned item shows the customer, service and work (no prices)",w.details.customer==="Dana Phase-Two"&&/tint/i.test(w.details.service)&&w.details.work.some(t=>/ceramic/.test(t))&&!/"(?:unitPrice|total|price)"/.test(JSON.stringify(w.details)));
+  const other=await ok("GET",`/api/capacity?from=${new Date(Date.now()+20*86400000).toLocaleDateString("en-CA",{timeZone:"America/Boise"})}`);
+  check("It does not show on other weeks",!(other.planned||[]).some(x=>x.kind==="estimate"&&x.id===pe.id));}
+ check("The calendar can be filtered to one of the five technician groups",(await call("GET",`/api/capacity?department=${encodeURIComponent("ME - Mobile Exterior")}`)).status===200);
+ check("The old service departments are no longer accepted",(await call("GET",`/api/capacity?department=${encodeURIComponent("PDR / Hail")}`)).status===400);
+ // ---- Waiting list and callbacks (RoadFS-style) ----
+ {const types=await ok("GET","/api/callback-types");
+  const ty=n=>types.find(t=>t.name===n);
+  check("Callback types start from the RoadFS list (parts types marked)",ty("Parts To Order")?.parts&&ty("Awaiting Parts")?.parts&&ty("Researching Parts")?.parts&&!!ty("To Be Scheduled (TBS)")&&!ty("Estimate Follow-up").parts);
+  check("Only managers can change callback types",(await call("POST","/api/callback-types",{name:"X"})).status===403&&(await call("POST","/api/callback-types",{name:"Detailing follow-up"},owner)).status===201);
+  const job=await ok("POST","/api/jobs",{customerId:cust.id,serviceType:"window_tint",vehicleId:v2.id,title:"Tint waiting on film",status:"pending",priority:"normal"},owner);
+  let w=await ok("GET","/api/waiting-work");
+  check("An open work order with no booked time is on the waiting list as Ready to schedule",w.find(r=>r.kind==="jobs"&&r.id===job.id)?.state==="ready");
+  const day=new Date(Date.now()+3*86400000).toLocaleDateString("en-CA",{timeZone:"America/Boise"});
+  const advisor=people.find(p=>p.name==="Test advisor");
+  const cb=await ok("POST",`/api/jobs/${job.id}/callbacks`,{typeId:ty("Awaiting Parts").id,dueDate:day,assignedStaffId:advisor.id,note:"Ceramic film ordered"});
+  check("A callback is saved with its type, date, person and note",cb.type==="Awaiting Parts"&&cb.dueDate===day&&cb.assignedTo==="Test advisor"&&cb.note==="Ceramic film ordered");
+  w=await ok("GET","/api/waiting-work");
+  check("With an open parts callback the job moves to Waiting on parts",w.find(r=>r.kind==="jobs"&&r.id===job.id)?.state==="waiting_parts");
+  check("My callbacks lists the advisor's callback",(await ok("GET","/api/callbacks?assigned=me")).some(c=>c.id===cb.id));
+  check("Callbacks can be listed by type",(await ok("GET",`/api/callbacks?assigned=&typeId=${ty("Awaiting Parts").id}`)).every(c=>c.type==="Awaiting Parts"));
+  const bookTry=await call("POST","/api/capacity/reserve",{technicianId:techs[0].id,jobId:job.id,date:day,startTime:"09:00",endTime:"10:00",readinessConfirmed:true,retryKey:"parts-test-1"});
+  check("Booking a job with parts outstanding is stopped with a warning",bookTry.status===409&&/Parts for this job are still outstanding/.test(bookTry.text));
+  const done=await ok("PATCH",`/api/callbacks/${cb.id}`,{done:true,doneNote:"Film arrived"});
+  check("Marking the last parts callback done says the job is Ready to schedule",done.readyToSchedule===true&&done.status==="done"&&done.doneNote==="Film arrived");
+  w=await ok("GET","/api/waiting-work");
+  const row=w.find(r=>r.kind==="jobs"&&r.id===job.id);
+  check("The job is back on Ready to schedule, showing when the parts arrived",row?.state==="ready"&&!!row.partsArrivedAt);
+  const f=await ok("POST",`/api/jobs/${job.id}/callbacks`,{typeId:ty("To Be Scheduled (TBS)").id,dueDate:day,note:"Customer calling after talking with spouse"});
+  check("A non-parts callback puts it under Waiting on customer / other",(await ok("GET","/api/waiting-work")).find(r=>r.id===job.id&&r.kind==="jobs")?.state==="waiting_other");
+  check("Technicians cannot see the waiting list",(await call("GET","/api/waiting-work",undefined,staff.technician)).status===403);
+  const h=await ok("GET",`/api/history/jobs/${job.id}`,undefined,owner);
+  check("Callbacks and parts arriving are in the change history with the login",h.some(e=>e.what==="Callback added"&&e.login==="advisor@example.invalid")&&h.some(e=>/Ready to schedule/.test(e.what)));
+  void f;}
+ // ---- Invoice corrections until "Entered in QuickBooks" ----
+ {const ip=`/api/invoices/${inv.id}`;
+  let I=await ok("GET",ip,undefined,owner);
+  const lines=I.lineItems.map(l=>({id:l.id,description:l.description,quantity:l.quantity,unitPrice:l.unitPrice,lineType:l.lineType,serviceCategory:l.serviceCategory}));
+  check("Service advisors cannot correct an invoice",(await call("PUT",ip+"/correction",{lines,reason:"x"})).status===403);
+  check("A correction needs a reason",(await call("PUT",ip+"/correction",{lines},owner)).status===400);
+  const labor=lines.find(l=>l.lineType==="labor");
+  const changed=lines.map(l=>l===labor?{...l,unitPrice:l.unitPrice+100,description:l.description+" (corrected)"}:l);
+  const r=await ok("PUT",ip+"/correction",{lines:[...changed,{description:"Clips",quantity:2,unitPrice:5,lineType:"parts",serviceCategory:"material"}],reason:"Customer approved more work on site"},owner);
+  const after=await ok("GET",ip,undefined,owner);
+  const sub=after.lineItems.reduce((n,l)=>n+l.total,0);
+  check("The corrected invoice has the changed and added lines",after.lineItems.length===lines.length+1&&after.lineItems.some(l=>/\(corrected\)/.test(l.description))&&after.lineItems.some(l=>l.description==="Clips"));
+  check("Subtotal, tax and total are recalculated",Math.abs(after.subtotal-sub)<0.005&&Math.abs(after.total-(after.subtotal+after.taxAmount-after.discount))<0.005&&after.total>I.total);
+  check("The balance due follows the new total",Math.abs(after.balanceDue-(after.total-after.amountPaid))<0.005);
+  const labCredits=await ok("GET",ip+"/labor",undefined,owner);
+  const laborNet=after.lineItems.filter(l=>l.lineType==="labor").reduce((n,l)=>n+Math.round(l.total*100),0)-Math.round(after.discount*100);
+  check("Technician production is rebuilt from the corrected labor",labCredits.reduce((n,c)=>n+c.net_labor_cents,0)===laborNet);
+  check("The invoice number and estimate stay the same",after.invoiceNumber===I.invoiceNumber&&after.estimateId===I.estimateId);
+  const h=await ok("GET",`/api/history/customers/${after.customerId}`,undefined,owner);void h;
+  const dbr=new Database(dbPath,{readonly:true});
+  check("The correction is in the audit history with the login and reason",!!dbr.prepare("SELECT 1 FROM security_audit WHERE event='invoice.corrected' AND record_id=? AND actor_label='Owner' AND after_json LIKE '%Customer approved more work%'").get(String(inv.id)));dbr.close();
+  check("Plain invoice edits still cannot change money",(await call("PATCH",ip,{total:1},owner)).status===409);
+  const qbAdv=await ok("POST",ip+"/quickbooks",{entered:true});
+  check("Marking an invoice entered in QuickBooks records who and when",!!qbAdv.enteredAt&&qbAdv.enteredBy==="Test advisor");
+  check("Once entered in QuickBooks the invoice can't be corrected",(await call("PUT",ip+"/correction",{lines:changed,reason:"late"},owner)).status===409);
+  check("A service advisor can't undo the QuickBooks mark",(await call("POST",ip+"/quickbooks",{entered:false})).status===403);
+  check("A manager or owner can undo it",(await ok("POST",ip+"/quickbooks",{entered:false},owner)).enteredAt===null);
+  const today=new Date().toLocaleDateString("en-CA",{timeZone:"America/Boise"});
+  await ok("POST","/api/payments",{invoiceId:inv.id,customerId:after.customerId,amount:after.total,paymentMethod:"cash",paymentDate:today,idempotencyKey:"corr-pay-1"},owner);
+  const lower=await call("PUT",ip+"/correction",{lines:changed,reason:"Remove clips"},owner);
+  check("A correction can't take the total below what was already paid",lower.status===400&&/already paid/.test(lower.text));
+  const more=await ok("PUT",ip+"/correction",{lines:[...(await ok("GET",ip,undefined,owner)).lineItems.map(l=>({id:l.id,description:l.description,quantity:l.quantity,unitPrice:l.unitPrice,lineType:l.lineType})),{description:"Extra trim",quantity:1,unitPrice:20,lineType:"parts",serviceCategory:"material"}],reason:"Added trim"},owner);
+  check("Raising the total after payment leaves it partly paid",more.invoice.status==="partial"&&more.invoice.balanceDue>0);
+  void r;}
+ // ---- Working-hours conflicts, moving an appointment, fixing old estimates ----
+ {const slots=await ok("GET","/api/schedule-slots",undefined,owner);
+  const today=new Date().toLocaleDateString("en-CA",{timeZone:"America/Boise"});
+  const jobsNow=await ok("GET","/api/jobs",undefined,owner);
+  const sl=slots.find(x=>x.jobId&&x.status==="scheduled"&&x.date>today&&!["completed","cancelled"].includes(jobsNow.find(j=>j.id===x.jobId)?.status));
+  const cap=await ok("GET",`/api/capacity?from=${sl.date}`,undefined,owner);
+  const tech=cap.technicians.find(t=>t.id===sl.technicianId);
+  const wd=new Date(sl.date+"T12:00:00Z").getUTCDay();
+  const narrow=[0,1,2,3,4,5,6].filter(d=>d!==wd).map(day=>({day,start:"08:00",end:"17:00"}));
+  const r=await call("PUT",`/api/capacity/profiles/${tech.id}`,{version:tech.profile.version,department:"ME - Mobile Exterior",windows:narrow,confirmed:true},owner);
+  const job=await ok("GET",`/api/jobs/${sl.jobId}`,undefined,owner);
+  check("Hours that would leave an appointment outside working time name the appointment (day, time, work order)",r.status===409&&r.text.includes(sl.date)&&r.text.includes(sl.startTime)&&r.text.includes(job.jobNumber));
+  const wide=[0,1,2,3,4,5,6].map(day=>({day,start:"06:00",end:"20:00"}));
+  const kept=await call("PUT",`/api/capacity/profiles/${tech.id}`,{version:tech.profile.version,department:"ME - Mobile Exterior",windows:narrow,confirmed:true,keepConflicts:true},owner);
+  check("The hours can be saved anyway, keeping the appointment",kept.status===200);
+  const cap2=await ok("GET",`/api/capacity?from=${sl.date}`,undefined,owner);
+  await ok("PUT",`/api/capacity/profiles/${tech.id}`,{version:cap2.technicians.find(t=>t.id===tech.id).profile.version,department:"ME - Mobile Exterior",windows:wide,confirmed:true},owner);
+  const newDay=new Date(Date.parse(sl.date+"T12:00:00Z")+86400000).toISOString().slice(0,10);
+  const mv=await call("POST",`/api/capacity/reschedule/${sl.id}`,{technicianId:tech.id,date:newDay,startTime:sl.startTime,endTime:sl.endTime,retryKey:"move-test-1"},owner);
+  check("A booked appointment can be moved to another day in one step",mv.status===201&&JSON.parse(mv.text).date===newDay);
+  const after=await ok("GET","/api/schedule-slots",undefined,owner);
+  check("The old booking is cancelled and the work order shows the new date",after.find(x=>x.id===sl.id)?.status==="cancelled"&&(await ok("GET",`/api/jobs/${sl.jobId}`,undefined,owner)).scheduledDate===newDay);
+  check("Moving is refused when it isn't the scheduler's role",(await call("POST",`/api/capacity/reschedule/${JSON.parse(mv.text).id}`,{technicianId:tech.id,date:newDay,startTime:sl.startTime,endTime:sl.endTime,retryKey:"move-test-2"},staff.technician)).status===403);
+  // An old-system estimate with a negative discount line and unclassified lines.
+  const ests=await ok("GET","/api/estimates",undefined,owner);
+  let old=null;for(const e of ests){const d=await ok("GET",`/api/estimates/${e.id}`,undefined,owner);if(d.status!=="invoiced"&&d.lineItems.some(l=>l.total<0)){old=d;break;}}
+  if(old){
+   const lineEdit=await call("PATCH",`/api/estimates/line-items/${old.lineItems[0].id}`,{description:old.lineItems[0].description,lineType:["material","supplies","freight_in","freight_out"].includes(old.lineItems[0].serviceCategory)?"parts":"labor",expectedVersion:old.lineItems[0].allocationVersion},owner);
+   check("Editing an old estimate with a negative line explains to use Fix old lines",lineEdit.status===409&&/Fix old lines/.test(lineEdit.text));
+   const neg=old.lineItems.filter(l=>l.total<0).reduce((n,l)=>n-l.total,0);
+   const fixed=await ok("POST",`/api/estimates/${old.id}/fix-old-lines`,{lines:old.lineItems.filter(l=>l.lineType==="legacy"&&l.total>=0).map(l=>({id:l.id,lineType:["material","supplies","freight_in","freight_out"].includes(l.serviceCategory)?"parts":"labor"})),negative:"add_to_discount"},owner);
+   const reread=await ok("GET",`/api/estimates/${old.id}`,undefined,owner);
+   check("Fix old lines moves the negative line into the discount and classifies every line",Math.abs(fixed.discount-(old.discount+neg))<0.005&&reread.lineItems.every(l=>l.total>=0&&l.lineType!=="legacy"));
+   check("After the fix the estimate's lines can be edited again",(await call("PATCH",`/api/estimates/line-items/${reread.lineItems[0].id}`,{description:reread.lineItems[0].description+" ",expectedVersion:reread.lineItems[0].allocationVersion},owner)).status===200);
+  } else check("Test data has an old estimate with a negative line",false);}
+ // ---- A1: logo on printed estimates and invoices ----
+ const logoHtml=await ok("GET",`/print/estimate/${tint.id}`);
+ check("Printed estimate shows the McDowells logo image",/<img src="data:image\/png;base64,[A-Za-z0-9+/=]{1000,}" alt="McDowells Specialty Repair"/.test(logoHtml));
  const html=await ok("GET",`/print/estimate/${est.id}`);
  check("Printed estimate does not show internal dent notes",!html.includes("Near the cowl")&&!html.includes("Detail-only change"));
 

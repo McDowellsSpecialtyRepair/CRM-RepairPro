@@ -64,7 +64,7 @@ export default function Invoices() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-6 gap-2">
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-muted-foreground">Total Collected</div>
@@ -121,14 +121,11 @@ export default function Invoices() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium">{inv.invoiceNumber}</span>
+                      {inv.estimateNumber && <span className="text-xs text-muted-foreground">Estimate {inv.estimateNumber}</span>}
                       <Badge variant="secondary" className={`text-[10px] ${statusColors[inv.status] || ""}`}>
                         {inv.status === "sent" ? "issued" : inv.status}
                       </Badge>
-                      {inv.qbSynced ? (
-                        <Badge variant="outline" className="text-[10px] text-chart-3">QB Synced</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] text-chart-4">Not Synced</Badge>
-                      )}
+                      {/* QuickBooks is not connected (backlog INT-01), so no sync status is shown. */}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {customerMap.get(inv.customerId) || "Unknown"} • Issued {formatDate(inv.issueDate)}

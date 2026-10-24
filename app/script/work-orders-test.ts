@@ -110,7 +110,7 @@ try {
   await save("estimates", e.id, { scheduledDate: "2027-01-15", assignedTechId: techs[0].id, salesPersonId: staff[0].id, priority: "urgent" });
   await ok("POST", `/api/estimates/${e.id}/line-items`, { serviceCategory: "material", description: "Material only", lineType: "parts", unitPrice: 10 });
   await ok("PATCH", `/api/estimates/${e.id}`, { status: "approved" });
-  const prod = await ok("POST", "/api/operations/start", { estimateId: e.id, department: "PDR / Hail" });
+  const prod = await ok("POST", "/api/operations/start", { estimateId: e.id, department: "ME - Mobile Exterior" });
   const inherited = await ok("GET", `/api/estimates/${e.id}/planning`);
   check("Estimate planning inherited by production work order", !!inherited.jobId && inherited.priority === "urgent" && inherited.assignedTechId === techs[0].id && inherited.scheduledDate === "2027-01-15" && inherited.salesPersonId === staff[0].id);
 

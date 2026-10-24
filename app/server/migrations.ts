@@ -18,6 +18,10 @@ import { migrateEstimateSales } from "./estimate-sales";
 import { migrateOperations } from "./operations";
 import { migrateCapacity } from "./capacity";
 import { migrateWorkOrders } from "./work-orders";
+import { migrateDiscounts } from "./discounts";
+import { migrateMarketing } from "./marketing";
+import { migrateCallbacks } from "./callbacks";
+import { migrateInvoiceCorrections } from "./invoice-corrections";
 import { migrateReporting } from "./reporting";
 import { migrateEstimateDents } from "./estimate-dents";
 import { migratePdrPricing } from "./pdr-pricing";
@@ -39,6 +43,7 @@ export function runMigrations(options: { seedDemo?: boolean } = {}) {
     throw new Error("Demo data can only be added to a brand-new, empty database.");
 
   migrateLabor(true);
+  migrateDiscounts(); // Its estimate/invoice columns are in the schema, so they must exist before any seeding.
 
   // Reference catalog (service templates, pricing matrices, tax jurisdictions) is loaded once,
   // and only into a brand-new database. An existing database is marked without changes.
@@ -61,9 +66,13 @@ export function runMigrations(options: { seedDemo?: boolean } = {}) {
   migrateOperations();
   migrateCapacity();
   migrateWorkOrders();
+  migrateDiscounts();
+  migrateMarketing();
+  migrateCallbacks();
   migrateReporting();
   migratePdrPricing();
   migrateEstimateDents();
+  migrateInvoiceCorrections(); // after the labor, sales and dent tables whose guards it adjusts
   initializeSecurity(); // Include report definitions, ops_* tables, dent records, packages and PDR pricing in row-level auditing.
   correctFalseSentEstimate23();
 

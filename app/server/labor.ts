@@ -48,9 +48,12 @@ export function apportion(total: number, weights: number[]): number[] {
   for (const r of rank) if (remaining-- > 0) result[r.i]++;
   return result;
 }
-export function lineNetCents(lines: any[], discount: number) {
+// basis "all": the discount is spread over every line by value (discounts entered before discount codes).
+// basis "labor": the discount is spread over labor lines only, so parts, materials and freight keep their price.
+export function lineNetCents(lines: any[], discount: number, basis: string = "all") {
   const gross = lines.map(l => Math.round(l.total*100));
-  const discounts = apportion(Math.round(discount*100),gross);
+  const weights = basis === "labor" ? gross.map((g,i) => lines[i].lineType === "labor" ? g : 0) : gross;
+  const discounts = weights.some(w => w > 0) ? apportion(Math.round(discount*100),weights) : gross.map(() => 0);
   return gross.map((g,i) => g-discounts[i]);
 }
 export const allocations = (id: number) => sqlite.prepare(`SELECT a.*,t.name FROM estimate_labor_allocations a JOIN technicians t ON t.id=a.technician_id WHERE line_id=? ORDER BY a.technician_id`).all(id) as any[];
