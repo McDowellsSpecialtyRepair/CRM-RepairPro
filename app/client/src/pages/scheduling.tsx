@@ -233,7 +233,7 @@ function LegacyScheduling() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="field-row">
                     <div>
                       <Label className="text-xs">Date</Label>
                       <Input className="mt-1" type="date" value={slotForm.date} onChange={(e) => setSlotForm({ ...slotForm, date: e.target.value })} />
@@ -252,7 +252,7 @@ function LegacyScheduling() {
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="field-row">
                     <div>
                       <Label className="text-xs">Start Time</Label>
                       <Input className="mt-1" type="time" value={slotForm.startTime} onChange={(e) => setSlotForm({ ...slotForm, startTime: e.target.value })} />

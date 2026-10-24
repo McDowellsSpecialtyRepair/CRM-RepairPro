@@ -101,7 +101,7 @@ export function EstimatePeople({ kind, id, locked, onDirtyChange }: { kind: "est
         <p className="text-xs text-muted-foreground">Up to {MAX_SALES} salespeople. The shares split the sales credit (before tax) and must add up to 100%. The person with the largest share is the lead salesperson. This is sales attribution for commission reports, not a payroll calculation.</p>
       </div> : <label className="text-sm block sm:max-w-sm">Salesperson
         <select aria-label="Salesperson" className={select} value={d.salesPersonId ?? ""} onChange={e => set({ salesPersonId: e.target.value ? Number(e.target.value) : null })}>{options(d.salesPersonId)}</select></label>}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="field-row">
         <label className="text-sm">Estimator
           <select aria-label="Estimator" className={select} value={d.estimatorId ?? ""} onChange={e => set({ estimatorId: e.target.value ? Number(e.target.value) : null })}>{options(d.estimatorId)}</select></label>
         <label className="text-sm">Follow-up salesperson

@@ -60,7 +60,7 @@ function CallbackLists() {
   const params = new URLSearchParams({ ...(typeId ? { typeId } : {}), ...(assigned ? { assigned } : {}), ...(due ? { due } : {}) }).toString();
   const q = useQuery<any[]>({ queryKey: ["/api/callbacks", params], queryFn: () => apiRequest("GET", `/api/callbacks?${params}`) });
   return <div className="space-y-3">
-    <div className="grid gap-2 sm:grid-cols-3">
+    <div className="field-row">
       <label className="text-sm">Type<select aria-label="Filter by callback type" className={select} value={typeId} onChange={e => setTypeId(e.target.value)}>
         <option value="">All types</option>{(types.data || []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
       <label className="text-sm">Person<select aria-label="Filter by person" className={select} value={assigned} onChange={e => setAssigned(e.target.value)}>

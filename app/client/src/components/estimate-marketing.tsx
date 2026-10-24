@@ -91,7 +91,7 @@ export function EstimateMarketing({ estimateId, customerId, locked, onDirtyChang
           {matches.length > 0 && <ul className="rounded-md border divide-y text-sm" data-testid="referrer-matches">{matches.map(c => <li key={c.id}>
             <button type="button" className="w-full text-left px-3 py-2 hover:bg-muted" onClick={() => { set({ referrerCustomerId: c.id, referrerName: "", referrerPhone: "" }); setSearch(""); }}>{nameOf(c)}{c.phone ? ` · ${c.phone}` : ""}</button></li>)}</ul>}
           <p className="text-xs text-muted-foreground">Not in the CRM yet? Type their name (and phone if you have it).</p>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="field-row">
             <label className="text-sm">Referred by (name)<Input aria-label="Referred by name" className="mt-1" maxLength={120} value={d.referrerName} onChange={e => set({ referrerName: e.target.value })} /></label>
             <label className="text-sm">Their phone<Input aria-label="Referrer phone" className="mt-1" maxLength={40} value={d.referrerPhone} onChange={e => set({ referrerPhone: e.target.value })} /></label>
           </div>

@@ -97,7 +97,7 @@ export default function CapacityCalendar() {
           hours, appointments and leave. All times are Boise local time.
         </p>
       </header>
-      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="field-row">
         <SelectField
           label="Technician group"
           value={department}
@@ -311,7 +311,7 @@ export default function CapacityCalendar() {
                 <h2 className="font-semibold">
                   Unavailable time · {leave.name}
                 </h2>
-                <div className="grid sm:grid-cols-3 gap-3">
+                <div className="field-row">
                   <Field
                     label="Leave date"
                     type="date"
@@ -433,7 +433,7 @@ export default function CapacityCalendar() {
               <summary className="font-semibold cursor-pointer">
                 Register a shared bay or piece of equipment
               </summary>
-              <div className="grid sm:grid-cols-3 gap-3 mt-4">
+              <div className="field-row mt-4">
                 <Field
                   label="Resource name"
                   value={newResource.name}
@@ -649,7 +649,7 @@ function ProfileEditor({ technician: t, close, refresh }: any) {
         {windows.map((w, i) => (
           <div
             key={i}
-            className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end"
+            className="field-row items-end"
           >
             <SelectField
               label={`Window ${i + 1} day`}

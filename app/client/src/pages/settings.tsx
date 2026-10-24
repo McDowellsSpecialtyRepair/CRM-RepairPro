@@ -34,7 +34,7 @@ export default function Settings() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="field-row">
                 <div>
                   <Label className="text-xs">Business Name</Label>
                   <Input defaultValue="RepairPro LLC" className="mt-1" data-testid="input-business-name" />
@@ -71,7 +71,7 @@ export default function Settings() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="field-row">
                 <div>
                   <Label className="text-xs">Primary Service Area</Label>
                   <Select defaultValue="boise">
@@ -110,7 +110,7 @@ export default function Settings() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="field-row">
                 <div>
                   <Label className="text-xs">Sales Tax Rate (%)</Label>
                   <Input type="number" step="0.01" defaultValue="6.00" className="mt-1" data-testid="input-tax-rate" />

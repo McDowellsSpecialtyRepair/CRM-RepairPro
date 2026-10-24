@@ -54,13 +54,13 @@ export function DiscountCodesManager() {
       </table></div>
       {!manage && <p className="text-muted-foreground">Only staff who manage pricing can add or change discount codes.</p>}
       {manage && !draft && <Button size="sm" variant="outline" onClick={() => { setDraft({ ...blank }); setError(""); setSaved(""); }} data-testid="button-new-discount-code">Add discount code</Button>}
-      {manage && draft && <div className="rounded-md border p-3 grid gap-3 sm:grid-cols-2" data-testid="discount-code-form">
+      {manage && draft && <div className="field-row rounded-md border p-3" data-testid="discount-code-form">
         <label>Code<Input aria-label="Code" className="mt-1" maxLength={30} value={draft.code} onChange={e => setDraft({ ...draft, code: e.target.value })} placeholder="For example: VET10" /></label>
         <label>Description<Input aria-label="Description" className="mt-1" maxLength={200} value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} placeholder="For example: Veteran discount" /></label>
         <label>Type<select aria-label="Type" className={select} value={draft.kind} onChange={e => setDraft({ ...draft, kind: e.target.value as any })}>
           <option value="percent">Percent of labor</option><option value="amount">Dollar amount off labor</option></select></label>
         <label>{draft.kind === "percent" ? "Percent" : "Amount ($)"}<NumberInput aria-label="Amount" className="mt-1" value={draft.amount} onValueChange={n => setDraft({ ...draft, amount: n })} /></label>
-        <div className="sm:col-span-2 flex flex-wrap gap-2">
+        <div className="field-full flex flex-wrap gap-2">
           <Button size="sm" disabled={busy || !draft.code.trim() || !draft.description.trim() || !draft.amount} onClick={() => save(draft)} data-testid="button-save-discount-code">{busy ? "Saving…" : "Save discount code"}</Button>
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setDraft(null); setError(""); }}>Cancel</Button>
         </div>

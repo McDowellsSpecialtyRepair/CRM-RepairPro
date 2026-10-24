@@ -39,14 +39,14 @@ export function CallbacksCard({ kind, id }: { kind: "estimates" | "jobs"; id: nu
     {q.data?.partsOutstanding
       ? <p className="rounded-md border border-amber-500 bg-amber-50 dark:bg-amber-950/30 p-2 text-amber-900 dark:text-amber-100" data-testid="text-parts-outstanding">Parts outstanding: this job is not ready to schedule until the parts callbacks are done.</p>
       : null}
-    {form && <div className="rounded-md border p-3 grid gap-2 sm:grid-cols-2" data-testid="callback-form">
+    {form && <div className="field-row rounded-md border p-3" data-testid="callback-form">
       <label>Type<select aria-label="Callback type" className={select} value={form.typeId} onChange={e => setForm({ ...form, typeId: e.target.value })}>
         <option value="">Choose a type</option>{(types.data || []).filter(t => t.active).map(t => <option key={t.id} value={t.id}>{t.name}{t.parts ? " (parts)" : ""}</option>)}</select></label>
       <label>Date<Input aria-label="Callback date" type="date" className="mt-1" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} /></label>
       <label>Assigned to<select aria-label="Assigned to" className={select} value={form.assignedStaffId} onChange={e => setForm({ ...form, assignedStaffId: e.target.value })}>
         <option value="">Anyone</option>{(staff.data || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
       <label>Note<Input aria-label="Callback note" className="mt-1" maxLength={1000} value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="For example: seat foam ordered from Acme, due Friday" /></label>
-      <div className="sm:col-span-2 flex gap-2">
+      <div className="field-full flex gap-2">
         <Button size="sm" disabled={busy || !form.typeId || !form.dueDate} data-testid="button-save-callback" onClick={() => run(async () => {
           await apiRequest("POST", url, { typeId: Number(form.typeId), dueDate: form.dueDate, assignedStaffId: form.assignedStaffId ? Number(form.assignedStaffId) : null, note: form.note || null });
           setForm(null);

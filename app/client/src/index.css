@@ -204,6 +204,27 @@
   }
 }
 
+/*
+ * Form rows sized to their contents (owner request): a date box is as wide as a date, a status list as wide
+ * as its longest choice, a money box as wide as a price. Fields wrap onto the next line instead of stretching.
+ * Text boxes (names, titles, descriptions) are wider; text areas take the whole row. On a phone the fields
+ * fill the row, two small ones side by side where they fit.
+ */
+@layer components {
+  .field-row { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: flex-start; }
+  .field-row > * { flex: 1 1 9rem; min-width: 0; }
+  .field-row > :is(.field-wide, :has(input:not([type]):not([inputmode]), input[type="text"]:not([inputmode]), input[type="email"], input[type="search"])) { flex: 1 1 16rem; }
+  .field-row > :is(.field-full, :has(textarea)) { flex: 1 1 100%; }
+  @media (min-width: 640px) {
+    .field-row > * { flex: 0 1 auto; min-width: 10rem; max-width: 20rem; }
+    .field-row > :has(input[inputmode], input[type="number"]):not(:has(select, textarea, button[role="combobox"])) { width: 9rem; min-width: 7rem; }
+    .field-row > :has(input[type="date"], input[type="time"]) { width: 11rem; }
+    .field-row > :is(.field-wide, :has(input:not([type]):not([inputmode]), input[type="text"]:not([inputmode]), input[type="email"], input[type="search"])) { flex: 1 1 16rem; max-width: 30rem; }
+    .field-row > :is(.field-full, :has(textarea)) { flex: 1 1 100%; max-width: 60rem; }
+    .field-row > .field-auto { width: auto; min-width: 0; max-width: none; }
+  }
+}
+
 /**
  * Using the elevate system.
  * Automatic contrast adjustment.

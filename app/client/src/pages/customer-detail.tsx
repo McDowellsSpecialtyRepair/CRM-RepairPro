@@ -337,7 +337,7 @@ export default function CustomerDetail() {
                     {saveVehicle.isError&&<p role="alert" className="text-sm text-destructive">{saveVehicle.error.message}</p>}
 
                     {/* Manual fields */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="field-row">
                       <div>
                         <Label htmlFor="v-year">Year</Label>
                         <Input id="v-year" value={vehicleForm.year} onChange={(e) => setVehicleForm({...vehicleForm, year: e.target.value})} placeholder="e.g. 2021" />
@@ -467,7 +467,7 @@ export default function CustomerDetail() {
         <Dialog open={assetOpen} onOpenChange={setAssetOpen}>
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>Add Furniture or Commercial Item</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="field-row">
               <div>
                 <Label>Type</Label>
                 <Select value={assetForm.assetType} onValueChange={(v) => setAssetForm({ ...assetForm, assetType: v })}>

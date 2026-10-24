@@ -62,8 +62,8 @@ export function DiscountEditor({ estimate, locked, onEditingChange }: { estimate
         {active.map(c => <option key={c.id} value={c.code}>{c.code}: {c.description} ({c.kind === "percent" ? `${c.amount}% off labor` : `${money(c.amount)} off labor`})</option>)}
       </select></label>
     {codes.error && <p role="alert" className="text-destructive">Discount codes could not load. You can still enter a discount by hand.</p>}
-    {!chosen && <div className="grid gap-2 sm:grid-cols-2">
-      <label className="block sm:col-span-2">Description (printed on the estimate)
+    {!chosen && <div className="field-row">
+      <label className="block field-full">Description (printed on the estimate)
         <Input aria-label="Discount description" className="mt-1" maxLength={200} value={note} onChange={e => setNote(e.target.value)} placeholder="For example: Returning customer" /></label>
       <label className="block">Type
         <select aria-label="Discount type" className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={kind} onChange={e => setKind(e.target.value as any)}>

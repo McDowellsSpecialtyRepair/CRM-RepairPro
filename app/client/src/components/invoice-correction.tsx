@@ -66,14 +66,14 @@ export function InvoiceCorrection({ invoice }: { invoice: any }) {
         <Button type="button" variant="ghost" className="sm:col-span-1" aria-label={`Remove line ${i + 1}`} disabled={draft.lines.length === 1} onClick={() => setDraft({ ...draft, lines: draft.lines.filter((_, j) => j !== i) })}><Trash2 className="h-4 w-4" /></Button>
       </div>)}</div>
       <Button type="button" size="sm" variant="outline" onClick={() => setDraft({ ...draft, lines: [...draft.lines, { description: "", quantity: 1, unitPrice: 0, lineType: "labor" }] })} data-testid="button-add-correction-line"><Plus className="h-4 w-4 mr-1" />Add line</Button>
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="field-row">
         <label>Discount ($)<NumberInput aria-label="Invoice discount" className="mt-1" value={draft.discount} onValueChange={n => setDraft({ ...draft, discount: n })} /></label>
-        <label className="sm:col-span-2">Discount description<Input aria-label="Invoice discount description" className="mt-1" value={draft.discountNote} onChange={e => setDraft({ ...draft, discountNote: e.target.value })} /></label>
+        <label className="field-full">Discount description<Input aria-label="Invoice discount description" className="mt-1" value={draft.discountNote} onChange={e => setDraft({ ...draft, discountNote: e.target.value })} /></label>
         <label>Tax rate (%)<NumberInput aria-label="Invoice tax rate" className="mt-1" value={draft.taxRate} onValueChange={n => setDraft({ ...draft, taxRate: n })} /></label>
         <label>Invoice date<Input aria-label="Invoice date" type="date" className="mt-1" value={draft.issueDate} onChange={e => setDraft({ ...draft, issueDate: e.target.value })} /></label>
         <label>Due date<Input aria-label="Invoice due date" type="date" className="mt-1" value={draft.dueDate} onChange={e => setDraft({ ...draft, dueDate: e.target.value })} /></label>
-        <label className="sm:col-span-3">Notes on the invoice<Input aria-label="Invoice notes" className="mt-1" value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} /></label>
-        <label className="sm:col-span-3">Reason for the correction (required, kept in the history)<Input aria-label="Correction reason" className="mt-1" maxLength={500} value={draft.reason} onChange={e => setDraft({ ...draft, reason: e.target.value })} placeholder="For example: customer approved extra seat repair on site" /></label>
+        <label className="field-full">Notes on the invoice<Input aria-label="Invoice notes" className="mt-1" value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} /></label>
+        <label className="field-full">Reason for the correction (required, kept in the history)<Input aria-label="Correction reason" className="mt-1" maxLength={500} value={draft.reason} onChange={e => setDraft({ ...draft, reason: e.target.value })} placeholder="For example: customer approved extra seat repair on site" /></label>
       </div>
       <p className="text-muted-foreground">Lines subtotal {money(subtotal)}. Tax, totals, technician production and sales credit are recalculated when you save, the same way as when the invoice was issued. The total can't go below what has already been paid.</p>
       <div className="flex gap-2"><Button size="sm" disabled={busy} onClick={save} data-testid="button-save-correction">{busy ? "Saving…" : "Save correction"}</Button><Button size="sm" variant="ghost" onClick={() => setDraft(null)}>Cancel</Button></div>

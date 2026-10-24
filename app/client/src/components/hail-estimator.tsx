@@ -41,7 +41,7 @@ export function HailEstimator({estimate,vehicle,onAdd}:{estimate:any;vehicle?:an
     <label className="block text-sm">Panel<select className={control} aria-label="Hail panel" value={draft.panelId} onChange={e=>choose(e.target.value)}>{Object.entries(PANELS).map(([id,[name]])=><option key={id} value={id}>{name}</option>)}{!PANELS[draft.panelId]&&<option value={draft.panelId}>{draft.panelName}</option>}</select></label>
     {!draft.matrixPanel&&<p role="status" className="text-sm">No verified automatic mapping for this panel. Enter a documented manual amount; do not substitute a different panel without claim approval.</p>}
     {existing.length>0&&<p className="text-sm rounded-md border p-3">This estimate already has {existing.length} line(s) for {draft.panelName}. Review existing charges to avoid duplicate billing. Added amounts are additional, not replacements.</p>}
-    <div className="grid sm:grid-cols-2 gap-3">
+    <div className="field-row">
       <label className="text-sm">Regular dent count<NumberInput className={control} decimals={false} aria-label="Regular dent count" value={draft.count} onValueChange={n=>patch({count:Math.min(9999,n)})}/></label>
       <label className="text-sm">Majority regular dent size<select className={control} aria-label="Hail dent size" value={draft.size} onChange={e=>patch({size:e.target.value})}>{HAIL_SIZES.map(s=><option key={s} value={s}>{s.replace("_"," ")}</option>)}</select></label>
       <label className="text-sm">Panel base override (USD)<input className={control} inputMode="decimal" aria-label="Hail base override" placeholder="Published rate when available" value={draft.baseOverride??""} onChange={e=>patch({baseOverride:e.target.value===""?null:Number(e.target.value),upcharge:"none"})}/></label>

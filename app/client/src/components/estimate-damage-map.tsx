@@ -200,7 +200,7 @@ function StandardDamageMap({ estimate, vehicle, asset, matrices, onAdd }: Props)
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="field-row">
           {(isHail || isPdr || isAutoInterior) && (
             <div>
               <Label className="text-xs">Body style{vehicle ? ` (from ${vehicle.year || ""} ${vehicle.make || ""} ${vehicle.model || ""})` : ""}</Label>
@@ -261,8 +261,10 @@ function StandardDamageMap({ estimate, vehicle, asset, matrices, onAdd }: Props)
         {unpriced && <p role="alert" className="text-sm text-amber-700">Enter an explicit unit price for missing, quote-required or out-of-range prices before adding. Enter 0 only for an intentional no-charge item.</p>}
         {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
 
+        {/* Wide screens: the diagram on the left, the chosen panel and the marked list on the right */}
+        <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
         {/* Splat */}
-        <div className="rounded-md border border-border bg-muted/20 p-2">
+        <div className="rounded-md border border-border bg-muted/20 p-2 min-w-0">
           <div>
             {(isHail || isPdr || isAutoInterior) ? (
               <VehicleSplat vehicleType={bodyType} view={vehicleView} damages={marks.map((m) => ({ panelId: m.panelId, panelName: m.panelName, damageCount: m.count, severity: m.severity }))} onPanelClick={onPanelClick} selectedPanel={selected} />
@@ -272,6 +274,7 @@ function StandardDamageMap({ estimate, vehicle, asset, matrices, onAdd }: Props)
           </div>
         </div>
 
+        <div className="space-y-4 min-w-0">
         {/* Selected panel editor */}
         {sel && (
           <div className="rounded-md border border-primary/50 bg-primary/5 p-3 space-y-3" data-testid="panel-editor">
@@ -279,7 +282,7 @@ function StandardDamageMap({ estimate, vehicle, asset, matrices, onAdd }: Props)
               <span className="text-sm font-semibold">{sel.panelName}</span>
               <Button size="sm" variant="ghost" onClick={() => remove(sel.panelId)}><Trash2 className="h-4 w-4 mr-1" /> Remove</Button>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="field-row">
               <div>
                 <Label className="text-xs">{isHail || isPdr ? "Dent count" : isUpholsteryPricing || reupholstering(sel) ? "Pieces / qty" : "Damage spots"}</Label>
                 <div className="flex items-center gap-1">
@@ -372,8 +375,10 @@ function StandardDamageMap({ estimate, vehicle, asset, matrices, onAdd }: Props)
             </div>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-2">{done || "No panels marked yet"}</p>
+          <p className="text-sm text-muted-foreground text-center py-2">{done || "No panels marked yet. Tap a panel on the diagram."}</p>
         )}
+        </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -406,7 +411,7 @@ export function TintMatrixPicker({ vehicle, matrices, onAdd }: { vehicle?: any; 
         <p className="text-xs text-muted-foreground">Choose film and windows; prices come from the tint pricing matrix.</p>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="field-row">
           <div><Label className="text-xs">Vehicle</Label>
             <Select value={cat} onValueChange={setCat}><SelectTrigger data-testid="select-tint-vehicle"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="sedan">Sedan</SelectItem><SelectItem value="suv">SUV</SelectItem><SelectItem value="truck">Truck</SelectItem></SelectContent></Select></div>

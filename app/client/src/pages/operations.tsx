@@ -821,7 +821,7 @@ function FollowupEditor({ estimate: e, owners, onClose, canEdit }: any) {
         <Link className="text-sm underline" href={`/estimates/${e.id}`}>Open full estimate & assignments</Link>
         <fieldset
           disabled={!canEdit || busy}
-          className="grid sm:grid-cols-2 gap-3"
+          className="field-row"
         >
           <SelectField
             label="Responsible advisor"
@@ -1009,7 +1009,7 @@ function ProductionEditor({ record: c, refresh }: any) {
           <h2 className="font-semibold">Production, readiness & promise</h2>
           <fieldset
             disabled={!edit || busy}
-            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3"
+            className="field-row"
           >
             <SelectField
               label="Production technician group"
@@ -1189,7 +1189,7 @@ function ProductionEditor({ record: c, refresh }: any) {
                       .map((t) => ({ value: t.id, label: t.name })),
                   ]}
                 />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="field-row">
                   <Field
                     label="Work date"
                     type="date"
@@ -1335,7 +1335,7 @@ function TaskEditor({ task: t, disabled, refresh }: any) {
           {t.completed_at ? "Completed" : "Unfinished"}
         </span>
       </div>
-      <div className="grid sm:grid-cols-2 gap-3">
+      <div className="field-row">
         <Field
           label={`Estimated minutes: ${t.description}`}
           type="number"

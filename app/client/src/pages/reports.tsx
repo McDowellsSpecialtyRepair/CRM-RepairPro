@@ -110,7 +110,7 @@ export default function Reports() {
         <div className="mt-5 space-y-3">
           <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={config.compare} onChange={e => patch({ compare: e.target.checked })} />Compare totals with the preceding equal-length period</label>
           <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={!!config.formula} onChange={e => patch({ formula: e.target.checked ? { name: "My calculation", left: Object.keys(def.metrics)[0], right: Object.keys(def.metrics)[0], op: "/" } : undefined })} />Add a calculated measure</label>
-          {config.formula && <><div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+          {config.formula && <><div className="field-row">
             <Input aria-label="Calculation name" maxLength={60} value={config.formula.name} onChange={e => patch({ formula: { ...config.formula!, name: e.target.value } })} />
             <select aria-label="Calculation first measure" className={selectClass} value={config.formula.left} onChange={e => patch({ formula: { ...config.formula!, left: e.target.value } })}>{Object.entries(def.metrics).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}</select>
             <select aria-label="Calculation operator" className={selectClass} value={config.formula.op} onChange={e => patch({ formula: { ...config.formula!, op: e.target.value as any } })}><option value="+">Add (+)</option><option value="-">Subtract (−)</option><option value="*">Multiply (×)</option><option value="/">Divide (÷)</option><option value="%">Ratio (%)</option></select>
@@ -121,7 +121,7 @@ export default function Reports() {
       <div className="flex flex-wrap items-center gap-3"><Button onClick={() => run()} disabled={busy}><Play className="h-4 w-4 mr-2" />{busy ? "Running…" : "Run report"}</Button><Button variant="ghost" onClick={() => setConfig(defaultReport(config.source))}>Reset options</Button>{dirty && <span className="text-sm text-muted-foreground">Options changed. Run to update results.</span>}</div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     </CardContent></Card>
-    <Card><CardContent className="pt-4"><div className="grid gap-3 sm:grid-cols-3 items-end">
+    <Card><CardContent className="pt-4"><div className="field-row items-end">
       <label className="text-sm">Saved layouts<select aria-label="Saved layouts" className={selectClass} value="" onChange={e => { const r = saved.data?.find(r => String(r.id) === e.target.value); if (r) { setConfig(r.config); void run(r.config); } }}><option value="">Choose a saved layout</option>{(saved.data || []).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
       <label className="text-sm">Save these options as<Input aria-label="Report name" placeholder="e.g. Dealer sales by month" maxLength={80} value={name} onChange={e => setName(e.target.value)} /></label>
       <Button variant="outline" onClick={save} disabled={!name.trim()}><Save className="h-4 w-4 mr-2" />Save layout</Button>

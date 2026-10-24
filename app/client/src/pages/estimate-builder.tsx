@@ -428,6 +428,8 @@ export default function EstimateBuilder() {
       {/* 1. Estimate information, customer and vehicle */}
       <section aria-labelledby="estimate-section-1" className="space-y-2" data-testid="estimate-section-1">
       <SectionHeading id="estimate-section-1" n={1}>Estimate information, customer and vehicle</SectionHeading>
+      {/* Wide screens: estimate details on the left, people, marketing tags and callbacks beside them */}
+      <div className="grid gap-2 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-start">
       <Card>
         <CardContent className="p-6">
           <div className="flex items-start justify-between flex-wrap gap-4">
@@ -521,9 +523,12 @@ export default function EstimateBuilder() {
           </div>
         </CardContent>
       </Card>
+      <div className="space-y-2 min-w-0">
       <EstimatePeople key={`people-${estimate.id}`} kind="estimates" id={estimate.id} locked={estimate.status === "invoiced"} onDirtyChange={setSalesDirty} />
       <EstimateMarketing key={`marketing-${estimate.id}`} estimateId={estimate.id} customerId={estimate.customerId} locked={estimate.status === "invoiced"} onDirtyChange={setMarketingDirty} />
       <CallbacksCard key={`callbacks-${estimate.id}`} kind="estimates" id={estimate.id} />
+      </div>
+      </div>
       </section>
 
       {/* 2. Vehicle damage mapping and individual dent details */}
@@ -659,7 +664,7 @@ export default function EstimateBuilder() {
                 </div>
                 <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={()=>handleCategoryChange(defaultCategoryFor[estimate.serviceType])}>Repair labor</Button><Button variant="outline" onClick={()=>handleCategoryChange("material")}>Materials</Button><Button variant="outline" onClick={()=>handleCategoryChange("freight_in")}>Freight</Button></div>
                 <p className="text-xs text-muted-foreground">Customer unit price is what you charge. Purchase unit cost is internal. Materials and freight do not receive technician labor credit. Current sales-tax treatment: {categoryTaxable(newItem.serviceCategory,newItem.lineType)?"taxable unless customer exempt":"not taxable"}.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="field-row">
                   <label className="text-xs">Charge type<select aria-label="New line charge type" className="mt-1 h-10 w-full border rounded bg-background px-2" value={newItem.lineType} onChange={e=>handleCategoryChange(e.target.value==="parts"?"material":defaultCategoryFor[estimate.serviceType])}><option value="labor">Labor</option><option value="parts">Materials / freight / supplies</option></select></label>
                   <div className="space-y-1">
                     <Label className="text-[10px] text-muted-foreground">Category</Label>

@@ -229,7 +229,7 @@ export default function InvoiceDetail() {
               <CardTitle className="text-base">Record Payment</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="field-row">
                 <div>
                   <label htmlFor="payment-amount" className="text-xs text-muted-foreground mb-1 block">Amount</label>
                   <NumberInput

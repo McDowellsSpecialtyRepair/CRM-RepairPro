@@ -47,18 +47,18 @@ export function WorkPlanning({ kind, id }: { kind: "jobs" | "estimates"; id: num
     {kind === "estimates" && p.jobId && <p className="text-sm">These fields are shared with the linked work order. Changes here also appear there.</p>}
     <form onSubmit={save} className="space-y-4">
       <fieldset disabled={!editable || busy} className="space-y-4">
-        {kind === "jobs" && <div className="grid gap-4 sm:grid-cols-2">
+        <div className="field-row">
+        {kind === "jobs" && <>
           <label className="text-sm">Repair title<Input aria-label="Repair title" className="mt-1" maxLength={250} required value={p.title || ""} onChange={e => change("title", e.target.value)} /></label>
           <label className="text-sm">Work order status<select aria-label="Work order status" className={selectClass} value={p.status} onChange={e => change("status", e.target.value)}>{["pending","scheduled","in_progress","completed","cancelled"].map(s => <option key={s} value={s}>{s.replaceAll("_", " ")}</option>)}</select></label>
-          <label className="text-sm sm:col-span-2">Repair description / instructions<Textarea aria-label="Repair description" className="mt-1 min-h-24" maxLength={10000} value={p.description || ""} onChange={e => change("description", e.target.value || null)} /></label>
-        </div>}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <label className="text-sm field-full order-last">Repair description / instructions<Textarea aria-label="Repair description" className="mt-1 min-h-16" rows={2} maxLength={10000} value={p.description || ""} onChange={e => change("description", e.target.value || null)} /></label>
+        </>}
           <label className="text-sm">Planned schedule date<Input aria-label="Planned schedule date" type="date" className="mt-1 [color-scheme:light] dark:[color-scheme:dark]" value={p.scheduledDate || ""} onChange={e => change("scheduledDate", e.target.value || null)} /></label>
           <label className="text-sm">Lead technician<select aria-label="Lead technician" className={selectClass} value={p.assignedTechId ?? ""} onChange={e => change("assignedTechId", e.target.value ? Number(e.target.value) : null)}>
             <option value="">Unassigned</option>
             {(techs.data || []).filter(t => t.status === "active" || t.id === p.assignedTechId).map(t => <option key={t.id} value={t.id}>{t.name}{t.status !== "active" ? " (inactive)" : ""}</option>)}
           </select>{!p.assignedTechId && p.assignedTech && <span className="text-xs">Legacy assignment: {p.assignedTech}</span>}</label>
-          <div className="text-sm">Salesperson<p className="mt-1 h-10 flex items-center rounded-md border border-dashed px-3 text-muted-foreground" data-testid="planning-salesperson">{p.salesPerson || "Not assigned"}</p><span className="text-xs text-muted-foreground">Change it under "People" at the top.</span></div>
+          <div className="text-sm max-w-56">Salesperson<p className="mt-1 h-10 flex items-center rounded-md border border-dashed px-3 text-muted-foreground" data-testid="planning-salesperson">{p.salesPerson || "Not assigned"}</p><span className="text-xs text-muted-foreground">Change it under "People" at the top.</span></div>
           <label className="text-sm">Repair urgency<select aria-label="Repair urgency" className={selectClass} value={p.priority} onChange={e => change("priority", e.target.value)}>{["low","normal","high","urgent"].map(s => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}</select></label>
         </div>
       </fieldset>
@@ -103,14 +103,14 @@ function BookedAppointments({ slots, techs, canMove, onMoved }: { slots: any[]; 
       <span>{s.date} · {s.startTime}–{s.endTime} · {name(s.technicianId)} · {s.status.replaceAll("_", " ")}</span>
       {canMove && !moving && <Button type="button" size="sm" variant="outline" onClick={() => { setError(""); setDone(""); setMoving({ ...s, technicianId: String(s.technicianId) }); }} data-testid={`button-move-slot-${s.id}`}>Move</Button>}
     </div>)}
-    {moving && <div className="grid gap-2 sm:grid-cols-4 rounded-md border p-2" data-testid="move-slot-form">
+    {moving && <div className="field-row rounded-md border p-2" data-testid="move-slot-form">
       <label>Day<Input aria-label="New day" type="date" className="mt-1" value={moving.date} onChange={e => setMoving({ ...moving, date: e.target.value })} /></label>
       <label>Start<Input aria-label="New start time" type="time" className="mt-1" value={moving.startTime} onChange={e => setMoving({ ...moving, startTime: e.target.value })} /></label>
       <label>End<Input aria-label="New end time" type="time" className="mt-1" value={moving.endTime} onChange={e => setMoving({ ...moving, endTime: e.target.value })} /></label>
       <label>Technician<select aria-label="New technician" className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-2" value={moving.technicianId} onChange={e => setMoving({ ...moving, technicianId: e.target.value })}>
         {techs.filter(t => t.status !== "inactive").map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
-      {/Parts for this job are still outstanding/.test(error) && <label className="sm:col-span-4 flex items-center gap-2"><input type="checkbox" checked={!!moving.partsOverride} onChange={e => setMoving({ ...moving, partsOverride: e.target.checked })} /> Book anyway: I'm sure the parts will be here in time</label>}
-      <div className="sm:col-span-4 flex gap-2"><Button type="button" size="sm" disabled={busy} onClick={save} data-testid="button-save-move">{busy ? "Moving…" : "Move appointment"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setMoving(null)}>Cancel</Button></div>
+      {/Parts for this job are still outstanding/.test(error) && <label className="field-full flex items-center gap-2"><input type="checkbox" checked={!!moving.partsOverride} onChange={e => setMoving({ ...moving, partsOverride: e.target.checked })} /> Book anyway: I'm sure the parts will be here in time</label>}
+      <div className="field-full flex gap-2"><Button type="button" size="sm" disabled={busy} onClick={save} data-testid="button-save-move">{busy ? "Moving…" : "Move appointment"}</Button><Button type="button" size="sm" variant="ghost" onClick={() => setMoving(null)}>Cancel</Button></div>
     </div>}
     {error && <p role="alert" className="text-destructive">{error}</p>}
     {done && <p role="status" className="text-primary">{done}</p>}
